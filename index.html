@@ -17,6 +17,7 @@
     <div id="hud"><span id="wood"></span></div>
 
     <div id="menu">
+      <button id="soundBtn" title="sound (M)">sound on</button>
       <button id="journalBtn" title="journal (J)">journal</button>
       <button id="fullBtn" title="fullscreen">fullscreen</button>
       <button id="restartBtn" title="start over">restart</button>
@@ -27,6 +28,8 @@
     <div id="actions">
       <button id="stoke" class="act" title="costs 1 wood (S)"><span class="label">light fire</span></button>
       <button id="gather" class="act hidden" title="(G)"><span class="label">gather wood</span></button>
+      <button id="traps" class="act hidden" title="(T)"><span class="label">check traps</span></button>
+      <button id="buildBtn" class="act hidden" title="(B)"><span class="label">build</span></button>
     </div>
 
     <div id="dialogue" class="hidden">
@@ -37,7 +40,16 @@
       </div>
     </div>
 
-    <div id="journal" class="hidden">
+    <div id="build" class="overlay hidden">
+      <div class="panel">
+        <h2>build</h2>
+        <p class="sub">the stranger can make these, if you bring the materials.</p>
+        <ul id="buildList"></ul>
+        <button id="buildClose">close</button>
+      </div>
+    </div>
+
+    <div id="journal" class="overlay hidden">
       <div class="panel">
         <h2>journal</h2>
         <ol id="journalList"></ol>

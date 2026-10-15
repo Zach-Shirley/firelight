@@ -2,6 +2,8 @@
 // The pixel layer is drawn at 320x180 and scaled up with crisp pixels.
 // The light layer runs at full screen resolution so the glow stays smooth.
 
+import * as sfx from './sound.js';
+
 const W = 320, H = 180;
 const FIRE = { x: 160, y: 136 };          // base of the flames
 const LIGHT_Y = 130;                       // centre of the light pool
@@ -9,9 +11,11 @@ const ELLIPSE = 0.8;                       // light pool is a little squashed
 
 const FIRE_NAMES = ['dead', 'smoldering', 'flickering', 'burning', 'roaring'];
 const LIGHT_R = [14, 42, 70, 102, 142];
-const FIRE_DECAY = 30;                     // seconds per fire level
+const FIRE_DECAY = 30;                     // seconds per fire level (40 with the rug)
 const STOKE_CD = 6;
 const GATHER_CD = 12;
+const TRAPS_CD = 25;
+const LANTERN = { x: 240, y: 70 };
 const STRANGER_WARMTH = 40;                // seconds of a decent fire before the knock
 const SAVE_KEY = 'firelight-save-v1';
 
@@ -27,6 +31,9 @@ const ui = {
   dialogue: $('dialogue'), dlgText: $('dlgText'), dlgChoices: $('dlgChoices'),
   portrait: $('portrait'),
   journal: $('journal'), journalList: $('journalList'),
+  traps: $('traps'), build: $('buildBtn'),
+  buildPanel: $('build'), buildList: $('buildList'),
+  sound: $('soundBtn'),
 };
 
 const rand = (a, b) => a + Math.random() * (b - a);
@@ -40,11 +47,15 @@ function freshState() {
     v: 1,
     time: 0,
     wood: 4,
+    fur: 0,
+    meat: 0,
+    teeth: 0,
+    built: { trap: 0, cart: 0, boards: 0, rug: 0, lantern: 0 },
     fire: 0,
     decay: FIRE_DECAY,
     lit: false,
     deadFor: 0,
-    cd: { stoke: 0, gather: 0 },
+    cd: { stoke: 0, gather: 0, traps: 0 },
     warmth: 0,
     darkTime: 0,
     stealTimer: 25,
@@ -55,6 +66,10 @@ function freshState() {
     talked: false,
     helperTimer: 15,
     helperCount: 0,
+    visitTimer: 45,
+    lastVisit: '',
+    giftTimer: -1,
+    sound: true,
     log: [],
   };
 }
@@ -64,7 +79,10 @@ function load() {
     const raw = localStorage.getItem(SAVE_KEY);
     if (!raw) return null;
     const s = JSON.parse(raw);
-    if (s && s.v === 1) return Object.assign(freshState(), s);
+    if (s && s.v === 1) {
+      const f = freshState();
+      return Object.assign(f, s, { cd: Object.assign(f.cd, s.cd), built: Object.assign(f.built, s.built) });
+    }
   } catch (e) { /* storage unavailable or corrupt: start fresh */ }
   return null;
 }
@@ -89,6 +107,11 @@ let walker = null;         // stranger walking in: { x, y, step }
 let introTimer = S.time === 0 ? 0.8 : -1;
 let saveTimer = 3;
 let huddleSaid = false;
+let pendingVisit = null;   // { id, t } a visitor about to appear
+let doorCloseIn = -1;
+let windowFace = 0;        // seconds the face stays in the window
+let shake = 0;
+let buildRefresh = '';  // last build-panel state, to re-render only on change
 const snow = Array.from({ length: 10 }, () => ({ x: rand(45, 76), y: rand(35, 66), v: rand(3, 7) }));
 
 /* --------------------------------------------------------------- messages */
@@ -97,6 +120,8 @@ function say(text) {
   S.log.push(text);
   if (S.log.length > 60) S.log.shift();
   msgQueue.push(text);
+  // keep the line current; older lines are still in the journal
+  if (msgQueue.length > 2) msgQueue.shift();
   if (!ui.journal.classList.contains('hidden')) renderJournal();
 }
 
@@ -124,7 +149,7 @@ function stoke() {
   S.wood -= 1;
   const was = S.fire;
   S.fire = S.fire === 0 ? 2 : Math.min(4, S.fire + 1);
-  S.decay = FIRE_DECAY;
+  S.decay = decayTime();
   S.cd.stoke = STOKE_CD;
   S.deadFor = 0;
   huddleSaid = false;
@@ -138,8 +163,11 @@ function stoke() {
     say(`the fire is ${FIRE_NAMES[S.fire]}.`);
   }
   for (let i = 0; i < 18; i++) spawnEmber(true);
+  sfx.crackle(4);
   save();
 }
+
+function decayTime() { return S.built.rug ? 40 : FIRE_DECAY; }
 
 const GATHER_LINES = [
   'dry branches, half buried in snow.',
@@ -151,11 +179,86 @@ const GATHER_LINES = [
 
 function gather() {
   if (S.cd.gather > 0 || dialog || !S.lit) return;
-  const n = 2 + Math.floor(Math.random() * 3);
+  const n = (2 + Math.floor(Math.random() * 3)) * (S.built.cart ? 2 : 1);
   S.wood += n;
   S.cd.gather = GATHER_CD;
-  say(`${pick(GATHER_LINES)} +${n} wood`);
+  say(`${S.built.cart && Math.random() < 0.4 ? 'the cart groans under the load.' : pick(GATHER_LINES)} +${n} wood`);
   save();
+}
+
+function checkTraps() {
+  if (S.cd.traps > 0 || dialog || !S.built.trap) return;
+  const got = { fur: 0, meat: 0, teeth: 0 };
+  for (let i = 0; i < S.built.trap; i++) {
+    const r = Math.random();
+    if (r < 0.2) continue;
+    if (r < 0.62) got.fur += 1;
+    else if (r < 0.88) got.meat += 1;
+    else got.teeth += 1;
+  }
+  S.cd.traps = TRAPS_CD;
+  const parts = Object.entries(got).filter(([, n]) => n > 0).map(([k, n]) => `${n} ${k}`);
+  if (!parts.length) {
+    say(pick(['the traps are empty. something got there first.', 'empty traps. the snow around them is churned up.']));
+  } else {
+    for (const k in got) S[k] += got[k];
+    say(`the traps hold: ${parts.join(', ')}.`);
+  }
+  save();
+}
+
+/* ------------------------------------------------------------------ build */
+
+const BUILDS = [
+  { id: 'trap', name: 'trap', max: 6, desc: 'catches things in the snow. check them for fur, meat and teeth.',
+    cost: () => ({ wood: 8 + 4 * S.built.trap }), line: 'the stranger sets a trap out in the snow.' },
+  { id: 'cart', name: 'cart', max: 1, desc: 'haul twice as much wood from the forest.',
+    cost: () => ({ wood: 25 }), line: 'the stranger knocks together a rickety cart.' },
+  { id: 'boards', name: 'window boards', max: 1, desc: 'nail the window shut. nothing looks in.',
+    cost: () => ({ wood: 10 }), line: 'the window is boarded up. it helps. a little.' },
+  { id: 'rug', name: 'fur rug', max: 1, desc: 'keeps the warmth in. the fire burns down slower.',
+    cost: () => ({ fur: 6 }), line: 'the stranger lays a fur rug by the fire. it smells like the forest.' },
+  { id: 'lantern', name: 'lantern', max: 1, desc: 'a second light by the door. the dark keeps its distance.',
+    cost: () => ({ wood: 10, meat: 3, teeth: 1 }), line: 'the stranger hangs a lantern by the door. it burns fat and smells awful.' },
+];
+
+const canAfford = (cost) => Object.entries(cost).every(([k, n]) => S[k] >= n);
+const costText = (cost) => Object.entries(cost).map(([k, n]) => `${n} ${k}`).join(', ');
+
+function build(id) {
+  const b = BUILDS.find((x) => x.id === id);
+  if (!b || S.built[id] >= b.max || dialog) return;
+  const cost = b.cost();
+  if (!canAfford(cost)) return;
+  for (const k in cost) S[k] -= cost[k];
+  S.built[id] += 1;
+  say(b.line);
+  sfx.chime();
+  renderBuild();
+  save();
+}
+
+function renderBuild() {
+  ui.buildList.innerHTML = '';
+  for (const b of BUILDS) {
+    const li = document.createElement('li');
+    const done = S.built[b.id] >= b.max;
+    const cost = b.cost();
+    const count = b.max > 1 ? ` <span class="dim">${S.built[b.id]}/${b.max}</span>` : '';
+    li.innerHTML = `<div class="row"><span class="name">${b.name}${count}</span>
+      <button ${done || !canAfford(cost) || dialog ? 'disabled' : ''}>${done ? 'built' : 'build'}</button></div>
+      <div class="desc">${b.desc}</div>
+      ${done ? '' : `<div class="cost">${costText(cost)}</div>`}`;
+    li.querySelector('button').addEventListener('click', () => build(b.id));
+    ui.buildList.appendChild(li);
+  }
+}
+
+function toggleBuild(force) {
+  if (!S.talked && force !== false) return;
+  const open = force ?? ui.buildPanel.classList.contains('hidden');
+  ui.buildPanel.classList.toggle('hidden', !open);
+  if (open) { toggleJournal(false); renderBuild(); }
 }
 
 /* --------------------------------------------------------------- dialogue */
@@ -176,34 +279,133 @@ const DIALOGUES = {
     ],
   },
   talk: {
-    text: 'The stranger turns from the fire. Her voice is rough. "Keep this fire alive and I\'ll keep it fed. The forest doesn\'t scare me." She glances at the window. "Not the forest, anyway."',
+    text: 'The stranger turns from the fire. Her voice is rough. "Keep this fire alive and I\'ll keep it fed. Bring me what you find out there and I can build." She glances at the window. "The forest doesn\'t scare me. Not the forest, anyway."',
     choices: [
-      { label: 'deal', act: () => { S.talked = true; S.helperTimer = 10; say('the stranger will bring in wood.'); } },
+      { label: 'deal', act: () => { S.talked = true; S.helperTimer = 10; say('the stranger will bring in wood. she can build things, too.'); } },
+    ],
+  },
+  nomad: {
+    portrait: 'nomad', door: 'nomad',
+    text: 'A nomad ducks under the doorframe, snow on his shoulders and a huge bundle of furs on his back. "Cold night to be alone," he says. "Trade?"',
+    choices: [
+      { label: 'give 6 wood for 2 fur', can: () => S.wood >= 6, act: () => { S.wood -= 6; S.fur += 2; say('the nomad hands over two thick furs. +2 fur'); } },
+      { label: 'give 3 fur for 2 teeth', can: () => S.fur >= 3, act: () => { S.fur -= 3; S.teeth += 2; say("he drops two long teeth in your palm. you don't ask. +2 teeth"); } },
+      { label: 'give 2 teeth for 4 meat', can: () => S.teeth >= 2, act: () => { S.teeth -= 2; S.meat += 4; say('he unwraps four strips of dried meat. +4 meat'); } },
+      { label: 'not tonight', act: () => say('the nomad shrugs and walks back into the snow.') },
+    ],
+  },
+  kid: {
+    portrait: 'kid', door: 'kid',
+    text: 'A thin kid stands in the doorway, hugging their elbows. "Do you have anything to eat? Anything at all?"',
+    choices: [
+      { label: 'give 2 meat', can: () => S.meat >= 2, act: () => { S.meat -= 2; S.giftTimer = 70; say('the kid eats it in about four seconds, then is gone.'); } },
+      { label: 'nothing to spare', act: () => say('the kid nods, like they expected that.') },
+    ],
+  },
+  kidGift: {
+    portrait: 'kid', door: 'kid',
+    text: 'The kid is back, standing a little straighter. They drop a bundle on the floor: furs, and a string of strange teeth. "For before," they say.',
+    choices: [
+      { label: 'thank them', act: () => { S.fur += 4; S.teeth += 3; say('the kid is already gone. +4 fur, +3 teeth'); } },
+    ],
+  },
+  tap: {
+    portrait: 'dark',
+    text: () => 'Tap. Tap. Tap. Something is knocking on the window glass, slow and patient.' + (S.stranger === 'inside' ? " The stranger doesn't turn around." : ''),
+    choices: [
+      { label: 'look', act: () => { windowFace = 1.8; shake = 0.45; sfx.sting(); } },
+      { label: "don't look", act: () => say('you stare into the fire until it stops.') },
+    ],
+  },
+  scratch: {
+    portrait: 'dark',
+    text: () => 'Something is scratching at the bottom of the door. Long, slow scrapes.' + (S.stranger === 'inside' ? ' The stranger shakes her head. "Don\'t."' : ''),
+    choices: [
+      { label: 'open the door', act: openOnScratch },
+      { label: 'throw a log on the fire', can: () => S.wood >= 1, act: () => {
+        S.wood -= 1; S.fire = Math.max(2, Math.min(4, S.fire + 1)); S.decay = decayTime(); S.lit = true; S.deadFor = 0;
+        for (let i = 0; i < 18; i++) spawnEmber(true);
+        say('the fire jumps. the scratching stops.');
+      } },
+      { label: 'wait it out', act: () => say('it goes on for a long time. then it stops.') },
     ],
   },
 };
 
+function openOnScratch() {
+  doorTarget = 1;
+  doorCloseIn = 1.6;
+  if (S.meat > 0) {
+    const lost = S.meat;
+    S.meat = 0;
+    say(`nothing there. when you turn around, the meat is gone. -${lost} meat`);
+  } else {
+    say('nothing there. just tracks in the snow, too big, leading away.');
+  }
+}
+
+const VISIT_INTRO = {
+  nomad: () => { sfx.knock(); say('someone knocks. heavy, confident.'); },
+  kid: () => { sfx.knock(2); say('a small knock. barely there.'); },
+  kidGift: () => { sfx.knock(2); say('a small knock again.'); },
+  tap: () => { sfx.tap(); say('tap. tap. tap.'); },
+  scratch: () => { sfx.scratch(); say('something is scratching at the door.'); },
+};
+
+function queueVisit(id) {
+  pendingVisit = { id, t: 2.4 };
+  VISIT_INTRO[id]();
+}
+
+function updateVisitors(dt) {
+  if (!(S.talked || S.stranger === 'gone') || walker || pendingVisit) return;
+  if (S.giftTimer > 0) {
+    S.giftTimer -= dt;
+    if (S.giftTimer <= 0) { S.giftTimer = -1; queueVisit('kidGift'); return; }
+  }
+  // the dark brings visitors sooner
+  S.visitTimer -= dt * (S.fire <= 1 && S.lit ? 2 : 1);
+  if (S.visitTimer > 0) return;
+  S.visitTimer = rand(55, 95);
+  const pool = [];
+  if (S.fire >= 1) pool.push('nomad', 'nomad');
+  if (S.fire >= 1 && S.giftTimer < 0) pool.push('kid');
+  if (S.fire <= 1 && S.lit && !S.built.boards) pool.push('tap', 'tap');
+  if (S.fire <= 1 && S.lit) pool.push('scratch');
+  const fresh = pool.filter((k) => k !== S.lastVisit);
+  const choice = pick(fresh.length ? fresh : pool);
+  if (!choice) return;
+  S.lastVisit = choice;
+  queueVisit(choice);
+}
+
 function openDialogue(id) {
   const d = DIALOGUES[id];
   dialog = id;
-  ui.dlgText.textContent = d.text;
+  toggleBuild(false);
+  toggleJournal(false);
+  ui.dlgText.textContent = typeof d.text === 'function' ? d.text() : d.text;
   ui.dlgChoices.innerHTML = '';
   d.choices.forEach((c, i) => {
     const b = document.createElement('button');
     b.innerHTML = `<span class="key">${i + 1}.</span> ${c.label}`;
+    b.disabled = c.can ? !c.can() : false;
     b.addEventListener('click', () => choose(i));
     ui.dlgChoices.appendChild(b);
   });
   ui.dialogue.classList.remove('hidden');
-  if (id === 'arrive' || id === 'return') doorTarget = 1;
+  drawPortrait(d.portrait || 'stranger');
+  if (id === 'arrive' || id === 'return' || d.door) doorTarget = 1;
 }
 
 function choose(i) {
   if (!dialog) return;
-  const c = DIALOGUES[dialog].choices[i];
-  if (!c) return;
+  const d = DIALOGUES[dialog];
+  const c = d.choices[i];
+  if (!c || (c.can && !c.can())) return;
   dialog = null;
   ui.dialogue.classList.add('hidden');
+  if (d.door) doorTarget = 0;
   c.act();
   save();
 }
@@ -247,7 +449,7 @@ function update(dt) {
       S.decay -= dt;
       if (S.decay <= 0) {
         S.fire -= 1;
-        S.decay = FIRE_DECAY;
+        S.decay = decayTime();
         say(S.fire === 0 ? 'the fire is dead.' : `the fire is ${FIRE_NAMES[S.fire]}.`);
       }
     } else if (S.lit) {
@@ -269,7 +471,26 @@ function update(dt) {
     }
 
     updateStranger(dt);
+    updateVisitors(dt);
+    if (S.fire > 0 && Math.random() < dt * S.fire * 2.5) sfx.crackle(S.fire);
   }
+
+  if (pendingVisit && !dialog) {
+    pendingVisit.t -= dt;
+    if (pendingVisit.t <= 0) { const id = pendingVisit.id; pendingVisit = null; openDialogue(id); }
+  }
+  if (doorCloseIn > 0) {
+    doorCloseIn -= dt;
+    if (doorCloseIn <= 0) doorTarget = 0;
+  }
+  if (windowFace > 0) {
+    windowFace -= dt;
+    if (windowFace <= 0) {
+      S.teeth += 3;
+      say("it's gone. on the sill outside, a neat little pile of teeth. +3 teeth");
+    }
+  }
+  shake = Math.max(0, shake - dt);
 
   // the light pool grows and shrinks smoothly with the fire
   dispR += (targetRadius() - dispR) * Math.min(1, dt * 1.8);
@@ -294,6 +515,7 @@ function updateStranger(dt) {
   if (S.stranger === 'waiting' && S.warmth >= STRANGER_WARMTH) {
     S.stranger = 'knocking';
     knockTimer = 2.5;
+    sfx.knock();
     say('someone is knocking at the door.');
   }
   if (S.stranger === 'knocking') {
@@ -305,6 +527,7 @@ function updateStranger(dt) {
     if (S.strangerTimer <= 0) {
       S.stranger = 'knocking';
       knockTimer = 2.5;
+      sfx.knock(3, true);
       say('a knock. slower this time.');
     }
   }
@@ -349,7 +572,7 @@ function updateWalker(dt) {
 
 // Places in the room where something could be watching from.
 const EYE_SPOTS = [
-  { x: 48, y: 42, w: 24, h: 18, weight: 3 },    // window
+  { x: 48, y: 42, w: 24, h: 18, weight: 3, window: true },    // window
   { x: 8, y: 20, w: 28, h: 80, weight: 2 },     // left wall
   { x: 294, y: 20, w: 20, h: 80, weight: 2 },   // right wall
   { x: 90, y: 8, w: 140, h: 14, weight: 1 },    // up near the ceiling
@@ -357,6 +580,10 @@ const EYE_SPOTS = [
   { x: 255, y: 150, w: 55, h: 22, weight: 2 },  // front-right floor
   { x: 226, y: 30, w: 24, h: 60, weight: 1 },   // beside the door
 ];
+
+function nearLantern(x, y, pad) {
+  return S.built.lantern && Math.hypot(x - LANTERN.x, (y - LANTERN.y) / ELLIPSE) < 36 + pad;
+}
 
 function lightDist(x, y) {
   const dx = x - FIRE.x, dy = (y - LIGHT_Y) / ELLIPSE;
@@ -373,7 +600,8 @@ function spawnEye(peek) {
     if (peek) spot = EYE_SPOTS[0];
     const x = Math.round(rand(spot.x, spot.x + spot.w));
     const y = Math.round(rand(spot.y, spot.y + spot.h));
-    if (lightDist(x, y) < dispR + 14) continue;
+    if (lightDist(x, y) < dispR + 14 || nearLantern(x, y, 10)) continue;
+    if (spot.window && S.built.boards) continue;
     if (eyes.some((e) => Math.hypot(e.x - x, e.y - y) < 14)) continue;
     eyes.push({
       x, y, alpha: 0, blink: rand(1.5, 5), blinkT: -1, out: false,
@@ -398,7 +626,7 @@ function updateEyes(dt) {
     eyeSpawn = rand(1.2, 3.5);
   }
   // a rare peek through the window even when the fire is decent
-  if (S.fire === 2 && !eyes.length && Math.random() < dt * 0.025) spawnEye(true);
+  if (S.fire === 2 && !S.built.boards && !eyes.length && Math.random() < dt * 0.025) spawnEye(true);
 
   for (const e of eyes) {
     if (e.peek) {
@@ -406,7 +634,7 @@ function updateEyes(dt) {
       if (e.peek <= 0) e.out = true;
     }
     if (!e.peek && (S.fire >= 2 || live > want + 1)) e.out = true;
-    if (lightDist(e.x, e.y) < dispR + 4) e.out = true;
+    if (lightDist(e.x, e.y) < dispR + 4 || nearLantern(e.x, e.y, 0)) e.out = true;
 
     if (e.out) {
       e.alpha -= dt * 2.5;
@@ -666,13 +894,27 @@ const SIT = [
   'bbccccccc',
 ];
 
-function drawMap(map, x, y) {
+const NOMAD_COLORS = { ...SPR_COLORS, h: '#5a4030', H: '#6e5038', c: '#4a3a2a', C: '#3a2a1e' };
+const KID_COLORS = { r: '#3a2a1e', k: '#5a4434', e: '#1a1210', s: '#7a2a22', c: '#4a4a3a', b: '#1d1815' };
+const KID = [
+  '..rrr..',
+  '.rrrrr.',
+  '.rkkkr.',
+  '.rkekr.',
+  '..sss..',
+  '.ccccc.',
+  '.ccccc.',
+  '.c...c.',
+  '.b...b.',
+];
+
+function drawMap(map, x, y, colors = SPR_COLORS) {
   for (let r = 0; r < map.length; r++) {
     const row = map[r];
     for (let c = 0; c < row.length; c++) {
       const k = row[c];
       if (k === '.') continue;
-      px.fillStyle = SPR_COLORS[k];
+      px.fillStyle = colors[k];
       px.fillRect(x + c, y + r, 1, 1);
     }
   }
@@ -699,6 +941,63 @@ function drawStranger() {
   drawMap(SIT, 186 + shiver, 128 + bob);
 }
 
+function drawVisitor() {
+  const d = dialog && DIALOGUES[dialog];
+  if (!d || !d.door) return;
+  if (d.door === 'nomad') {
+    // big pack of furs behind his shoulders
+    px.fillStyle = '#5e4a36'; px.fillRect(275, 93, 9, 12);
+    px.fillStyle = '#7a6248'; px.fillRect(276, 94, 7, 3);
+    drawMap(STAND, 270, 97, NOMAD_COLORS);
+    drawMap(LEGS[0], 270, 108, NOMAD_COLORS);
+  } else {
+    drawMap(KID, 271, 102, KID_COLORS);
+  }
+}
+
+function drawRug() {
+  if (!S.built.rug) return;
+  const rows = [[136, 184], [132, 188], [130, 190], [130, 190], [132, 188], [136, 184]];
+  rows.forEach(([a, b], i) => { px.fillStyle = i % 2 ? '#6a4a36' : '#73513b'; px.fillRect(a, 148 + i * 2, b - a, 2); });
+  px.fillStyle = '#8a6248'; px.fillRect(140, 152, 40, 1); px.fillRect(140, 155, 40, 1);
+  px.fillStyle = '#4a3224';
+  for (let x = 137; x < 184; x += 3) { px.fillRect(x, 160, 1, 1); px.fillRect(x + 1, 147, 1, 1); }
+}
+
+function drawCart() {
+  if (!S.built.cart) return;
+  px.fillStyle = '#a07a4e'; px.fillRect(265, 144, 4, 3); px.fillRect(271, 144, 4, 3); px.fillRect(277, 145, 4, 2);
+  px.fillStyle = '#4a301c'; px.fillRect(262, 147, 30, 10);
+  px.fillStyle = '#5a3a22'; px.fillRect(262, 147, 30, 2);
+  px.fillStyle = '#3a2414';
+  for (let x = 268; x < 292; x += 6) px.fillRect(x, 149, 1, 8);
+  px.fillRect(292, 150, 10, 1);
+  px.fillStyle = '#2a1a10'; px.fillRect(268, 155, 8, 8); px.fillRect(267, 156, 10, 6);
+  px.fillStyle = '#4a3020'; px.fillRect(270, 157, 4, 4);
+  px.fillStyle = '#2a1a10'; px.fillRect(271, 158, 2, 2);
+}
+
+function drawBoards() {
+  if (!S.built.boards) return;
+  [[37, 5], [48, 6], [59, 5]].forEach(([y, h]) => {
+    px.fillStyle = '#4a3220'; px.fillRect(41, y, 40, h);
+    px.fillStyle = '#5a3e28'; px.fillRect(41, y, 40, 1);
+    px.fillStyle = '#8a8a8a'; px.fillRect(43, y + 2, 1, 1); px.fillRect(78, y + 2, 1, 1);
+  });
+}
+
+function drawLantern() {
+  if (!S.built.lantern) return;
+  const { x, y } = LANTERN;
+  px.fillStyle = '#2a2420';
+  px.fillRect(x, y - 12, 1, 6);
+  px.fillRect(x - 2, y - 6, 5, 1); px.fillRect(x - 3, y - 5, 7, 1);
+  px.fillStyle = '#ffcf6a'; px.fillRect(x - 2, y - 4, 5, 6);
+  px.fillStyle = '#fff3b0'; px.fillRect(x - 1, y - 2, 3, 3);
+  px.fillStyle = '#2a2420';
+  px.fillRect(x - 3, y - 4, 1, 6); px.fillRect(x + 3, y - 4, 1, 6); px.fillRect(x - 3, y + 2, 7, 1);
+}
+
 function drawWindowSnow() {
   px.fillStyle = C.snow;
   for (const f of snow) px.fillRect(Math.round(f.x), Math.round(f.y), 1, 1);
@@ -709,7 +1008,12 @@ function drawWindowSnow() {
 function drawPixels() {
   px.drawImage(bg, 0, 0);
   drawWindowSnow();
+  drawBoards();
   drawDoor();
+  drawVisitor();
+  drawLantern();
+  drawRug();
+  drawCart();
   drawWoodPile();
   drawPitLogs();
   drawCoals();
@@ -763,6 +1067,28 @@ function drawLight() {
   }
   lx.restore();
 
+  // the lantern's own small pool of light
+  if (S.built.lantern) {
+    const lr = (34 + Math.sin(t * 5) * 0.6) * s;
+    lx.save();
+    lx.translate(LANTERN.x * s, LANTERN.y * s);
+    lx.scale(1, ELLIPSE);
+    lx.globalCompositeOperation = 'destination-out';
+    g = lx.createRadialGradient(0, 0, 0, 0, 0, lr);
+    g.addColorStop(0, 'rgba(0,0,0,0.95)');
+    g.addColorStop(0.5, 'rgba(0,0,0,0.7)');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    lx.fillStyle = g;
+    lx.fillRect(-lr, -lr, lr * 2, lr * 2);
+    lx.globalCompositeOperation = 'lighter';
+    g = lx.createRadialGradient(0, 0, 0, 0, 0, lr * 0.8);
+    g.addColorStop(0, 'rgba(255, 190, 90, 0.12)');
+    g.addColorStop(1, 'rgba(255, 150, 60, 0)');
+    lx.fillStyle = g;
+    lx.fillRect(-lr, -lr, lr * 2, lr * 2);
+    lx.restore();
+  }
+
   // cold moonlight spilling in through an open door
   if (door > 0.05) {
     lx.save();
@@ -799,7 +1125,43 @@ function drawLight() {
     lx.fillRect(Math.round(ex - 3.5 * s), Math.round(ey - h / 2), Math.round(2 * s), h);
     lx.fillRect(Math.round(ex + 1.5 * s), Math.round(ey - h / 2), Math.round(2 * s), h);
   }
+
+  // the face in the window
+  if (windowFace > 0) {
+    const a = clamp(Math.min(windowFace / 0.35, (1.8 - windowFace) / 0.06), 0, 1);
+    const cols = { p: `rgba(207,200,187,${a})`, d: `rgba(143,136,124,${a})`, k: `rgba(5,3,3,${a})` };
+    for (let r = 0; r < FACE.length; r++) {
+      for (let c = 0; c < FACE[r].length; c++) {
+        const k = FACE[r][c];
+        if (k === '.') continue;
+        lx.fillStyle = cols[k];
+        lx.fillRect(Math.round((45 + c * 2) * s), Math.round((35 + r * 2) * s), Math.ceil(2 * s), Math.ceil(2 * s));
+      }
+    }
+    lx.fillStyle = `rgba(36,24,16,${a * 0.75})`;
+    lx.fillRect(60 * s, 35 * s, 2 * s, 32 * s);
+    lx.fillRect(45 * s, 50 * s, 32 * s, 2 * s);
+  }
 }
+
+const FACE = [
+  '....dppppppd....',
+  '..dppppppppppd..',
+  '.dppppppppppppd.',
+  '.ppkkkppppkkkpp.',
+  '.pkkkkppppkkkkp.',
+  '.pkkkkppppkkkkp.',
+  '.ppkkkppppkkkpp.',
+  '.pppppppppppppp.',
+  '.ppppppkkpppppp.',
+  '.dppppppppppppd.',
+  '..pkkkkkkkkkkp..',
+  '..pkpkpkpkpkpp..',
+  '..dpkkkkkkkkpd..',
+  '...dppppppppd...',
+  '....dppppppd....',
+  '.....dddddd.....',
+];
 
 /* -------------------------------------------------------------- portrait */
 
@@ -822,14 +1184,66 @@ const PORTRAIT = [
   'cccccccccccccccc',
 ];
 
-function drawPortrait() {
+const PORTRAITS = {
+  stranger: { map: PORTRAIT, colors: SPR_COLORS },
+  nomad: {
+    map: [
+      '....hhhhhhh.....',
+      '...hHHhhhhhh....',
+      '..hHhhhhhhhhh...',
+      '..hhffffffffhh..',
+      '.hhffffffffffh..',
+      '.hhfeeffffeefh..',
+      '.hhffffffffffh..',
+      '.hhffffnnffffh..',
+      '.hhbbffffffbbh.p',
+      '.hhbbbbbbbbbbhpp',
+      '..hbbbbmmbbbhppp',
+      '..hhbbbbbbbbhppp',
+      '.cchhbbbbbbhcppp',
+      'cccccccccccccppp',
+      'ccccccCccccccppp',
+      'cccccccccccccppp',
+    ],
+    colors: { h: '#5a4030', H: '#6e5038', f: '#7a5a44', e: '#1a1210', n: '#5e4434', b: '#3a2a20', m: '#241812', c: '#4a3a2a', C: '#3a2a1e', p: '#7a6248' },
+  },
+  kid: {
+    map: [
+      '................',
+      '.....rrrrrr.....',
+      '....rrrrrrrr....',
+      '...rrrrrrrrrr...',
+      '...rrffffffrr...',
+      '..rrffffffffrr..',
+      '..rrfeffffefrr..',
+      '..rrffffffffrr..',
+      '...rffffffffr...',
+      '...rfffmmfffr...',
+      '....ffffffff....',
+      '.....ffffff.....',
+      '...ssssssssss...',
+      '..ssssssssssss..',
+      '.cccsssssssccc..',
+      'cccccccccccccccc',
+    ],
+    colors: { r: '#3a2a1e', f: '#8a6a54', e: '#1a1210', m: '#5a3a2e', s: '#7a2a22', c: '#4a4a3a' },
+  },
+  dark: {
+    map: ['', '', '', '', '', '', '', '', '....yy....yy....'],
+    colors: { y: '#ffeeb4' },
+    bg: '#050303',
+  },
+};
+
+function drawPortrait(key = 'stranger') {
+  const P = PORTRAITS[key] || PORTRAITS.stranger;
   const g = ui.portrait.getContext('2d');
-  g.fillStyle = '#0b0807'; g.fillRect(0, 0, 16, 16);
-  for (let r = 0; r < PORTRAIT.length; r++) {
-    for (let c = 0; c < PORTRAIT[r].length; c++) {
-      const k = PORTRAIT[r][c];
+  g.fillStyle = P.bg || '#0b0807'; g.fillRect(0, 0, 16, 16);
+  for (let r = 0; r < P.map.length; r++) {
+    for (let c = 0; c < P.map[r].length; c++) {
+      const k = P.map[r][c];
       if (k === '.') continue;
-      g.fillStyle = SPR_COLORS[k];
+      g.fillStyle = P.colors[k];
       g.fillRect(c, r, 1, 1);
     }
   }
@@ -838,7 +1252,8 @@ function drawPortrait() {
 /* --------------------------------------------------------------------- UI */
 
 function syncUI() {
-  ui.wood.textContent = `wood: ${S.wood}`;
+  const res = ['wood', 'fur', 'meat', 'teeth'].filter((k) => k === 'wood' || S[k] > 0 || S.built.trap > 0);
+  ui.wood.textContent = res.map((k) => `${k} ${S[k]}`).join('   ');
 
   const label = S.fire === 0 ? (S.lit ? 'relight fire' : 'light fire') : 'stoke fire';
   ui.stoke.querySelector('.label').textContent = label;
@@ -848,6 +1263,20 @@ function syncUI() {
   ui.gather.classList.toggle('hidden', !S.lit);
   ui.gather.disabled = S.cd.gather > 0 || !!dialog;
   ui.gather.style.setProperty('--cd', `${(S.cd.gather / GATHER_CD) * 100}%`);
+
+  ui.traps.classList.toggle('hidden', !S.built.trap);
+  ui.traps.disabled = S.cd.traps > 0 || !!dialog;
+  ui.traps.style.setProperty('--cd', `${(S.cd.traps / TRAPS_CD) * 100}%`);
+
+  ui.build.classList.toggle('hidden', !S.talked);
+  ui.build.disabled = !!dialog;
+
+  ui.sound.textContent = S.sound ? 'sound on' : 'sound off';
+
+  if (!ui.buildPanel.classList.contains('hidden')) {
+    const sig = BUILDS.map((b) => `${canAfford(b.cost())}${S.built[b.id]}`).join() + !!dialog;
+    if (sig !== buildRefresh) { buildRefresh = sig; renderBuild(); }
+  }
 
   $('actions').classList.toggle('hidden', !!dialog);
 }
@@ -865,7 +1294,7 @@ function renderJournal() {
 function toggleJournal(force) {
   const open = force ?? ui.journal.classList.contains('hidden');
   ui.journal.classList.toggle('hidden', !open);
-  if (open) renderJournal();
+  if (open) { ui.buildPanel.classList.add('hidden'); renderJournal(); }
 }
 
 function restart() {
@@ -874,12 +1303,19 @@ function restart() {
   S = freshState();
   particles = []; eyes = []; dialog = null; walker = null; msgQueue = [];
   door = doorTarget = 0; dispR = 0; introTimer = 0.8; huddleSaid = false;
+  pendingVisit = null; doorCloseIn = -1; windowFace = 0; shake = 0;
   ui.dialogue.classList.add('hidden');
   toggleJournal(false);
+  toggleBuild(false);
 }
 
 ui.stoke.addEventListener('click', stoke);
 ui.gather.addEventListener('click', gather);
+ui.traps.addEventListener('click', checkTraps);
+ui.build.addEventListener('click', () => toggleBuild());
+$('buildClose').addEventListener('click', () => toggleBuild(false));
+ui.sound.addEventListener('click', () => { S.sound = !S.sound; sfx.setEnabled(S.sound); save(); });
+window.addEventListener('pointerdown', () => sfx.initAudio());
 $('journalBtn').addEventListener('click', () => toggleJournal());
 $('journalClose').addEventListener('click', () => toggleJournal(false));
 $('restartBtn').addEventListener('click', restart);
@@ -889,14 +1325,19 @@ $('fullBtn').addEventListener('click', () => {
 });
 
 window.addEventListener('keydown', (e) => {
+  sfx.initAudio();
   if (e.repeat) return;
   const k = e.key.toLowerCase();
-  if (k === 'escape') toggleJournal(false);
+  const panelOpen = !ui.journal.classList.contains('hidden') || !ui.buildPanel.classList.contains('hidden');
+  if (k === 'escape') { toggleJournal(false); toggleBuild(false); }
   else if (k === 'j') toggleJournal();
-  else if (!ui.journal.classList.contains('hidden')) return;
-  else if (dialog && (k === '1' || k === '2')) choose(Number(k) - 1);
+  else if (k === 'b') toggleBuild();
+  else if (k === 'm') ui.sound.click();
+  else if (panelOpen) return;
+  else if (dialog && k >= '1' && k <= '4') choose(Number(k) - 1);
   else if (k === 's') stoke();
   else if (k === 'g') gather();
+  else if (k === 't') checkTraps();
 });
 
 document.addEventListener('visibilitychange', () => { if (document.hidden) save(); });
@@ -914,6 +1355,7 @@ window.addEventListener('resize', resize);
 
 drawBackground();
 drawPortrait();
+sfx.setEnabled(S.sound);
 resize();
 if (S.stranger === 'knocking') knockTimer = 1.5;
 if (S.lit && S.time > 0) say(S.fire === 0 ? 'the room is cold again.' : `the fire is ${FIRE_NAMES[S.fire]}.`);
@@ -926,6 +1368,8 @@ function frame(now) {
   drawPixels();
   drawLight();
   syncUI();
+  sfx.setLevels(S.fire, S.time, door);
+  stage.style.transform = shake > 0 ? `translate(${rand(-3, 3).toFixed(1)}px, ${rand(-3, 3).toFixed(1)}px)` : '';
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
@@ -935,6 +1379,8 @@ window.__firelight = {
   get state() { return S; },
   get eyes() { return eyes.length; },
   get dialog() { return dialog; },
+  visit(id) { queueVisit(id); },
+  choose,
   // advance the game by `sec` seconds without waiting for animation frames
   step(sec) {
     for (let t = 0; t < sec; t += 0.05) update(0.05);

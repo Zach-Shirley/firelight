@@ -17,6 +17,27 @@ Working title. Made by Zach as a game for his sister; not public.
 - **Saves** automatically in the browser (localStorage). **Restart** wipes the save.
 - **Keys:** S stoke, G gather, 1/2 dialogue choices, J journal, Esc close.
 
+## Round 2 (2026-10-15): building, visitors, sound
+
+Zach and his sister liked the MVP, so it's growing, still inside the one room.
+
+- **The stranger builds.** After her "deal" line, a **build** menu (B) opens up. Each item shows up in the room:
+  - **trap** (up to 6; the wood cost rises each time). Adds a **check traps** action (T, 25-second cooldown) that brings in fur, meat and teeth.
+  - **cart:** gathering brings in twice the wood.
+  - **window boards:** nothing appears in the window anymore, and no window events happen.
+  - **fur rug:** the fire burns down slower (40 seconds per level instead of 30).
+  - **lantern:** a second pool of light by the door that eyes won't enter.
+- **New materials:** fur, meat and teeth. They show in the top-left once you have traps.
+- **Visitors and events** arrive every minute or so after the stranger's deal, sooner in the dark:
+  - **Nomad:** trades wood, fur, teeth and meat.
+  - **Hungry kid:** give 2 meat and they come back later with furs and teeth.
+  - **Tapping on the window** (dark only): "look" shows a pale face pressed to the glass, with a sound sting and a screen shake. Afterwards it leaves teeth on the sill.
+  - **Scratching at the door** (dark only): open it and your meat disappears. Throw a log on the fire and it stops. Or wait it out.
+- **Sound** is generated live in the browser, with no audio files: fire crackle and roar, gusting wind (louder in the dark and with the door open), knocks, taps, scratches, a scare sting, and a chime when something is built. Toggle it with the sound button or M.
+- The message line only queues a couple of lines; everything is still in the journal.
+
+If the stranger is shut out for good, visitors still come but nothing can be built.
+
 ## Run it
 
 It's a plain static site with no build step.
@@ -41,6 +62,21 @@ Checked in a desktop browser preview using a test hook (`window.__firelight.step
 - Journal, saving
 
 No console errors. Not yet tested on an actual Chromebook. The balance numbers are first guesses.
+
+Round 2 was checked the same way:
+
+- The build panel; building every item and seeing it drawn in the room
+- Lantern light keeping eyes away
+- Traps producing materials
+- The nomad trade
+- The kid's meat-for-gift loop
+- The window face scare and its teeth reward
+- Scratch → open door → meat stolen
+- Visitors arriving on their own schedule
+
+Sound starts without errors after the first click, but nobody has listened to it yet.
+
+Deployed: https://firelight-topaz.vercel.app (Vercel project `firelight` under Zach's account, deployed with Zach's approval on 2026-10-15).
 
 ## Credits and honesty
 
