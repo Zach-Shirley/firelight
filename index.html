@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Firelight</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="stage">
+    <canvas id="pix"></canvas>
+    <canvas id="light"></canvas>
+
+    <div id="hud"><span id="wood"></span></div>
+
+    <div id="menu">
+      <button id="journalBtn" title="journal (J)">journal</button>
+      <button id="fullBtn" title="fullscreen">fullscreen</button>
+      <button id="restartBtn" title="start over">restart</button>
+    </div>
+
+    <div id="message"></div>
+
+    <div id="actions">
+      <button id="stoke" class="act" title="costs 1 wood (S)"><span class="label">light fire</span></button>
+      <button id="gather" class="act hidden" title="(G)"><span class="label">gather wood</span></button>
+    </div>
+
+    <div id="dialogue" class="hidden">
+      <canvas id="portrait" width="16" height="16"></canvas>
+      <div class="body">
+        <p id="dlgText"></p>
+        <div id="dlgChoices"></div>
+      </div>
+    </div>
+
+    <div id="journal" class="hidden">
+      <div class="panel">
+        <h2>journal</h2>
+        <ol id="journalList"></ol>
+        <button id="journalClose">close</button>
+      </div>
+    </div>
+  </div>
+  <script type="module" src="main.js"></script>
+</body>
+</html>
