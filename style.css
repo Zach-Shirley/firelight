@@ -399,3 +399,55 @@ button:disabled { opacity: 0.4; cursor: default; }
 #menu { z-index: 10; }
 #stage[data-mode="title"] #menu { display: flex; }
 #stage[data-mode="title"] #menu button:not(#soundBtn) { display: none; }
+
+/* ---- phones and touch screens */
+html, body { touch-action: manipulation; -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; overscroll-behavior: none; }
+body {
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  height: 100dvh;
+}
+.touch-only { display: none; }
+body.touch .touch-only { display: list-item; }
+
+/* bigger tap targets on touch screens */
+body.touch .act { min-height: calc(20px * var(--s)); font-size: calc(7px * var(--s)); padding: 0 calc(4px * var(--s)); }
+body.touch #actions { bottom: calc(5px * var(--s)); }
+body.touch #message { bottom: calc(29px * var(--s)); }
+body.touch #menu button { min-height: calc(12px * var(--s)); font-size: calc(6px * var(--s)); padding: 0 calc(4px * var(--s)); }
+body.touch #dlgChoices button, body.touch .menu-col button, body.touch .end-buttons button { min-height: calc(16px * var(--s)); }
+body.touch #dlgChoices button { padding: calc(1.5px * var(--s)) calc(5px * var(--s)); }
+body.touch #runBack, body.touch #journalClose, body.touch #buildClose, body.touch #buildList button { padding: calc(1px * var(--s)) calc(6px * var(--s)); }
+body.touch #strike { padding: calc(3px * var(--s)) calc(10px * var(--s)); }
+body.touch .key { display: none; }
+body.touch #howPanel .keys { display: none; }
+
+#rotate {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: #050303;
+  color: var(--ink);
+  font-size: 24px;
+  text-align: center;
+}
+#rotate.hidden { display: none; }
+#rotate p { margin: 0; }
+#rotate .dim { font-size: 18px; color: var(--ink-dim); }
+#rotate .phone {
+  width: 34px;
+  height: 58px;
+  border: 3px solid var(--ember);
+  border-radius: 6px;
+  margin-bottom: 14px;
+  animation: turn 2.4s ease-in-out infinite;
+  box-shadow: 0 0 14px rgba(255, 122, 42, 0.4);
+}
+@keyframes turn {
+  0%, 25% { transform: rotate(0deg); }
+  55%, 100% { transform: rotate(-90deg); }
+}

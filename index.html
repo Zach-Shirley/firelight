@@ -2,7 +2,11 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#050303">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <title>Firelight</title>
   <meta name="description" content="Survive one night in a dark room. Keep the fire alive, eat, and be careful what you let in.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -88,6 +92,7 @@
             <li>Go out to <b>gather wood</b> (G) or <b>hunt</b> (H). While you're out, no one is minding the room, and something hunts the trees.</li>
             <li>People knock. Not everything that knocks is a person. The door only opens if you open it.</li>
             <li>Your score is what you still have at dawn. Everything you build or burn costs you.</li>
+            <li class="touch-only">On a phone, play sideways and tap the buttons.</li>
           </ul>
           <p class="keys">S stoke · E eat · C cook · G wood · H hunt · F burn · R run back · B build · J journal · M sound · Esc menu</p>
           <button class="backBtn">back</button>
@@ -120,6 +125,11 @@
         </div>
       </div>
     </div>
+  </div>
+  <div id="rotate" class="hidden">
+    <div class="phone"></div>
+    <p>turn your phone sideways</p>
+    <p class="dim">the night waits for you.</p>
   </div>
   <script type="module" src="main.js"></script>
 </body>

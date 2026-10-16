@@ -977,7 +977,7 @@ function choose(i) {
 /* ------------------------------------------------------------------ logic */
 
 function update(dt) {
-  if (mode === 'playing') updateGame(dt);
+  if (mode === 'playing' && !portraitBlock) updateGame(dt);
   updateAmbient(dt);
 }
 
@@ -2192,6 +2192,7 @@ document.querySelectorAll('.backBtn').forEach((b) => b.addEventListener('click',
 ui.retry.addEventListener('click', () => newNight(true));
 $('endTitleBtn').addEventListener('click', backToTitle);
 window.addEventListener('pointerdown', () => sfx.initAudio());
+window.addEventListener('touchend', () => sfx.initAudio(), { passive: true });
 
 window.addEventListener('keydown', (e) => {
   sfx.initAudio();
@@ -2226,14 +2227,30 @@ document.addEventListener('visibilitychange', () => {
   if (document.hidden && mode === 'playing') save();
 });
 
+// Phones: the scene is landscape, so a phone held upright gets a "turn sideways" screen and the night waits.
+const touch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
+let portraitBlock = false;
+
 function resize() {
-  const s = Math.max(1, Math.floor(Math.min(innerWidth / W, innerHeight / H)));
+  const vw = window.visualViewport ? visualViewport.width : innerWidth;
+  const vh = window.visualViewport ? visualViewport.height : innerHeight;
+  // whole-number scales keep pixels crisp; below 2x (small phones) a fractional scale is better than tiny
+  const raw = Math.min(vw / W, vh / H);
+  const s = raw >= 2 ? Math.floor(raw) : Math.max(0.75, raw);
   stage.style.setProperty('--s', s);
-  const dpr = window.devicePixelRatio || 1;
+  // high-density phone screens: cap the light layer's resolution so the glow stays smooth to render
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
   light.width = Math.round(W * s * dpr);
   light.height = Math.round(H * s * dpr);
+  portraitBlock = touch && vh > vw;
+  $('rotate').classList.toggle('hidden', !portraitBlock);
 }
 window.addEventListener('resize', resize);
+window.addEventListener('orientationchange', () => setTimeout(resize, 150));
+window.visualViewport?.addEventListener('resize', resize);
+if (touch) document.body.classList.add('touch');
+// iOS has no fullscreen for pages; hide the button where it can't work
+if (!document.documentElement.requestFullscreen) $('fullBtn').classList.add('hidden');
 
 /* -------------------------------------------------------------------- run */
 

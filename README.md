@@ -4,7 +4,7 @@
 
 A short horror-survival game in chunky pixel art. One night lasts about seven minutes and gets worse every hour. Most first nights end in death; each death screen tells you what killed you and gives a hint. Your score is whatever you still have at dawn.
 
-**Play:** https://firelight-topaz.vercel.app (desktop browser, keyboard or mouse)
+**Play:** https://firelight-topaz.vercel.app (desktop browser with keyboard or mouse, or a phone held sideways)
 
 ![Title screen](docs/title.jpg)
 
@@ -174,6 +174,17 @@ tools/sim.js        difficulty simulation (not deployed)
 docs/               README screenshots
 ```
 
+## Phones
+
+The game runs in a phone browser, held sideways.
+
+- **Fit:** the scene scales to fit the screen: whole-number scales when there's room, a fractional scale on small phones. It respects notches.
+- **Touch:** on touch screens the buttons grow to about 40 px tall, the keyboard hints are hidden, and double-tap zoom and long-press menus are disabled.
+- **Upright:** held upright, it shows a turn-sideways screen and the night waits.
+- **Sound** unlocks on the first tap.
+- **Fullscreen:** the button is hidden where the browser can't do it (iPhone Safari).
+- **Performance:** the light layer is capped at 2× pixel density so the glow stays smooth on high-density screens.
+
 ## Run locally
 
 ```bash
@@ -211,7 +222,7 @@ Checked on 2026-10-16:
 - **Untested hardware:** never tested on a Chromebook or a touch device, and nobody has listened to the sound yet.
 - **The simulated players are approximations.** Real players may find a threat harder or easier than the numbers suggest, especially the footsteps tell, which is text plus a sound.
 - **Per-browser leaderboard.**
-- **No mobile layout.**
+- **Phones are landscape only:** held upright, the game shows a "turn your phone sideways" screen and pauses. Checked in the browser's phone emulation at 375×812 upright and at 812×375 and 568×320 sideways, not on a physical phone.
 - **School web filters** may block `vercel.app`.
 
 ## Credits
