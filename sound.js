@@ -177,3 +177,66 @@ export function chime() {
     o.stop(at + 0.55);
   });
 }
+
+// A heartbeat when the dark is close: two low thumps.
+export function heartbeat(strength = 1) {
+  if (!ctx || !enabled) return;
+  const t = ctx.currentTime + 0.02;
+  thud(t, 0.35 * strength);
+  thud(t + 0.22, 0.22 * strength);
+}
+
+// A gust of wind forcing its way through the cracks.
+export function gust() {
+  if (!ctx || !enabled) return;
+  const t = ctx.currentTime;
+  const src = ctx.createBufferSource();
+  src.buffer = noiseBuf;
+  const lp = ctx.createBiquadFilter();
+  lp.type = 'lowpass';
+  lp.frequency.setValueAtTime(300, t);
+  lp.frequency.linearRampToValueAtTime(1400, t + 0.6);
+  lp.frequency.linearRampToValueAtTime(250, t + 1.8);
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.linearRampToValueAtTime(0.3, t + 0.5);
+  g.gain.linearRampToValueAtTime(0.0001, t + 1.9);
+  src.connect(lp).connect(g).connect(master);
+  src.start(t, 0, 2);
+}
+
+// The door crashing open at the end.
+export function slam() {
+  if (!ctx || !enabled) return;
+  const t = ctx.currentTime;
+  thud(t, 0.9);
+  const src = ctx.createBufferSource();
+  src.buffer = noiseBuf;
+  const lp = ctx.createBiquadFilter();
+  lp.type = 'lowpass';
+  lp.frequency.value = 900;
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.5, t);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.7);
+  src.connect(lp).connect(g).connect(master);
+  src.start(t, 0, 0.8);
+}
+
+// Morning: a soft rising chord.
+export function dawn() {
+  if (!ctx || !enabled) return;
+  const t = ctx.currentTime;
+  [262, 330, 392, 523].forEach((f, i) => {
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.type = 'sine';
+    o.frequency.value = f;
+    const at = t + i * 0.35;
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.linearRampToValueAtTime(0.05, at + 0.6);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + 4);
+    o.connect(g).connect(master);
+    o.start(at);
+    o.stop(at + 4.1);
+  });
+}

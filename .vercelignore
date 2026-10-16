@@ -1,2 +1,5 @@
 README.md
 .gitignore
+package.json
+tests/
+docs/

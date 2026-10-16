@@ -4,23 +4,24 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Firelight</title>
+  <meta name="description" content="Keep the fire alive in one dark room until dawn. A small pixel-art survival game.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div id="stage">
+  <div id="stage" data-mode="title">
     <canvas id="pix"></canvas>
     <canvas id="light"></canvas>
 
-    <div id="hud"><span id="wood"></span></div>
+    <div id="hud"><div id="wood"></div><div id="clock"></div></div>
 
     <div id="menu">
       <button id="soundBtn" title="sound (M)">sound on</button>
       <button id="journalBtn" title="journal (J)">journal</button>
       <button id="fullBtn" title="fullscreen">fullscreen</button>
-      <button id="restartBtn" title="start over">restart</button>
+      <button id="menuBtn" title="menu (Esc)">menu</button>
     </div>
 
     <div id="message"></div>
@@ -54,6 +55,55 @@
         <h2>journal</h2>
         <ol id="journalList"></ol>
         <button id="journalClose">close</button>
+      </div>
+    </div>
+
+    <div id="title" class="screen">
+      <div class="title-inner">
+        <h1>firelight</h1>
+        <p class="tag">keep the fire alive until dawn.</p>
+
+        <div id="titleMenu" class="menu-col">
+          <button id="contBtn" class="hidden">continue the night</button>
+          <button id="newBtn">new night</button>
+          <button id="boardBtn">best nights</button>
+          <button id="howBtn">how to play</button>
+        </div>
+
+        <div id="howPanel" class="subpanel hidden">
+          <ul class="how">
+            <li><b>Stoke the fire</b> (S) to hold back the dark. Each stoke costs one wood.</li>
+            <li><b>Gather wood</b> (G) in the forest beyond the door.</li>
+            <li>The night lasts eight hours, from 10 pm to 6 am. <b>Make it to dawn.</b></li>
+            <li>When the fire is low, things gather in the dark. Leave it out too long and they get in.</li>
+            <li>People will knock. Who you let in is up to you. Not everything that knocks is a person.</li>
+            <li>Score comes from hours survived, wood burned, things built, people helped and nerve.</li>
+          </ul>
+          <p class="keys">S stoke · G gather · T traps · B build · J journal · M sound · Esc menu · 1–4 choices</p>
+          <button class="backBtn">back</button>
+        </div>
+
+        <div id="boardPanel" class="subpanel hidden">
+          <h2>best nights</h2>
+          <ol id="boardList" class="board"></ol>
+          <p class="keys">scores are kept on this computer, like an arcade cabinet.</p>
+          <button class="backBtn">back</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="ending" class="screen hidden">
+      <div class="panel end-panel">
+        <h2 id="endTitle"></h2>
+        <p id="endText"></p>
+        <table id="endScore"></table>
+        <form id="initials" class="hidden">
+          <label for="initialsInput">a best night! your initials:</label>
+          <input id="initialsInput" maxlength="3" autocomplete="off" spellcheck="false">
+          <button type="submit">save</button>
+        </form>
+        <ol id="endBoard" class="board"></ol>
+        <button id="endTitleBtn">back to title</button>
       </div>
     </div>
   </div>
