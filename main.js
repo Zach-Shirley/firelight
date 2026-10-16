@@ -1531,27 +1531,41 @@ function lpx(s, x, y, w, h) {
   lx.fillRect(Math.round(x * s), Math.round(y * s), Math.ceil(w * s), Math.ceil(h * s));
 }
 
-// The thing in the trees, while you're out there with it: a grin in the dark that widens, brightens and
-// curls as it closes in. A full grin is the end. Drawn at half-pixel detail.
+// The thing in the trees, while you're out there with it: its face. Amber eyes with a grin beneath them,
+// small and faint in the treeline at first, then closer, wider and brighter as it closes in.
+// A full grin, right in front of you, is the end. Drawn at half-pixel detail.
 function drawGrin(s, t) {
   const show = mode === 'playing' || (mode === 'lost' && S.cause === 'hunter');
   const k = clamp(S.stalk / 100, 0, 1);
   if (!show || S.stalk < 0.8) return;
-  const a = clamp(0.12 + 0.88 * k, 0, 1) * (S.away || mode === 'lost' ? 1 : 0.6);
-  const cx = 160, cy = 52;
-  const w = 26 + k * 120;
-  const curve = 1.5 + k * 13;
-  const gap = k * k * 14;
-  const glow = lx.createRadialGradient(cx * s, (cy + curve) * s, 0, cx * s, (cy + curve) * s, (w * 0.6) * s);
-  glow.addColorStop(0, `rgba(230, 220, 190, ${0.06 * a})`);
+  const a = clamp(0.3 + 0.7 * k, 0, 1) * (S.away || mode === 'lost' ? 1 : 0.6);
+  const near = Math.pow(k, 1.4);
+  const sc = 0.12 + 0.88 * near;                 // far off in the treeline, then right in front of you
+  const cx = 55.5 + (160 - 55.5) * near;
+  const ey = 56 + (44 - 56) * near;
+
+  // its eyes
+  const blink = Math.sin(t * 0.8) > 0.97 ? 0.15 : 1;
+  const ew = Math.max(1, 9 * sc), eh = Math.max(0.6, 2.6 * sc), sep = Math.max(4.5, 30 * sc);
+  const gr = (6 + 30 * sc) * s;
+  const glow = lx.createRadialGradient(cx * s, (ey + 6 * sc) * s, 0, cx * s, (ey + 6 * sc) * s, gr);
+  glow.addColorStop(0, `rgba(255, 170, 60, ${0.14 * a})`);
   glow.addColorStop(1, 'rgba(0, 0, 0, 0)');
   lx.fillStyle = glow;
-  lx.fillRect((cx - w) * s, (cy - w * 0.4) * s, w * 2 * s, w * s);
-  const lip = (u) => {
-    const curl = Math.pow(Math.abs(u), 6) * curve * 0.6;   // the corners hook upward
-    return cy + curve * (1 - u * u) - curl;
-  };
-  for (let x = -w / 2; x <= w / 2; x += 0.5) {
+  lx.fillRect(cx * s - gr, (ey + 6 * sc) * s - gr, gr * 2, gr * 2);
+  lx.fillStyle = `rgba(255, 190, 80, ${a * blink})`;
+  lpx(s, cx - sep / 2 - ew / 2, ey - eh / 2, ew, eh);
+  lpx(s, cx + sep / 2 - ew / 2, ey - eh / 2, ew, eh);
+
+  // the grin, just beneath them
+  const cy = ey + Math.max(2.5, 11 * sc);
+  const w = Math.max(5, 120 * sc * (0.55 + 0.45 * k));
+  const curve = Math.max(0.6, (1.5 + k * 13) * sc);
+  const gap = k * k * 14 * sc;
+  const step = sc < 0.3 ? 0.5 : 0.5;
+  const line = Math.max(0.5, (0.5 + k * 0.5) * Math.min(1, sc * 1.6));
+  const lip = (u) => cy + curve * (1 - u * u) - Math.pow(Math.abs(u), 6) * curve * 0.6;   // corners hook upward
+  for (let x = -w / 2; x <= w / 2; x += step) {
     const u = (2 * x) / w;
     const top = lip(u);
     const open = gap * (1 - u * u);
@@ -1566,8 +1580,8 @@ function drawGrin(s, t) {
       }
     }
     lx.fillStyle = `rgba(232, 222, 196, ${a})`;
-    lpx(s, cx + x, top, 0.5, 0.5 + k * 0.5);
-    if (open > 0.6) lpx(s, cx + x, top + open, 0.5, 0.5 + k * 0.5);
+    lpx(s, cx + x, top, 0.5, line);
+    if (open > 0.6) lpx(s, cx + x, top + open, 0.5, line);
   }
 }
 
@@ -1792,7 +1806,8 @@ function drawLight() {
   lx.globalCompositeOperation = 'source-over';
 
   // the hunter's eyes, shining in the treeline
-  if (hunterEyes > 0.02) {
+  // (while you're out and it is closing in, its eyes are part of its face instead; see drawGrin)
+  if (hunterEyes > 0.02 && !(S.stalk > 0.8 && (S.away || mode === 'lost'))) {
     const blink = Math.sin(t * 0.9) > 0.95 ? 0.15 : 1;
     lx.fillStyle = `rgba(255, 190, 80, ${hunterEyes * blink})`;
     lpx(s, 52, 56, 2, 1); lpx(s, 57, 56, 2, 1);
