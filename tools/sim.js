@@ -6,14 +6,21 @@
 
 const F = () => window.__firelight;
 
+// What a player can actually perceive at a knock: footsteps (real visitors, and mimics that fake them
+// from 3 am) and, with a lit blood lantern, the truth.
+const heardFootsteps = (v) => v.who !== 'mimic' || v.fake;
+const lanternTruth = (S, v) => (S.lantern && S.lanternLit ? v.who !== 'mimic' : null);
+
 // Plays the obvious moves and nothing else: opens most doors, ignores the howling,
-// reacts to the hand half the time, rarely builds.
+// reacts to the hand half the time, rarely builds, feeds the stranger whenever she asks (if it can).
 function beginner(f, S, mem) {
   const d = f.dialog;
   if (d) {
     if (d.id === 'knock') return f.choose(Math.random() < 0.7 ? 0 : 1);
     if (d.id === 'kidAsk') return f.choose(Math.random() < 0.5 && S.meat >= 1 ? 0 : 1);
     if (d.id === 'cutter') return f.choose(2);
+    if (d.id === 'plea') return f.choose(S.meat >= 1 && Math.random() < 0.6 ? 0 : 1);
+    if (d.id === 'strangerDead') return f.choose(Math.random() < 0.5 ? 0 : 1);
     return f.choose(0);
   }
   if (S.away) return;
@@ -30,15 +37,26 @@ function beginner(f, S, mem) {
 }
 
 // A first-time player who reads: plays like a beginner, but follows each of the stranger's hints once heard.
+// Hints, in order: footsteps, board the window, the hunter, the walkers and the lantern.
 function learner(f, S, mem) {
   const d = f.dialog;
-  if (d && d.id === 'knock' && S.hint >= 1) return f.choose(d.visit.who === 'mimic' ? 1 : 0);
-  if (!d && !S.away && S.hint >= 3) {
-    if (S.hand.phase === 'reach') f.act.strike();
-    if (!S.boardsBuilt && S.wood >= 10) f.act.build('boards');
+  if (d && d.id === 'knock' && S.hint >= 1) {
+    const truth = S.hint >= 4 ? lanternTruth(S, d.visit) : null;
+    return f.choose((truth ?? heardFootsteps(d.visit)) ? 0 : 1);
   }
-  if (!d && S.away && S.hint >= 2 && S.hunter.near) return f.act.runBack();
-  if (!d && !S.away && S.hint >= 2 && S.hunter.near) {
+  if (d && d.id === 'plea') return f.choose(S.meat >= 1 ? 0 : 1);
+  if (d && d.id === 'strangerDead') return f.choose(0);
+  if (!d && !S.away) {
+    if (S.hint >= 2) {
+      if (S.hand.phase === 'reach') f.act.strike();
+      if (!S.boardsBuilt && S.wood >= 8) f.act.build('boards');
+      if (S.boardsBuilt && S.boards === 0 && S.wood >= 3) f.act.build('repair');
+      if (!S.boardsBuilt && S.wood < 8 && !S.hunter.near) return f.act.wood();
+    }
+    if (S.hint >= 4 && !S.lantern && S.blood >= 2 && S.wood >= 6) f.act.build('lantern');
+  }
+  if (!d && S.away && S.hint >= 3 && S.hunter.near) return f.act.runBack();
+  if (!d && !S.away && S.hint >= 3 && S.hunter.near) {
     if (!S.lit || S.fire <= 2) f.act.stoke();
     if (S.hunger >= 75 && S.meat > 0) f.act.eat();
     return;
@@ -46,34 +64,53 @@ function learner(f, S, mem) {
   return beginner(f, S, mem);
 }
 
-// Knows every tell: listens for footsteps, waits out the howling, always burns the hand, keeps boards up.
-function skilled(f, S) {
+// Knows every tell: footsteps, the walkers after 3 am (gets the lantern first), waits out the howling,
+// boards the window before 1 am, burns the claw, feeds the stranger only on her last plea.
+// With human = true it reacts like a strong player rather than a machine: a beat late to the claw and the
+// howl, and it misreads the footsteps now and then.
+function skilled(f, S, mem, human = false) {
   const d = f.dialog;
   if (d) {
-    if (d.id === 'knock') return f.choose(d.visit.who === 'mimic' ? 1 : 0);
-    if (d.id === 'kidAsk') return f.choose(S.meat >= 2 ? 0 : 1);
-    if (d.id === 'cutter') return f.choose(S.meat >= 2 && S.wood < 10 ? 0 : 2);
+    if (d.id === 'knock') {
+      const truth = lanternTruth(S, d.visit);
+      const misread = human && truth === null && Math.random() < 0.05;
+      const open = truth ?? heardFootsteps(d.visit);
+      return f.choose(open !== misread ? 0 : 1);
+    }
+    if (d.id === 'kidAsk') return f.choose(S.meat >= 3 ? 0 : 1);
+    if (d.id === 'cutter') return f.choose(S.meat >= 3 && S.wood < 10 ? 0 : 2);
+    if (d.id === 'plea') return f.choose(d.last && S.meat >= 1 ? 0 : 1);
+    if (d.id === 'strangerDead') return f.choose(0);
     return f.choose(0);
   }
-  if (S.away) { if (S.hunter.near) f.act.runBack(); return; }
-  if (S.hand.phase === 'reach') f.act.strike();
+  const noticeHowl = !human || S.hunter.since > mem.howlDelay;
+  if (S.away) { if (S.hunter.near && noticeHowl && S.away.kind !== 'drag') f.act.runBack(); return; }
+  if (!S.hunter.near) mem.howlDelay = 0.5 + Math.random() * 1.5;
+  if (S.hand.phase === 'reach' && (!human || S.hand.p > mem.clawDelay)) f.act.strike();
+  if (S.hand.phase !== 'reach') mem.clawDelay = 0.1 + Math.random() * 0.35;
+  if (S.hand.phase === 'crawl' && S.wood >= 8) f.act.build(S.boardsBuilt ? 'repair' : 'boards');
   if (!S.lit || S.fire <= 2 || (S.fire === 3 && S.wood > 12)) f.act.stoke();
   if (S.hunger >= 65 && S.meat > 0) f.act.eat();
-  if (!S.boardsBuilt && S.wood >= 11 && S.night > 60) f.act.build('boards');
-  if (S.boardsBuilt && S.boards < 2 && S.wood >= 9) f.act.build('repair');
+  if (!S.boardsBuilt && S.wood >= 9 && S.night > 50) f.act.build('boards');
+  if (S.boardsBuilt && S.boards < 2 && S.wood >= 8) f.act.build('repair');
+  if (S.traps < 2 && S.wood >= 9 && S.boardsBuilt) f.act.build('trap');
+  if (!S.lantern && S.blood >= 2 && S.wood >= 6) f.act.build('lantern');
   if (S.hunter.near) return;
   if (S.meat < 2 && S.hunger > 30) return f.act.hunt();
+  if (S.lantern === false && S.blood < 2 && S.night > 150 && S.wood >= 8) return f.act.hunt();
   if (S.wood < 12) return f.act.wood();
 }
 
-export const players = { beginner, learner, skilled };
+const strong = (f, S, mem) => skilled(f, S, mem, true);
+
+export const players = { beginner, learner, strong, skilled };
 
 export function run(name, n) {
   const f = F();
   const out = { deaths: {}, wins: 0, scores: [], times: [] };
   for (let i = 0; i < n; i++) {
     f.newNight();
-    const mem = { reacted: new Set(), handId: '0', willStrike: false };
+    const mem = { reacted: new Set(), handId: '0', willStrike: false, howlDelay: 1, clawDelay: 0.2 };
     let guard = 0;
     while (f.mode === 'playing' && guard++ < 2000) {
       players[name](f, f.state, mem);

@@ -347,3 +347,76 @@ export function death() {
     o.stop(t + 3.3);
   });
 }
+
+// Glass shattering inward.
+export function shatter() {
+  if (!ctx || !enabled) return;
+  const t = ctx.currentTime;
+  thud(t, 0.6);
+  for (let i = 0; i < 9; i++) {
+    const at = t + Math.random() * 0.35;
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.type = 'triangle';
+    o.frequency.value = 2200 + Math.random() * 3500;
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.exponentialRampToValueAtTime(0.06, at + 0.004);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + 0.12 + Math.random() * 0.2);
+    o.connect(g).connect(master);
+    o.start(at);
+    o.stop(at + 0.4);
+  }
+  const src = ctx.createBufferSource();
+  src.buffer = noiseBuf;
+  const hp = ctx.createBiquadFilter();
+  hp.type = 'highpass';
+  hp.frequency.value = 2500;
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.3, t);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.6);
+  src.connect(hp).connect(g).connect(master);
+  src.start(t, 0, 0.7);
+}
+
+// One beat of the claw working at the boards: a dull thump with a scrape.
+export function thump(strength = 1) {
+  if (!ctx || !enabled) return;
+  const t = ctx.currentTime;
+  thud(t, 0.32 * strength);
+  const src = ctx.createBufferSource();
+  src.buffer = noiseBuf;
+  const bp = ctx.createBiquadFilter();
+  bp.type = 'bandpass';
+  bp.frequency.setValueAtTime(700, t);
+  bp.frequency.linearRampToValueAtTime(1300, t + 0.25);
+  bp.Q.value = 3;
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.linearRampToValueAtTime(0.07 * strength, t + 0.05);
+  g.gain.linearRampToValueAtTime(0.0001, t + 0.3);
+  src.connect(bp).connect(g).connect(master);
+  src.start(t, Math.random(), 0.35);
+}
+
+// A scream outside, cut short.
+export function scream() {
+  if (!ctx || !enabled) return;
+  const t = ctx.currentTime;
+  const o = ctx.createOscillator();
+  const g = ctx.createGain();
+  o.type = 'sawtooth';
+  o.frequency.setValueAtTime(520, t);
+  o.frequency.linearRampToValueAtTime(880, t + 0.25);
+  o.frequency.linearRampToValueAtTime(700, t + 0.7);
+  const bp = ctx.createBiquadFilter();
+  bp.type = 'bandpass';
+  bp.frequency.value = 1100;
+  bp.Q.value = 2;
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.linearRampToValueAtTime(0.06, t + 0.08);
+  g.gain.setValueAtTime(0.06, t + 0.62);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.7);
+  o.connect(bp).connect(g).connect(master);
+  o.start(t);
+  o.stop(t + 0.75);
+}
