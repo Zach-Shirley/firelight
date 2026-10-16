@@ -10,29 +10,40 @@ const F = () => window.__firelight;
 // from 3 am) and, with a lit blood lantern, the truth.
 const heardFootsteps = (v) => v.who !== 'mimic' || v.fake;
 const lanternTruth = (S, v) => (S.lantern && S.lanternLit ? v.who !== 'mimic' : null);
+const food = (S) => S.meat + S.cooked;
+// pick a dialogue choice by its key, if it is available
+const keyed = (d, key) => d.choices.findIndex((c) => c.key === key && (!c.can || c.can()));
+const feedAny = (d) => { const i = keyed(d, 'cooked'); return i >= 0 ? i : keyed(d, 'raw'); };
 
 // Plays the obvious moves and nothing else: opens most doors, ignores the howling,
 // reacts to the hand half the time, rarely builds, feeds the stranger whenever she asks (if it can).
-function beginner(f, S, mem) {
+function beginner(f, S, mem, picky = false) {
   const d = f.dialog;
   if (d) {
     if (d.id === 'knock') return f.choose(Math.random() < 0.7 ? 0 : 1);
-    if (d.id === 'kidAsk') return f.choose(Math.random() < 0.5 && S.meat >= 1 ? 0 : 1);
+    if (d.id === 'kidAsk') return f.choose(Math.random() < 0.5 && food(S) >= 1 ? 0 : 1);
     if (d.id === 'cutter') return f.choose(2);
-    if (d.id === 'plea') return f.choose(S.meat >= 1 && Math.random() < 0.6 ? 0 : 1);
+    if (d.id === 'plea') { const i = feedAny(d); return f.choose(i >= 0 && Math.random() < 0.6 ? i : keyed(d, 'no')); }
     if (d.id === 'strangerDead') return f.choose(Math.random() < 0.5 ? 0 : 1);
     return f.choose(0);
   }
-  if (S.away) return;
+  // a big, widening grin is hard to ignore: sometimes they run
+  if (S.away) {
+    if (!S.away.kind || S.away.kind === 'drag') return;
+    if (mem.tripAt !== S.away.total) { mem.tripAt = S.away.total; mem.willRun = Math.random() < 0.5; }
+    if (mem.willRun && S.stalk > 60) f.act.runBack();
+    return;
+  }
   if (S.hand.phase === 'warn') mem.handId = S.night.toFixed(0);
   if (S.hand.phase === 'reach') {
     if (!mem.reacted.has(mem.handId)) { mem.reacted.add(mem.handId); mem.willStrike = Math.random() < 0.5; }
     if (mem.willStrike) f.act.strike();
   }
   if (!S.lit || S.fire <= 2) f.act.stoke();
-  if (S.hunger >= 75 && S.meat > 0) f.act.eat();
+  if (S.meat >= 2) f.act.cook();
+  if (S.hunger >= 75 && (picky ? S.cooked > 0 : food(S) > 0)) f.act.eat();
   if (!S.boardsBuilt && S.wood >= 14) f.act.build('boards');
-  if (S.meat === 0 && S.hunger > 50) return f.act.hunt();
+  if (food(S) === 0 && S.hunger > 50) return f.act.hunt();
   if (S.wood < 4) return f.act.wood();
 }
 
@@ -44,24 +55,34 @@ function learner(f, S, mem) {
     const truth = S.hint >= 4 ? lanternTruth(S, d.visit) : null;
     return f.choose((truth ?? heardFootsteps(d.visit)) ? 0 : 1);
   }
-  if (d && d.id === 'plea') return f.choose(S.meat >= 1 ? 0 : 1);
+  if (d && d.id === 'plea') { const i = feedAny(d); return f.choose(i >= 0 ? i : keyed(d, 'no')); }
   if (d && d.id === 'strangerDead') return f.choose(0);
   if (!d && !S.away) {
+    // a reader learns from the first bout of sickness: cook first, eat raw only when desperate
+    if (S.meat >= 1 && S.fire >= 1) f.act.cook();
+    if (S.hunger >= 75 && S.cooked > 0) f.act.eat();
+    if (S.hunger >= 88 && S.cooked === 0) f.act.eat();
     if (S.hint >= 2) {
       if (S.hand.phase === 'reach') f.act.strike();
       if (!S.boardsBuilt && S.wood >= 8) f.act.build('boards');
       if (S.boardsBuilt && S.boards === 0 && S.wood >= 3) f.act.build('repair');
       if (!S.boardsBuilt && S.wood < 8 && !S.hunter.near) return f.act.wood();
     }
-    if (S.hint >= 4 && !S.lantern && S.blood >= 2 && S.wood >= 6) f.act.build('lantern');
+    if (S.hint >= 4 && !S.lantern && S.blood >= 4 && S.wood >= 10) f.act.build('lantern');
+    // told the lantern matters: save wood and hunt for blood
+    if (S.hint >= 4 && !S.lantern && !S.hunter.near && S.stalk < 10) {
+      if (S.wood < 12) return f.act.wood();
+      if (S.blood < 4) return f.act.hunt();
+    }
   }
-  if (!d && S.away && S.hint >= 3 && S.hunter.near) return f.act.runBack();
+  if (!d && S.away && ((S.hint >= 3 && S.hunter.near) || S.stalk > 45)) return f.act.runBack();
   if (!d && !S.away && S.hint >= 3 && S.hunter.near) {
     if (!S.lit || S.fire <= 2) f.act.stoke();
-    if (S.hunger >= 75 && S.meat > 0) f.act.eat();
+    if (S.meat >= 1) f.act.cook();
+    if (S.hunger >= 75 && food(S) > 0) f.act.eat();
     return;
   }
-  return beginner(f, S, mem);
+  return beginner(f, S, mem, true);
 }
 
 // Knows every tell: footsteps, the walkers after 3 am (gets the lantern first), waits out the howling,
@@ -77,9 +98,9 @@ function skilled(f, S, mem, human = false) {
       const open = truth ?? heardFootsteps(d.visit);
       return f.choose(open !== misread ? 0 : 1);
     }
-    if (d.id === 'kidAsk') return f.choose(S.meat >= 3 ? 0 : 1);
-    if (d.id === 'cutter') return f.choose(S.meat >= 3 && S.wood < 10 ? 0 : 2);
-    if (d.id === 'plea') return f.choose(d.last && S.meat >= 1 ? 0 : 1);
+    if (d.id === 'kidAsk') return f.choose(food(S) >= 3 ? 0 : 1);
+    if (d.id === 'cutter') return f.choose(food(S) >= 3 && S.wood < 10 ? 0 : 2);
+    if (d.id === 'plea') { const i = keyed(d, 'cooked'); return f.choose(d.last && i >= 0 ? i : keyed(d, 'no')); }
     if (d.id === 'strangerDead') return f.choose(0);
     return f.choose(0);
   }
@@ -90,14 +111,16 @@ function skilled(f, S, mem, human = false) {
   if (S.hand.phase !== 'reach') mem.clawDelay = 0.1 + Math.random() * 0.35;
   if (S.hand.phase === 'crawl' && S.wood >= 8) f.act.build(S.boardsBuilt ? 'repair' : 'boards');
   if (!S.lit || S.fire <= 2 || (S.fire === 3 && S.wood > 12)) f.act.stoke();
-  if (S.hunger >= 65 && S.meat > 0) f.act.eat();
+  if (S.meat >= 1 && S.fire >= 1) f.act.cook();
+  if (S.hunger >= 65 && S.cooked > 0) f.act.eat();
+  if (S.hunger >= 88 && S.cooked === 0 && S.meat > 0) f.act.eat();
   if (!S.boardsBuilt && S.wood >= 9 && S.night > 50) f.act.build('boards');
   if (S.boardsBuilt && S.boards < 2 && S.wood >= 8) f.act.build('repair');
   if (S.traps < 2 && S.wood >= 9 && S.boardsBuilt) f.act.build('trap');
-  if (!S.lantern && S.blood >= 2 && S.wood >= 6) f.act.build('lantern');
+  if (!S.lantern && S.blood >= 4 && S.wood >= 10) f.act.build('lantern');
   if (S.hunter.near) return;
-  if (S.meat < 2 && S.hunger > 30) return f.act.hunt();
-  if (S.lantern === false && S.blood < 2 && S.night > 150 && S.wood >= 8) return f.act.hunt();
+  if (food(S) < 2 && S.hunger > 30) return f.act.hunt();
+  if (S.lantern === false && S.blood < 4 && S.night > 150 && S.wood >= 8) return f.act.hunt();
   if (S.wood < 12) return f.act.wood();
 }
 

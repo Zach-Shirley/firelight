@@ -13,7 +13,8 @@ A short horror-survival game in chunky pixel art. One night lasts about seven mi
 | Key | Action |
 | --- | --- |
 | S | Stoke the fire (1 wood) |
-| E | Eat (1 meat) |
+| E | Eat: cooked meat if you have it, raw if you don't. 1.5 s cooldown |
+| C | Cook up to 3 raw meat. It finishes on its own in about 6 s, as long as the fire is lit |
 | G | Go out for wood (short trip) |
 | H | Go out to hunt (longer trip: meat, sometimes blood) |
 | F / Space | Burn her claws (1 wood, needs a fire) |
@@ -21,7 +22,7 @@ A short horror-survival game in chunky pixel art. One night lasts about seven mi
 | B | Build |
 | 1–4 | Dialogue choices |
 | J | Journal (everything you've heard tonight) |
-| M | Sound |
+| M | Sound (also on the title screen; the game goes silent while the tab is in the background) |
 | Esc | Menu, which pauses |
 
 ## What can kill you
@@ -31,18 +32,22 @@ Every threat has a tell and a counter. Threats arrive as the night goes on.
 | From | Threat | The tell | What saves you | Death |
 | --- | --- | --- | --- | --- |
 | 10 pm | **The dark** | Eyes gather, a heartbeat starts, red creeps in from the edges | Keep the fire above smoldering. It burns down faster every hour | The dark comes in |
-| 10 pm | **Hunger** | "your stomach aches", then "starving" (which also slows you down) | Eat. Meat comes from hunting, traps and visitors | You starve |
-| 11 pm | **The thing in the trees** | A howl, and amber eyes shining in the treeline outside the window | Don't go out while it's close; run back if it howls while you're out. You get a moment to run | It finds you in the trees |
+| 10 pm | **Hunger** | A stomach growl at "hungry". At "starving" the growl repeats and a dull red border closes in from the edges, and you slow down | Eat. Cook raw meat first: eating it raw makes you **sick** for a while (slower trips and stoking, hungrier, a green cast, retching) | You starve |
+| 11 pm | **The thing in the trees** | A howl, and amber eyes shining in the treeline outside the window. While you're out, **a grin appears in the dark**: faint at first, then wider, brighter and more curled as it closes in, fast once it has howled | Don't go out while it's close. Run back when the grin starts to widen; you come home empty-handed | A full grin |
 | midnight | **The mimic** | Real visitors' **footsteps crunch through the snow before they knock**. The mimic just knocks, word for word in the voice of someone you'd open for. There is only one stranger | Keep the door shut when nothing walked up | You opened the door. It was not a person |
 | 1 am | **Her, at the window** | Claws drag down the glass, then it shatters, then a black shape backlit in red | Board the window beforehand. With boards up she claws through the gap to a rhythm of thuds, and you can burn her. If she outlasts you, she tears a board off and drags your wood out | Bare window: she climbs in, even while you're out. You can still nail boards up in the last seconds |
 | 3 am | **The walkers** | Some mimics have learned to fake footsteps. Nothing in the text or sound gives them away | A lit **blood lantern** shows a shadow of feet under the door, or nothing | You opened the door |
 
 **The door never opens by itself.** Every knock asks you: open it, or keep it shut. Opening for the right people matters:
-- **The stranger** knocks first. Let her in and she teaches you the rules. She also has to eat: she begs three times, and **the third plea is the one that counts**. Feed her earlier and she'll be starving again before dawn. If she starves, something starts moving under her skin. Drag her body out into the snow, which is a risky trip, and the smell keeps the hunter close for the rest of the night. Or leave her, and it gets up. Turn her away at the start and none of this happens.
+- **The stranger** knocks first. Let her in and she teaches you the rules. She also has to eat cooked meat: she begs three times, and **the third plea is the one that counts**. Feed her earlier and she'll be starving again before dawn. Feed her raw meat and it kills her. If she starves, something starts moving under her skin. Drag her body out into the snow, which is a risky trip, and the smell keeps the hunter close for the rest of the night. Or leave her, and it gets up. Turn her away at the start and none of this happens.
 - **A hungry kid** asks for meat and comes back later with meat and blood.
 - **A woodcutter** trades meat for wood.
 - **A lost traveler** leaves a few logs.
 - **A fleeing man** (from midnight) pounds on the door. Let him in and he leaves you meat and blood. Leave him out and you hear him die; then whatever caught him sniffs at your door, dread jumps, and she comes for the window sooner.
+
+Each real person you let in is worth 10 points at dawn.
+
+**Knocks while you're out** wait at the door. You can't hear footsteps from the trees, so when you come back the snow tells you: fresh footprints leading up to the door, or none.
 
 The mimic can wear any of their voices. Keep the door shut on a real visitor and you hear their footsteps leave. Keep it shut on the mimic and the knocking stops, but no footsteps leave.
 
@@ -50,7 +55,8 @@ The mimic can wear any of their voices. Keep the door shut on a real visitor and
 | --- | --- |
 | ![The room, with eyes in the treeline](docs/room.jpg) | ![Her claws through the boards](docs/hand.jpg) |
 | ![A bare window](docs/crawler.jpg) | ![A knock, seen by the blood lantern](docs/knock.jpg) |
-| ![The stranger, starving](docs/plea.jpg) | ![Out on a trip](docs/away.jpg) |
+| ![The stranger, starving](docs/plea.jpg) | ![The grin, while you're out](docs/away.jpg) |
+| ![Cooking, while starving](docs/cooking.jpg) | |
 
 ## Building
 
@@ -59,8 +65,8 @@ Everything you build costs score, so building is a tradeoff.
 | Build | Cost | What it does |
 | --- | --- | --- |
 | Window boards | 8 wood | Three boards. Without them, her first visit at 1 am kills you. Repair one for 3 wood |
-| Trap (up to 3) | 5 wood each | Meat and blood, collected on every trip. The smell keeps the thing in the trees close for longer |
-| Blood lantern | 4 wood + 2 blood | Red light under the door shows whether anything is actually standing there. That's the only way to catch the walkers after 3 am. It burns a jar of blood every minute, and goes dark when you run out |
+| Trap (up to 3) | 5 wood each | Raw meat and blood, collected on every trip. The smell keeps the thing in the trees close for longer |
+| Blood lantern | 8 wood + 4 blood | Red light under the door shows whether anything is actually standing there. That's the only way to catch the walkers after 3 am. It burns a jar of blood every minute, and goes dark when you run out |
 
 ## Score
 
@@ -69,12 +75,16 @@ Only a night survived to dawn scores.
 | Kept at dawn | Points |
 | --- | --- |
 | Each wood | 1 |
-| Each meat | 3 |
+| Each cooked meat | 3 |
+| Each raw meat | 2 |
 | Each blood | 5 |
 | Each level of fire | 10 |
+| Each real person you let in | 10 |
 | The stranger still with you | 25 |
 
 Stockpiling is the hard part, because surviving means spending.
+
+The resource bar uses small pixel icons: a log end, charred cooked meat, raw meat (purple, veined, with something like an eye in it) and a jar of blood.
 
 The top-10 board takes three arcade initials. It's stored in the browser on that computer, like a single arcade cabinet; a shared online board would need a server, which was left out of scope.
 
@@ -92,25 +102,25 @@ The top-10 board takes three arcade initials. It's stored in the browser on that
 - **Strong:** knows every tell. It boards up before 1 am, gets the lantern before the walkers, waits out the howling, burns the claws and feeds the stranger only on her last plea. It reacts a beat late, like a person, and misreads the footsteps now and then.
 - **Skilled:** the same, but with instant, perfect reactions.
 
-Results from 150 nights each, on 2026-10-16:
+Results on 2026-10-16, after this round's changes (raw/cooked meat, the grin, the doubled lantern cost, weaker traps):
 
-| Player | Survives | Main causes of death | Median score |
+| Player | Nights | Survives | Main causes of death |
 | --- | --- | --- | --- |
-| Beginner | 0% | her at the window 44%, the trees 32%, mimic 24% | n/a |
-| Learner | 19% | mimic 35%, the trees 20%, starving 10% | 56 |
-| Strong | 93% | mimic 4%, the trees 2% | 122 |
-| Skilled | 95% | mimic 3%, the trees 2% | 122 |
+| Beginner | 120 | 0% | the trees 34%, mimic 33%, her at the window 31% |
+| Learner | 150 | 11% | starving 36%, mimic 23%, her at the window 22% |
+| Strong | 120 | 84% | mimic 13%, her at the window 3% |
 
-A real first-time player lands between the beginner and the learner, so the large majority of first nights end in death.
+A real first-time player lands between the beginner and the learner, so the large majority of first nights end in death. The doubled lantern cost is what brought the strong player down from about 93% to 84%: it now has to work to have the lantern lit when the walkers start.
 
-The strong bot's numbers are a ceiling: it never misses a fading footsteps line or forgets the window. Real experienced players will die more often than 7%. The score spread (learner 25–76, strong 62–187) is what the leaderboard runs on.
+The bots need some human sense to be realistic. Beginners sometimes run from a widening grin, and readers cook their meat after the first bout of sickness.
 
 Tuning changes along the way:
-- lowered the background risk of trips, so dying in the trees comes from staying out during a howl;
+- replaced the random death roll in the trees with the visible grin;
 - added a grace period after a howl;
 - made door visits more frequent;
 - tightened wood and hunger;
-- made the lantern burn blood every 60 seconds;
+- made the lantern burn blood every 60 seconds and doubled its cost;
+- trimmed trap yields;
 - had 60% of late mimics fake footsteps.
 
 To rerun the simulation, open the game locally and run this in the browser console:
@@ -132,11 +142,12 @@ Plain HTML, CSS and JavaScript modules, with no framework, no build step and no 
   - the fire, hunger and dread;
   - the hunter's cycle and trips;
   - the stranger's hunger and hints;
+  - cooking and sickness;
   - the blood lantern's fuel;
   - her phases at the window (idle, warn, crawl or reach, then steal or retreat);
   - door scheduling.
 
-  Dialogues pause the night; the window does not.
+  Dialogues pause the night, and the flames, snow and flicker drop to half speed so the pause is visible.
 - **Her** is drawn at half-pixel detail on the light layer: black, with a dark-red rim, backlit by a red glow that also lifts the darkness enough to show the boards she's clawing at.
 - **Sound** is generated with the Web Audio API, with no audio files:
   - fire crackle;
@@ -146,6 +157,7 @@ Plain HTML, CSS and JavaScript modules, with no framework, no build step and no 
   - a board splintering;
   - the hiss of the burning branch;
   - glass shattering, and the rhythm of thuds as she works at the boards;
+  - a stomach growl, retching, and meat sizzling on the fire;
   - a scream outside;
   - the heartbeat;
   - a death drone and a dawn chord.
@@ -225,6 +237,17 @@ Built with heavy AI assistance (Claude Code) under Zach Shirley's direction:
     - the stranger's hunger, the third plea, and the consequence of letting her starve;
     - her redesign as a black, red-glowing claw that shatters the glass and crawls in through a bare window, with the board-breaking rhythm;
     - more frequent, more dangerous doors, so the blood lantern and traps earn their place.
+  - **The polish round:**
+    - muting on the title screen and in background tabs;
+    - a real hunger warning;
+    - a costlier lantern and weaker traps;
+    - raw and cooked meat with sickness, and icons;
+    - the glass always breaking first;
+    - the grin;
+    - points for letting the right people in;
+    - an eat cooldown;
+    - a visible pause;
+    - visitors waiting while you're out.
 - **Claude Code:**
   - the mechanics design within that direction;
   - the code, art, sound and writing;

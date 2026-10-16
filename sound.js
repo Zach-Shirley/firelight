@@ -31,7 +31,7 @@ export function initAudio() {
   if (!AC) return;
   ctx = new AC();
   master = ctx.createGain();
-  master.gain.value = enabled ? 0.8 : 0;
+  master.gain.value = audible() ? 0.8 : 0;
   master.connect(ctx.destination);
   noiseBuf = makeNoise(2);
 
@@ -41,9 +41,18 @@ export function initAudio() {
   loop('lowpass', 320, 1.5, windGain);    // wind outside
 }
 
+let hidden = false;
+const audible = () => enabled && !hidden;
+
 export function setEnabled(on) {
   enabled = on;
-  if (master) master.gain.setTargetAtTime(on ? 0.8 : 0, ctx.currentTime, 0.1);
+  if (master) master.gain.setTargetAtTime(audible() ? 0.8 : 0, ctx.currentTime, 0.1);
+}
+
+// Silence everything while the tab is in the background.
+export function setHidden(h) {
+  hidden = h;
+  if (master) master.gain.setTargetAtTime(audible() ? 0.8 : 0, ctx.currentTime, 0.05);
 }
 
 export function isEnabled() { return enabled; }
@@ -419,4 +428,70 @@ export function scream() {
   o.connect(bp).connect(g).connect(master);
   o.start(t);
   o.stop(t + 0.75);
+}
+
+// A hollow, rumbling stomach.
+export function growl(strength = 1) {
+  if (!ctx || !enabled) return;
+  const t = ctx.currentTime;
+  const o = ctx.createOscillator();
+  const lfo = ctx.createOscillator();
+  const lfoGain = ctx.createGain();
+  const g = ctx.createGain();
+  o.type = 'sawtooth';
+  o.frequency.setValueAtTime(70, t);
+  o.frequency.linearRampToValueAtTime(95, t + 0.5);
+  o.frequency.linearRampToValueAtTime(60, t + 1.3);
+  lfo.frequency.value = 11;
+  lfoGain.gain.value = 18;
+  lfo.connect(lfoGain).connect(o.frequency);
+  const lp = ctx.createBiquadFilter();
+  lp.type = 'lowpass';
+  lp.frequency.value = 260;
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.linearRampToValueAtTime(0.16 * strength, t + 0.2);
+  g.gain.linearRampToValueAtTime(0.1 * strength, t + 0.8);
+  g.gain.linearRampToValueAtTime(0.0001, t + 1.4);
+  o.connect(lp).connect(g).connect(master);
+  o.start(t); lfo.start(t);
+  o.stop(t + 1.5); lfo.stop(t + 1.5);
+}
+
+// Retching: two wet heaves.
+export function retch() {
+  if (!ctx || !enabled) return;
+  const t = ctx.currentTime;
+  for (let i = 0; i < 2; i++) {
+    const at = t + i * 0.45;
+    const src = ctx.createBufferSource();
+    src.buffer = noiseBuf;
+    const bp = ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.setValueAtTime(380, at);
+    bp.frequency.linearRampToValueAtTime(220, at + 0.3);
+    bp.Q.value = 2.5;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.linearRampToValueAtTime(0.22, at + 0.06);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + 0.35);
+    src.connect(bp).connect(g).connect(master);
+    src.start(at, Math.random(), 0.4);
+  }
+}
+
+// Fat spitting on the fire.
+export function sizzle() {
+  if (!ctx || !enabled) return;
+  const t = ctx.currentTime;
+  const src = ctx.createBufferSource();
+  src.buffer = noiseBuf;
+  const hp = ctx.createBiquadFilter();
+  hp.type = 'highpass';
+  hp.frequency.value = 4500;
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.linearRampToValueAtTime(0.05, t + 0.03);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.25 + Math.random() * 0.2);
+  src.connect(hp).connect(g).connect(master);
+  src.start(t, Math.random() * 1.5, 0.5);
 }

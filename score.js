@@ -2,15 +2,18 @@
 
 export const BOARD_SIZE = 10;
 
-// Only a night survived to dawn scores. What you score is what you held on to.
-// end: { wood, meat, blood, fire (0..4), companion (true if the stranger is with you) }
-export function computeScore({ wood = 0, meat = 0, blood = 0, fire = 0, companion = false }) {
+// Only a night survived to dawn scores. What you score is what you held on to,
+// plus a little for every real person you let in.
+// end: { wood, raw, cooked, blood, fire (0..4), companion (the stranger is with you), trusted (people let in) }
+export function computeScore({ wood = 0, raw = 0, cooked = 0, blood = 0, fire = 0, companion = false, trusted = 0 }) {
   const lines = [
     ['wood left', wood, wood * 1],
-    ['meat left', meat, meat * 3],
+    ['cooked meat left', cooked, cooked * 3],
+    ['raw meat left', raw, raw * 2],
     ['blood left', blood, blood * 5],
     ['fire at dawn', fire, fire * 10],
   ];
+  if (trusted > 0) lines.push(['people you let in', trusted, trusted * 10]);
   if (companion) lines.push(['not alone', '', 25]);
   const total = lines.reduce((sum, [, , pts]) => sum + pts, 0);
   return { lines, total };

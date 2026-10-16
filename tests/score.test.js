@@ -3,14 +3,15 @@ import assert from 'node:assert/strict';
 import { computeScore, qualifies, insertScore, cleanInitials, sanitizeBoard } from '../score.js';
 
 test('score is what you held on to at dawn', () => {
-  const r = computeScore({ wood: 20, meat: 2, blood: 1, fire: 3, companion: false });
-  assert.equal(r.total, 20 + 6 + 5 + 30);
-  assert.deepEqual(r.lines.map((l) => l[0]), ['wood left', 'meat left', 'blood left', 'fire at dawn']);
+  const r = computeScore({ wood: 20, raw: 1, cooked: 2, blood: 1, fire: 3 });
+  assert.equal(r.total, 20 + 2 + 6 + 5 + 30);
+  assert.deepEqual(r.lines.map((l) => l[0]), ['wood left', 'cooked meat left', 'raw meat left', 'blood left', 'fire at dawn']);
 });
 
-test('company at dawn is worth a bonus', () => {
-  const r = computeScore({ wood: 0, meat: 0, blood: 0, fire: 0, companion: true });
-  assert.equal(r.total, 25);
+test('letting the right people in and company at dawn are worth points', () => {
+  const r = computeScore({ trusted: 3, companion: true });
+  assert.equal(r.total, 30 + 25);
+  assert.ok(r.lines.some((l) => l[0] === 'people you let in'));
   assert.ok(r.lines.some((l) => l[0] === 'not alone'));
 });
 
