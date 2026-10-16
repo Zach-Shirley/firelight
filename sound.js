@@ -240,3 +240,110 @@ export function dawn() {
     o.stop(at + 4.1);
   });
 }
+
+// Footsteps crunching through snow toward the door.
+export function footsteps(count = 5) {
+  if (!ctx || !enabled) return;
+  const t = ctx.currentTime + 0.05;
+  for (let i = 0; i < count; i++) {
+    const at = t + i * 0.42 + Math.random() * 0.06;
+    const src = ctx.createBufferSource();
+    src.buffer = noiseBuf;
+    const bp = ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = 500 + Math.random() * 300;
+    bp.Q.value = 1.2;
+    const g = ctx.createGain();
+    const vol = 0.05 + i * 0.025;   // getting closer
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.exponentialRampToValueAtTime(vol, at + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + 0.16);
+    src.connect(bp).connect(g).connect(master);
+    src.start(at, Math.random() * 1.5, 0.2);
+  }
+}
+
+// A long, low howl from the trees.
+export function howl() {
+  if (!ctx || !enabled) return;
+  const t = ctx.currentTime;
+  const o = ctx.createOscillator();
+  const lfo = ctx.createOscillator();
+  const lfoGain = ctx.createGain();
+  const g = ctx.createGain();
+  o.type = 'sawtooth';
+  o.frequency.setValueAtTime(140, t);
+  o.frequency.linearRampToValueAtTime(260, t + 0.9);
+  o.frequency.linearRampToValueAtTime(190, t + 2.6);
+  lfo.frequency.value = 5;
+  lfoGain.gain.value = 6;
+  lfo.connect(lfoGain).connect(o.frequency);
+  const lp = ctx.createBiquadFilter();
+  lp.type = 'lowpass';
+  lp.frequency.value = 700;
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.linearRampToValueAtTime(0.06, t + 0.6);
+  g.gain.linearRampToValueAtTime(0.0001, t + 2.8);
+  o.connect(lp).connect(g).connect(master);
+  o.start(t); lfo.start(t);
+  o.stop(t + 2.9); lfo.stop(t + 2.9);
+}
+
+// A board splintering.
+export function crack() {
+  if (!ctx || !enabled) return;
+  const t = ctx.currentTime;
+  thud(t, 0.5);
+  for (let i = 0; i < 4; i++) {
+    const at = t + i * 0.035;
+    const src = ctx.createBufferSource();
+    src.buffer = noiseBuf;
+    const hp = ctx.createBiquadFilter();
+    hp.type = 'highpass';
+    hp.frequency.value = 1200 + i * 400;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.25, at);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + 0.08);
+    src.connect(hp).connect(g).connect(master);
+    src.start(at, Math.random(), 0.1);
+  }
+}
+
+// Burning branch on something that is not a hand.
+export function hiss() {
+  if (!ctx || !enabled) return;
+  const t = ctx.currentTime;
+  const src = ctx.createBufferSource();
+  src.buffer = noiseBuf;
+  const hp = ctx.createBiquadFilter();
+  hp.type = 'highpass';
+  hp.frequency.value = 3000;
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.linearRampToValueAtTime(0.18, t + 0.05);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.9);
+  src.connect(hp).connect(g).connect(master);
+  src.start(t, 0, 1);
+}
+
+// Death: a low, falling drone.
+export function death() {
+  if (!ctx || !enabled) return;
+  const t = ctx.currentTime;
+  [55, 58, 82].forEach((f) => {
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.type = 'sawtooth';
+    o.frequency.setValueAtTime(f, t);
+    o.frequency.exponentialRampToValueAtTime(f * 0.5, t + 3);
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 400;
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(0.08, t + 0.1);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 3.2);
+    o.connect(lp).connect(g).connect(master);
+    o.start(t);
+    o.stop(t + 3.3);
+  });
+}

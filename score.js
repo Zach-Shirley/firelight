@@ -2,27 +2,18 @@
 
 export const BOARD_SIZE = 10;
 
-// stats: counters collected during the night
-// hours: whole hours survived (0..8)
-// dawn: true if the player made it to morning
-// fireAtEnd: fire level (0..4) when the night ended
-export function computeScore({ stats, hours, dawn, fireAtEnd }) {
-  const s = { woodBurned: 0, built: 0, trades: 0, helped: 0, kind: 0, brave: 0, wise: 0, ...stats };
+// Only a night survived to dawn scores. What you score is what you held on to.
+// end: { wood, meat, blood, fire (0..4), companion (true if the stranger is with you) }
+export function computeScore({ wood = 0, meat = 0, blood = 0, fire = 0, companion = false }) {
   const lines = [
-    ['hours survived', hours, hours * 100],
-    ['wood burned', s.woodBurned, s.woodBurned * 2],
-    ['things built', s.built, s.built * 40],
-    ['trades made', s.trades, s.trades * 15],
-    ['people helped', s.kind + s.helped, s.kind * 100 + s.helped * 60],
-    ['nerve', s.brave + s.wise, (s.brave + s.wise) * 30],
+    ['wood left', wood, wood * 1],
+    ['meat left', meat, meat * 3],
+    ['blood left', blood, blood * 5],
+    ['fire at dawn', fire, fire * 10],
   ];
-  if (dawn) {
-    lines.push(['made it to dawn', '', 500]);
-    lines.push(['fire still burning', fireAtEnd, fireAtEnd * 50]);
-  }
-  const shown = lines.filter(([label, , pts]) => pts > 0 || label === 'hours survived');
-  const total = shown.reduce((sum, [, , pts]) => sum + pts, 0);
-  return { lines: shown, total };
+  if (companion) lines.push(['not alone', '', 25]);
+  const total = lines.reduce((sum, [, , pts]) => sum + pts, 0);
+  return { lines, total };
 }
 
 // Does this score earn a place on the board?
@@ -51,7 +42,7 @@ export function sanitizeBoard(raw, max = BOARD_SIZE) {
   if (!Array.isArray(raw)) return [];
   return raw
     .filter((e) => e && typeof e.score === 'number' && Number.isFinite(e.score) && typeof e.name === 'string')
-    .map((e) => ({ name: cleanInitials(e.name), score: Math.max(0, Math.round(e.score)), dawn: !!e.dawn, t: Number(e.t) || 0 }))
+    .map((e) => ({ name: cleanInitials(e.name), score: Math.max(0, Math.round(e.score)), t: Number(e.t) || 0 }))
     .sort((a, b) => b.score - a.score || a.t - b.t)
     .slice(0, max);
 }

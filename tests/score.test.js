@@ -2,25 +2,20 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { computeScore, qualifies, insertScore, cleanInitials, sanitizeBoard } from '../score.js';
 
-test('a quiet loss scores only the hours survived', () => {
-  const r = computeScore({ stats: {}, hours: 3, dawn: false, fireAtEnd: 0 });
-  assert.equal(r.total, 300);
-  assert.deepEqual(r.lines.map((l) => l[0]), ['hours survived']);
+test('score is what you held on to at dawn', () => {
+  const r = computeScore({ wood: 20, meat: 2, blood: 1, fire: 3, companion: false });
+  assert.equal(r.total, 20 + 6 + 5 + 30);
+  assert.deepEqual(r.lines.map((l) => l[0]), ['wood left', 'meat left', 'blood left', 'fire at dawn']);
 });
 
-test('reaching dawn adds the dawn bonus and the remaining fire', () => {
-  const r = computeScore({
-    stats: { woodBurned: 40, built: 3, trades: 2, helped: 1, kind: 1, brave: 1, wise: 1 },
-    hours: 8, dawn: true, fireAtEnd: 4,
-  });
-  // 800 + 80 + 120 + 30 + (100 + 60) + 60 + 500 + 200
-  assert.equal(r.total, 1950);
-  assert.ok(r.lines.some((l) => l[0] === 'made it to dawn'));
+test('company at dawn is worth a bonus', () => {
+  const r = computeScore({ wood: 0, meat: 0, blood: 0, fire: 0, companion: true });
+  assert.equal(r.total, 25);
+  assert.ok(r.lines.some((l) => l[0] === 'not alone'));
 });
 
-test('missing stats count as zero', () => {
-  const r = computeScore({ stats: { woodBurned: 5 }, hours: 0, dawn: false, fireAtEnd: 0 });
-  assert.equal(r.total, 10);
+test('missing values count as zero', () => {
+  assert.equal(computeScore({}).total, 0);
 });
 
 test('qualifies while the board has room, then only beats the lowest', () => {

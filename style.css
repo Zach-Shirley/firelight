@@ -254,7 +254,7 @@ button:disabled { opacity: 0.4; cursor: default; }
   color: var(--ink-dim);
 }
 .menu-col { display: flex; flex-direction: column; align-items: center; gap: calc(3px * var(--s)); }
-.menu-col button, .subpanel .backBtn, #endTitleBtn {
+.menu-col button, .subpanel .backBtn {
   font-size: calc(7.5px * var(--s));
   min-width: calc(90px * var(--s));
   padding: 0 calc(6px * var(--s)) calc(1px * var(--s));
@@ -299,6 +299,7 @@ button:disabled { opacity: 0.4; cursor: default; }
   width: calc(170px * var(--s));
   max-height: calc(170px * var(--s));
   overflow-y: auto;
+  overflow-x: hidden;
   padding: calc(6px * var(--s)) calc(8px * var(--s));
   background: var(--panel-solid);
   border: calc(1px * var(--s)) solid var(--edge);
@@ -328,7 +329,7 @@ button:disabled { opacity: 0.4; cursor: default; }
   border-radius: calc(1px * var(--s));
 }
 #initials button { font-size: calc(6px * var(--s)); padding: 0 calc(4px * var(--s)); }
-#endTitleBtn { align-self: center; margin-top: calc(2px * var(--s)); }
+
 
 @keyframes flicker {
   0%, 100% { opacity: 1; }
@@ -337,3 +338,56 @@ button:disabled { opacity: 0.4; cursor: default; }
   48% { opacity: 0.95; }
   70% { opacity: 0.88; }
 }
+
+/* ---- round 4: hunger, trips, the hand, death */
+#hunger { font-size: calc(6px * var(--s)); color: #7d6d58; margin-top: calc(1px * var(--s)); }
+#hunger.warn { color: #e0a040; }
+#hunger.bad { color: #ff5a40; animation: flicker 0.8s infinite; }
+
+#strike {
+  position: absolute;
+  left: 50%;
+  top: calc(84px * var(--s));
+  transform: translateX(-50%);
+  font-size: calc(8px * var(--s));
+  padding: calc(1px * var(--s)) calc(8px * var(--s)) calc(2px * var(--s));
+  color: #fff3d6;
+  background: rgba(90, 14, 8, 0.9);
+  border-color: #ff5a40;
+  animation: flicker 0.5s infinite;
+}
+#strike .dim { color: #e0a090; font-size: calc(5.5px * var(--s)); }
+#strike::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: calc(1px * var(--s));
+  width: var(--cd, 100%);
+  background: #ff5a40;
+}
+
+#away {
+  position: absolute;
+  left: 50%;
+  bottom: calc(10px * var(--s));
+  transform: translateX(-50%);
+  width: calc(150px * var(--s));
+  text-align: center;
+  padding: calc(4px * var(--s)) calc(6px * var(--s));
+  background: var(--panel-solid);
+  border: calc(1px * var(--s)) solid var(--edge);
+  border-radius: calc(2px * var(--s));
+}
+#away p { margin: 0 0 calc(3px * var(--s)); font-size: calc(7px * var(--s)); color: var(--ink-dim); }
+#away .bar { height: calc(2px * var(--s)); background: #1a100a; margin-bottom: calc(3px * var(--s)); }
+#awayBar { height: 100%; width: 0; background: var(--ember); }
+#runBack { font-size: calc(6px * var(--s)); padding: 0 calc(5px * var(--s)); }
+
+#endHint { margin: 0; font-size: calc(6px * var(--s)); color: #c8a070; }
+#endHint::before { content: 'hint: '; color: var(--ink-dim); }
+.end-buttons { display: flex; justify-content: center; gap: calc(4px * var(--s)); margin-top: calc(2px * var(--s)); }
+.end-buttons button { font-size: calc(7.5px * var(--s)); min-width: calc(60px * var(--s)); padding: 0 calc(6px * var(--s)) calc(1px * var(--s)); }
+#ending.died { background: radial-gradient(ellipse at 50% 50%, rgba(30, 0, 0, 0.6), rgba(0, 0, 0, 0.95)); }
+#ending.died .end-panel { border-color: #5a1010; }
+#ending.died h2 { color: #c8281e; text-shadow: 0 0 calc(6px * var(--s)) rgba(200, 20, 10, 0.6); font-size: calc(18px * var(--s)); }

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Firelight</title>
-  <meta name="description" content="Keep the fire alive in one dark room until dawn. A small pixel-art survival game.">
+  <meta name="description" content="Survive one night in a dark room. Keep the fire alive, eat, and be careful what you let in.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
@@ -15,7 +15,7 @@
     <canvas id="pix"></canvas>
     <canvas id="light"></canvas>
 
-    <div id="hud"><div id="wood"></div><div id="clock"></div></div>
+    <div id="hud"><div id="res"></div><div id="clock"></div><div id="hunger"></div></div>
 
     <div id="menu">
       <button id="soundBtn" title="sound (M)">sound on</button>
@@ -28,9 +28,18 @@
 
     <div id="actions">
       <button id="stoke" class="act" title="costs 1 wood (S)"><span class="label">light fire</span></button>
-      <button id="gather" class="act hidden" title="(G)"><span class="label">gather wood</span></button>
-      <button id="traps" class="act hidden" title="(T)"><span class="label">check traps</span></button>
+      <button id="eat" class="act hidden" title="eat 1 meat (E)"><span class="label">eat</span></button>
+      <button id="woodTrip" class="act hidden" title="a short trip out for wood (G)"><span class="label">gather wood</span></button>
+      <button id="huntTrip" class="act hidden" title="a longer trip out for meat (H)"><span class="label">hunt</span></button>
       <button id="buildBtn" class="act hidden" title="(B)"><span class="label">build</span></button>
+    </div>
+
+    <button id="strike" class="hidden" title="(F or space)">burn the hand! <span class="dim">1 wood</span></button>
+
+    <div id="away" class="hidden">
+      <p id="awayText"></p>
+      <div class="bar"><div id="awayBar"></div></div>
+      <button id="runBack" title="(R)">run back</button>
     </div>
 
     <div id="dialogue" class="hidden">
@@ -72,21 +81,21 @@
 
         <div id="howPanel" class="subpanel hidden">
           <ul class="how">
-            <li><b>Stoke the fire</b> (S) to hold back the dark. Each stoke costs one wood.</li>
-            <li><b>Gather wood</b> (G) in the forest beyond the door.</li>
-            <li>The night lasts eight hours, from 10 pm to 6 am. <b>Make it to dawn.</b></li>
-            <li>When the fire is low, things gather in the dark. Leave it out too long and they get in.</li>
-            <li>People will knock. Who you let in is up to you. Not everything that knocks is a person.</li>
-            <li>Score comes from hours survived, wood burned, things built, people helped and nerve.</li>
+            <li>Survive one night, 10 pm to 6 am. It takes about seven minutes, and it gets worse every hour.</li>
+            <li><b>Stoke the fire</b> (S). If it stays out, the dark comes in.</li>
+            <li><b>Eat</b> (E). Run out of food and you starve.</li>
+            <li>Go out to <b>gather wood</b> (G) or <b>hunt</b> (H). While you're out, no one is minding the room, and something hunts the trees.</li>
+            <li>People knock. Not everything that knocks is a person. The door only opens if you open it.</li>
+            <li>Your score is what you still have at dawn. Everything you build or burn costs you.</li>
           </ul>
-          <p class="keys">S stoke · G gather · T traps · B build · J journal · M sound · Esc menu · 1–4 choices</p>
+          <p class="keys">S stoke · E eat · G wood · H hunt · F burn · R run back · B build · J journal · M sound · Esc menu</p>
           <button class="backBtn">back</button>
         </div>
 
         <div id="boardPanel" class="subpanel hidden">
           <h2>best nights</h2>
           <ol id="boardList" class="board"></ol>
-          <p class="keys">scores are kept on this computer, like an arcade cabinet.</p>
+          <p class="keys">only nights survived to dawn are scored. kept on this computer, like an arcade cabinet.</p>
           <button class="backBtn">back</button>
         </div>
       </div>
@@ -96,6 +105,7 @@
       <div class="panel end-panel">
         <h2 id="endTitle"></h2>
         <p id="endText"></p>
+        <p id="endHint" class="hidden"></p>
         <table id="endScore"></table>
         <form id="initials" class="hidden">
           <label for="initialsInput">a best night! your initials:</label>
@@ -103,7 +113,10 @@
           <button type="submit">save</button>
         </form>
         <ol id="endBoard" class="board"></ol>
-        <button id="endTitleBtn">back to title</button>
+        <div class="end-buttons">
+          <button id="retryBtn">try again</button>
+          <button id="endTitleBtn">title</button>
+        </div>
       </div>
     </div>
   </div>
