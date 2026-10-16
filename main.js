@@ -27,6 +27,7 @@ const TRIPS = {
 };
 
 const SAVE_KEY = 'firelight-save-v5';
+const PRANK_JUMPSCARE = true;   // TEMPORARY: jumpscare on the second wood trip. Set to false to remove.
 const BOARD_KEY = 'firelight-scores-v2';
 
 const $ = (id) => document.getElementById(id);
@@ -172,10 +173,12 @@ let eyeSpawn = 0.5;
 let buildRefresh = '';
 let animT = 0;             // animation clock; runs at half speed while a dialogue pauses the night
 let growlT = 0;
+let prankAt = -1;         // countdown to the prank jumpscare
+let jumpT = 0;            // seconds the jumpscare stays on screen
 const snow = Array.from({ length: 10 }, () => ({ x: rand(45, 76), y: rand(35, 66), v: rand(3, 7) }));
 
 function resetTransients() {
-  particles = []; eyes = []; dialog = null; pendingVisit = null; msgQueue = []; msgTimer = 0;
+  particles = []; eyes = []; dialog = null; pendingVisit = null; msgQueue = []; msgTimer = 0; prankAt = -1; jumpT = 0;
   door = doorTarget = 0; doorCloseIn = -1; walker = null; visitorAtDoor = null; figure = 0;
   dispR = 0; shake = 0; hunterEyes = 0; dawnT = 0; lossT = 0;
   ui.dialogue.classList.add('hidden');
@@ -331,6 +334,10 @@ function startTrip(kind) {
   const total = TRIPS[kind].time * slow;
   S.away = { kind, t: total, total };
   toggleBuild(false);
+  if (kind === 'wood') {
+    S.woodTrips = (S.woodTrips || 0) + 1;
+    if (PRANK_JUMPSCARE && S.woodTrips === 2) prankAt = 2.2;
+  }
   say(kind === 'wood' ? 'you slip out into the trees for wood.'
     : kind === 'hunt' ? 'you go out to hunt.'
       : 'you drag her body out through the door, into the snow.');
@@ -1006,6 +1013,11 @@ function updateAmbient(dt) {
     doorCloseIn -= dt;
     if (doorCloseIn <= 0) { doorTarget = 0; visitorAtDoor = null; }
   }
+  if (prankAt > 0 && mode === 'playing' && !dialog) {
+    prankAt -= dt;
+    if (prankAt <= 0) { jumpT = 1.15; shake = 1.1; sfx.slam(); sfx.sting(); sfx.scream(); }
+  }
+  jumpT = Math.max(0, jumpT - dt);
   figure = Math.max(0, figure - dt * (mode === 'lost' ? 0.3 : 1));
   shake = Math.max(0, shake - dt);
   hunterEyes = clamp(hunterEyes + dt * (S.hunter.near && mode === 'playing' ? 0.8 : -0.8), 0, 1);
@@ -1544,6 +1556,11 @@ function drawGrin(s, t) {
   const cx = 55.5 + (160 - 55.5) * near;
   const ey = 56 + (44 - 56) * near;
 
+  drawFace(s, t, cx, ey, sc, k, a);
+}
+
+// Its face: eyes, with the grin beneath them.
+function drawFace(s, t, cx, ey, sc, k, a, eye = '255, 190, 80') {
   // its eyes
   const blink = Math.sin(t * 0.8) > 0.97 ? 0.15 : 1;
   const ew = Math.max(1, 9 * sc), eh = Math.max(0.6, 2.6 * sc), sep = Math.max(4.5, 30 * sc);
@@ -1553,7 +1570,7 @@ function drawGrin(s, t) {
   glow.addColorStop(1, 'rgba(0, 0, 0, 0)');
   lx.fillStyle = glow;
   lx.fillRect(cx * s - gr, (ey + 6 * sc) * s - gr, gr * 2, gr * 2);
-  lx.fillStyle = `rgba(255, 190, 80, ${a * blink})`;
+  lx.fillStyle = `rgba(${eye}, ${a * blink})`;
   lpx(s, cx - sep / 2 - ew / 2, ey - eh / 2, ew, eh);
   lpx(s, cx + sep / 2 - ew / 2, ey - eh / 2, ew, eh);
 
@@ -1844,6 +1861,14 @@ function drawLight() {
 
   drawHand(s, t);
   drawGrin(s, t);
+
+  // the prank: its face, all at once, filling the screen
+  if (jumpT > 0) {
+    const a = Math.min(1, jumpT / 0.25);
+    lx.fillStyle = `rgba(28, 0, 0, ${0.94 * a})`;
+    lx.fillRect(0, 0, light.width, light.height);
+    drawFace(s, t * 4, 160, 46, 1.35, 1, a, '255, 60, 40');
+  }
 
   // starving: a thin, dull red border closing in from the edges
   if (S.hunger >= 90 && (mode === 'playing' || (mode === 'lost' && S.cause === 'starve'))) {
