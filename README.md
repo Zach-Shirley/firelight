@@ -2,7 +2,7 @@
 
 A small, visual take on the idea behind *A Dark Room*: a single firelit room drawn in chunky pixel art, where the fire is the whole game. Keep it burning and the room stays warm and visible. Let it die and the dark fills with eyes.
 
-Working title. Made by Zach as a game for his sister; not public.
+Play it: https://firelight-topaz.vercel.app (desktop browser, keyboard or mouse).
 
 ## What the MVP does
 
@@ -19,7 +19,7 @@ Working title. Made by Zach as a game for his sister; not public.
 
 ## Round 2 (2026-10-15): building, visitors, sound
 
-Zach and his sister liked the MVP, so it's growing, still inside the one room.
+The game grew past the MVP, still inside the one room.
 
 - **The stranger builds.** After her "deal" line, a **build** menu (B) opens up. Each item shows up in the room:
   - **trap** (up to 6; the wood cost rises each time). Adds a **check traps** action (T, 25-second cooldown) that brings in fur, meat and teeth.
@@ -81,3 +81,7 @@ Deployed: https://firelight-topaz.vercel.app (Vercel project `firelight` under Z
 ## Credits and honesty
 
 Inspired by *A Dark Room* by Michael Townsend / Doublespeak Games. No code, text or art was copied from it; the scene, sprites and dialogue here are original. Built with heavy AI assistance (Claude Code) under Zach's direction: he chose the concept, visual style and MVP scope, and the implementation was AI-written. The font is VT323 from Google Fonts (SIL Open Font License).
+
+## License
+
+No open-source license has been chosen yet. The code is public to read, and all rights are reserved.
