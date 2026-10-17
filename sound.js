@@ -59,12 +59,12 @@ export function isEnabled() { return enabled; }
 
 const FIRE_VOL = [0, 0.03, 0.05, 0.075, 0.1];
 
-export function setLevels(fire, time, doorOpen) {
+export function setLevels(fire, time, doorOpen, windowOpen = 0) {
   if (!ctx) return;
   const t = ctx.currentTime;
   fireGain.gain.setTargetAtTime(FIRE_VOL[fire] || 0, t, 0.6);
   const gust = 0.5 + 0.5 * Math.sin(time * 0.37) * Math.sin(time * 0.11 + 1);
-  const wind = (fire <= 1 ? 0.07 : 0.035) * (0.5 + gust) + doorOpen * 0.08;
+  const wind = (fire <= 1 ? 0.07 : 0.035) * (0.5 + gust) + doorOpen * 0.08 + windowOpen * 0.06 * (0.6 + gust);
   windGain.gain.setTargetAtTime(wind, t, 0.8);
 }
 

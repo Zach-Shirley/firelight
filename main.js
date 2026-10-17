@@ -235,7 +235,7 @@ let shiverT = 0;
 const snow = Array.from({ length: 10 }, () => ({ x: rand(45, 76), y: rand(35, 66), v: rand(3, 7) }));
 
 function resetTransients() {
-  particles = []; eyes = []; dialog = null; pendingVisit = null; msgQueue = []; msgTimer = 0;
+  particles = []; fx = []; eyes = []; dialog = null; pendingVisit = null; msgQueue = []; msgTimer = 0;
   door = doorTarget = 0; doorCloseIn = -1; walker = null; visitorAtDoor = null; figure = 0;
   dispR = 0; shake = 0; hunterEyes = 0; dawnT = 0; lossT = 0;
   ui.dialogue.classList.add('hidden');
@@ -291,7 +291,7 @@ function updateNight(dt) {
   // cold: the snow takes your warmth when you're out or the fire is low; a good fire and hot food give it back
   let rate = S.away
     ? (S.away.kind === 'hunt' ? 2.1 : 1.7)
-    : [2.0, 0.8, -1.0, -2.2, -3.2][S.fire] + (S.glassBroken && S.boards === 0 ? 0.4 : 0);
+    : [2.0, 0.8, -1.0, -2.2, -3.2][S.fire] + (S.glassBroken ? (S.boards > 0 ? 0.5 : 1.1) : 0);   // wind through a broken window
   if (rate > 0) rate = (rate + h * 0.08) * (S.sick > 0 ? 1.2 : 1);   // colder every hour
   S.chill = clamp(S.chill + dt * rate, 0, 100);
   if (S.chill >= 50 && S.chillSaid < 1) { S.chillSaid = 1; sfx.shiver(0.7); say("you're cold. your fingers ache."); }
@@ -471,9 +471,20 @@ function finishTrip(kind) {
 
 /* ------------------------------------------------- the thing at the window */
 
-// She comes for the window from 1 am. The first strike breaks the glass. Bare window: she crawls in.
-// Boarded window: she claws at the boards until you burn her or she tears one off and takes wood.
+// She comes for the window from 1 am. On her first visit she always breaks the glass (the boards are on the
+// inside). Bare window: she climbs in. Boarded window: she hooks a board and pulls until you burn her, or she
+// tears it off, reaches all the way to your wood pile and drags logs out.
 const nextHand = () => rand(26, 42) * (1 - (hour() - 3) * 0.08);
+const BOARD_ROWS = [[37, 5], [48, 6], [59, 5]];
+const STEAL_TIME = 2.4;
+
+function breakGlass() {
+  S.glassBroken = true;
+  sfx.shatter();
+  shake = 0.45;
+  spawnShards();
+  say(S.boards > 0 ? 'the window glass explodes inward, behind the boards. the wind comes in.' : 'the window glass explodes inward. the wind comes in.');
+}
 
 function updateHand(dt) {
   const hd = S.hand;
@@ -487,30 +498,26 @@ function updateHand(dt) {
       say(!S.glassBroken ? 'something scrapes slowly down the window glass.' : S.boards ? 'something scrapes at the boards over the window.' : 'something is moving outside the broken window.');
     }
   } else if (hd.phase === 'warn') {
+    // her first visit: the glass goes partway through her arrival, boards or not
+    if (!S.glassBroken && hd.t <= 1.8) breakGlass();
     if (hd.t <= 0) {
-      if (!S.glassBroken) {
-        // the boards are on the inside, so she always has to break the glass first
-        S.glassBroken = true;
-        sfx.shatter();
-        shake = 0.35;
-        if (S.boards > 0) say('the glass shatters behind the boards.');
-      }
       if (S.boards > 0) {
         hd.phase = 'reach';
         hd.total = hd.t = Math.max(3.2, 5.5 - (hour() - 3) * 0.45);
         hd.beat = 0;
-        say('black claws hook through the gaps in the boards.');
+        say('a long black hand punches through a gap in the boards and takes hold.');
       } else {
         hd.phase = 'crawl';
         hd.total = hd.t = 3;
-        say(S.away ? 'glass breaks somewhere behind you, back at the house.' : 'the window bursts inward. something black is climbing through.');
+        say(S.away ? 'something is climbing in through the window, back at the house.' : 'she is climbing in through the window.');
       }
     }
   } else if (hd.phase === 'reach') {
     hd.p = 1 - hd.t / hd.total;
-    // the rhythm of her working at the boards, faster as she gets through
+    // the rhythm of her pulling at the board, faster as it gives
     hd.beat -= dt;
-    if (hd.beat <= 0) { sfx.thump(0.7 + hd.p * 0.6); hd.beat = 0.62 - hd.p * 0.28; }
+    if (hd.beat <= 0) { sfx.thump(0.7 + hd.p * 0.6); hd.beat = 0.62 - hd.p * 0.28; hd.jerk = 0.18; }
+    hd.jerk = Math.max(0, (hd.jerk || 0) - dt);
     if (hd.t <= 0) handTimeout();
   } else if (hd.phase === 'crawl') {
     hd.p = 1 - hd.t / hd.total;
@@ -523,6 +530,16 @@ function updateHand(dt) {
     } else if (hd.t <= 0) {
       die(S.away ? 'handAway' : 'hand');
     }
+  } else if (hd.phase === 'steal') {
+    // she takes the logs at the moment her hand closes on the pile
+    if (!hd.took && hd.t <= STEAL_TIME - 1.2) {
+      hd.took = true;
+      const n = Math.min(S.wood, hd.want || 0);
+      S.wood -= n;
+      hd.got = n;
+      say(n ? `she drags ${n} logs back out through the gap.${S.boards ? '' : ' the window is bare now.'}` : `her hand closes on nothing. the pile is empty.${S.boards ? '' : ' the window is bare now.'}`);
+    }
+    if (hd.t <= 0) { hd.phase = 'idle'; hd.t = nextHand(); }
   } else if (hd.t <= 0) {
     hd.phase = 'idle';
     hd.t = nextHand();
@@ -538,20 +555,33 @@ function strikeHand() {
   hd.t = 0.9;
   S.rec.burned += 1;
   sfx.hiss();
-  say('you jam a burning branch through the boards. she shrieks and pulls back.');
+  sfx.scream();
+  const g = handGrip();
+  spawnSmoke(g.x + 3, g.y + 1);
+  say('you jam a burning branch into her hand. she shrieks and snatches it back, smoking.');
 }
 
 function handTimeout() {
   const hd = S.hand;
+  const row = BOARD_ROWS[S.boards - 1];
   S.boards -= 1;
   S.rec.boardsLost += 1;
-  const n = Math.min(S.wood, 3 + Math.floor(hour() / 2));
-  S.wood -= n;
+  spawnBoardFall(row);
   hd.phase = 'steal';
-  hd.t = 1.4;
+  hd.t = STEAL_TIME;
+  hd.took = false;
+  hd.got = 0;
+  hd.want = 3 + Math.floor(hour() / 2);
+  hd.gripY = row[1] ? row[0] - 3 : 56;
   sfx.crack();
-  shake = 0.3;
-  say(`she rips a board loose and drags ${n} logs out through the gap.${S.boards ? '' : ' the window is bare now.'}`);
+  shake = 0.35;
+  say('she tears a board loose. her arm keeps coming, reaching for your wood.');
+}
+
+// Where her hand holds on: the gap just above the lowest board still standing.
+function handGrip() {
+  const row = BOARD_ROWS[Math.max(0, S.boards - 1)];
+  return { x: 57, y: Math.max(36, row[0] - 3), board: row };
 }
 
 /* --------------------------------------------------------- the door */
@@ -1153,6 +1183,7 @@ function updateAmbient(dt) {
   updateWalker(dt);
   updateEyes(dt * slow);
   updateParticles(dt * slow);
+  updateFx(dt * slow);
   for (const f of snow) {
     f.y += f.v * dt * slow;
     f.x += Math.sin(S.time * 0.8 + f.v) * dt * 2;
@@ -1583,9 +1614,13 @@ function drawVisitor() {
 function drawBoards() {
   if (!S.boardsBuilt) return;
   const rows = [[37, 5], [48, 6], [59, 5]];
-  rows.forEach(([y, h], i) => {
+  // the board she is pulling on jerks with every pull
+  const jerk = S.hand.phase === 'reach' && (S.hand.jerk || 0) > 0;
+  rows.forEach(([y0, h], i) => {
+    const pulled = jerk && i === S.boards - 1;
+    const y = y0 + (pulled ? -1 : 0);
     if (i < S.boards) {
-      px.fillStyle = '#4a3220'; px.fillRect(41, y, 40, h);
+      px.fillStyle = '#4a3220'; px.fillRect(41 + (pulled ? (Math.random() < 0.5 ? -1 : 1) : 0), y, 40, h);
       px.fillStyle = '#5a3e28'; px.fillRect(41, y, 40, 1);
       px.fillStyle = '#8a8a8a'; px.fillRect(43, y + 2, 1, 1); px.fillRect(78, y + 2, 1, 1);
     } else {
@@ -1717,103 +1752,294 @@ function drawGrin(s, t) {
   }
 }
 
-// The thing at the window is drawn on the light layer at half-pixel detail: black, rimmed and backlit in red.
-function drawHand(s, t) {
-  const hd = S.hand;
-  const ph = hd.phase;
-  if (ph === 'idle') return;
-  const wig = Math.sin(t * 11);
-  const black = 'rgba(6, 2, 3, 0.97)', rim = 'rgba(130, 16, 12, 0.9)', glint = 'rgba(255, 70, 40, 0.95)';
+/* ------------------------------------------------- her, drawn */
 
-  // red glow behind her
-  const glowK = ph === 'warn' ? 0.22 + 0.14 * Math.sin(t * 6) : ph === 'retreat' ? 0.18 : 0.5;
-  const gy = ph === 'crawl' ? 56 + hd.p * 10 : 55;
-  const gr = (ph === 'crawl' ? 34 : 18) * s;
-  // her glow lifts the darkness a little, so the boards show against it
-  lx.globalCompositeOperation = 'destination-out';
-  const lift = lx.createRadialGradient(61 * s, gy * s, 0, 61 * s, gy * s, gr);
-  lift.addColorStop(0, `rgba(0, 0, 0, ${glowK * 0.8})`);
-  lift.addColorStop(1, 'rgba(0, 0, 0, 0)');
-  lx.fillStyle = lift;
-  lx.fillRect(61 * s - gr, gy * s - gr, gr * 2, gr * 2);
-  lx.globalCompositeOperation = 'source-over';
-  const glow = lx.createRadialGradient(61 * s, gy * s, 0, 61 * s, gy * s, gr);
-  glow.addColorStop(0, `rgba(210, 22, 10, ${glowK})`);
-  glow.addColorStop(1, 'rgba(120, 0, 0, 0)');
-  lx.fillStyle = glow;
-  lx.fillRect(61 * s - gr, gy * s - gr, gr * 2, gr * 2);
+// She is drawn on the light layer at half-pixel detail: a black silhouette with a dark-red rim,
+// backlit by a red glow. Limbs are jointed (shoulder, elbow, hand) so she can reach, grab and pull.
+const HER = { black: 'rgba(6, 2, 3, 0.97)', rim: 'rgba(130, 16, 12, 0.85)', nail: 'rgba(70, 8, 6, 0.95)' };
 
-  if (ph === 'warn') {
-    // claw tips dragging slowly down the outside of the window
-    const drag = (4 - hd.t) * 2.2;
-    for (let i = 0; i < 3; i++) {
-      lx.fillStyle = rim; lpx(s, 52.6 + i * 4, 40 + drag, 1.4, 3.4);
-      lx.fillStyle = black; lpx(s, 53 + i * 4, 40 + drag, 0.8, 3);
-    }
-    return;
+// a thick limb segment from a to b, rim first then the black core
+function limbSeg(s, ax, ay, bx, by, w) {
+  const len = Math.hypot(bx - ax, by - ay);
+  const n = Math.max(1, Math.ceil(len * 2));
+  for (let i = 0; i <= n; i++) {
+    const x = ax + ((bx - ax) * i) / n, y = ay + ((by - ay) * i) / n;
+    lx.fillStyle = HER.rim; lpx(s, x - w / 2 - 0.4, y - w / 2 - 0.4, w + 0.8, w + 0.8);
   }
-  if (ph === 'crawl') { drawCrawler(s, t, hd.p, black, rim); return; }
-
-  // claws hooked through the gap between the boards
-  const reach = ph === 'reach' ? hd.p : ph === 'steal' ? 1 : Math.max(0, hd.t);
-  for (let i = 0; i < 4; i++) {
-    const fx = 50.5 + i * 4.2;
-    const len = 3 + reach * 5 + (i % 2) * 1.2 + wig * 0.4 * (i % 2 ? 1 : -1);
-    for (let k = 0; k < len; k += 0.5) {
-      const bend = (k / len) ** 2 * 2.4;           // curls toward the room at the tip
-      const w = k < len * 0.65 ? 1.3 : 0.7;        // tapers to a point
-      lx.fillStyle = rim; lpx(s, fx + bend - 0.4, 53 + k, w + 0.8, 0.6);
-      lx.fillStyle = black; lpx(s, fx + bend, 53 + k, w, 0.6);
-    }
-    lx.fillStyle = glint; lpx(s, fx + 2.4, 53 + len, 0.5, 0.5);
-  }
-  for (let i = 0; i < 4; i++) {
-    const kx = 50 + i * 4.2;
-    lx.fillStyle = rim; lpx(s, kx - 0.4, 51.4, 2.6, 2.4);
-    lx.fillStyle = black; lpx(s, kx, 51.8, 1.8, 1.8);
-  }
-  if (ph === 'steal') {
-    const up = (1.4 - hd.t) * 6;
-    lx.fillStyle = 'rgba(160, 122, 78, 0.95)';
-    lpx(s, 54, 58 - up, 4, 3); lpx(s, 59, 58 - up, 4, 3);
+  for (let i = 0; i <= n; i++) {
+    const x = ax + ((bx - ax) * i) / n, y = ay + ((by - ay) * i) / n;
+    lx.fillStyle = HER.black; lpx(s, x - w / 2, y - w / 2, w, w);
   }
 }
 
-// A bare window: she pulls herself through, head first, long arms reaching down the wall.
-function drawCrawler(s, t, p, black, rim) {
-  const drop = p * 6;
-  // a long, narrow head over hunched shoulders, drawn row by row in half pixels
-  for (let r = 0; r < 34; r++) {
-    const y = 38 + drop + r * 0.5;
-    const u = (r - 15) / 16;
-    const half = r < 30 ? Math.sqrt(Math.max(0, 1 - u * u)) * (6.5 - r * 0.06) : 0;
-    if (half <= 0) continue;
-    lx.fillStyle = rim; lpx(s, 61 - half - 0.5, y, half * 2 + 1, 0.5);
-    lx.fillStyle = black; lpx(s, 61 - half, y, half * 2, 0.5);
-  }
-  for (let r = 0; r < 14; r++) {
-    const y = 52 + drop + r * 0.5;
-    const half = 5 + r * 0.75;
-    lx.fillStyle = rim; lpx(s, 61 - half - 0.5, y, half * 2 + 1, 0.5);
-    lx.fillStyle = black; lpx(s, 61 - half, y, half * 2, 0.5);
-  }
-  lx.fillStyle = 'rgba(255, 40, 20, 1)';
-  lpx(s, 57.5, 45.5 + drop, 1.5, 1); lpx(s, 63, 45.5 + drop, 1.5, 1);
-  for (const side of [-1, 1]) {
-    const ox = 61 + side * 9, oy = 61;
-    const len = 6 + p * 34;
-    const dx = side * 0.35, dy = 0.94;
-    for (let k = 0; k < len; k += 0.5) {
-      const x = ox + dx * k + Math.sin(k * 0.3 + t * 3) * 0.4, y = oy + dy * k;
-      lx.fillStyle = rim; lpx(s, x - 0.5, y, 2.6, 0.6);
-      lx.fillStyle = black; lpx(s, x, y, 1.6, 0.6);
+// shoulder to hand with the elbow pushed out to one side by `bend`
+function limb(s, ax, ay, bx, by, bend, w = 1.6) {
+  const mx = (ax + bx) / 2, my = (ay + by) / 2;
+  const len = Math.hypot(bx - ax, by - ay) || 1;
+  const ex = mx + (-(by - ay) / len) * bend, ey = my + ((bx - ax) / len) * bend;
+  limbSeg(s, ax, ay, ex, ey, w);
+  limbSeg(s, ex, ey, bx, by, w * 0.85);
+  lx.fillStyle = HER.black; lpx(s, ex - w * 0.7, ey - w * 0.7, w * 1.4, w * 1.4);   // a knobbed elbow
+  return { ex, ey };
+}
+
+// four long fingers fanned around `dir`; curl closes them into a fist
+function claw(s, hx, hy, dir, spread, curl, len = 5) {
+  lx.fillStyle = HER.rim; lpx(s, hx - 1.9, hy - 1.9, 3.8, 3.8);
+  lx.fillStyle = HER.black; lpx(s, hx - 1.5, hy - 1.5, 3, 3);
+  for (let i = 0; i < 4; i++) {
+    let a = dir + (i - 1.5) * spread;
+    let x = hx, y = hy;
+    const fl = len * (i === 1 || i === 2 ? 1.15 : 0.9);
+    for (let k = 0; k < fl; k += 0.5) {
+      a += curl * 0.09 * (i < 2 ? -1 : 1) * (k > fl * 0.4 ? 1 : 0.2);   // the tips hook inward
+      x += Math.cos(a) * 0.5; y += Math.sin(a) * 0.5;
+      const tip = k > fl - 1.2;
+      lx.fillStyle = tip ? HER.nail : HER.black;
+      lpx(s, x - 0.35, y - 0.35, tip ? 0.6 : 0.9, tip ? 0.6 : 0.9);
     }
-    const hx = ox + dx * len, hy = oy + dy * len;
-    for (let f = 0; f < 3; f++) {
-      for (let k = 0; k < 4; k += 0.5) {
-        lx.fillStyle = k > 3 ? 'rgba(255, 70, 40, 0.9)' : black;
-        lpx(s, hx + (f - 1) * 1.5 + side * k * 0.35, hy + k, 0.6, 0.6);
+  }
+}
+
+// her head and shoulders: a long narrow skull, one huge pale eye, an empty socket, a hanging jaw, wet hair
+function drawHerHead(s, t, cx, cy, sc, eyeOpen = 1) {
+  // shoulders, hunched and too narrow
+  for (let r = 0; r < 22; r++) {
+    const y = cy + 7 * sc + r * 0.5 * sc;
+    const half = (3 + r * 0.42) * sc;
+    lx.fillStyle = HER.rim; lpx(s, cx - half - 0.5, y, half * 2 + 1, 0.5 * sc + 0.1);
+    lx.fillStyle = HER.black; lpx(s, cx - half, y, half * 2, 0.5 * sc + 0.1);
+  }
+  // the skull, wide at the brow and tapering to a point at the chin
+  const hh = 17 * sc;
+  for (let y = 0; y < hh; y += 0.5) {
+    const u = y / hh;
+    const half = 4.8 * sc * (u < 0.38 ? Math.sqrt(Math.max(0, 1 - ((0.38 - u) / 0.38) ** 2)) : Math.max(0.12, 1 - (u - 0.38) / 0.72));
+    lx.fillStyle = HER.rim; lpx(s, cx - half - 0.5, cy - 8 * sc + y, half * 2 + 1, 0.5);
+    lx.fillStyle = HER.black; lpx(s, cx - half, cy - 8 * sc + y, half * 2, 0.5);
+  }
+  // the eye: huge, pale, with a red pinprick pupil that wanders toward you
+  const ex = cx + 1.9 * sc, ey = cy - 2 * sc;
+  const eh = 2.4 * sc * eyeOpen;
+  if (eh > 0.3) {
+    lx.fillStyle = 'rgba(232, 224, 206, 0.95)';
+    for (let y = -eh / 2; y < eh / 2; y += 0.5) {
+      const w = 3.6 * sc * Math.sqrt(Math.max(0, 1 - (y / (eh / 2 + 0.01)) ** 2));
+      lpx(s, ex - w / 2, ey + y, w, 0.5);
+    }
+    const look = Math.sin(t * 0.7) * 0.6 * sc;
+    lx.fillStyle = 'rgba(210, 20, 14, 1)';
+    lpx(s, ex - 0.45 + look, ey - 0.45, 0.9, 0.9);
+  } else {
+    lx.fillStyle = 'rgba(232, 224, 206, 0.6)'; lpx(s, ex - 1.6 * sc, ey, 3.2 * sc, 0.5);
+  }
+  // the other socket, empty, with a red glint deep inside
+  lx.fillStyle = 'rgba(0, 0, 0, 1)'; lpx(s, cx - 3.2 * sc, cy - 2.8 * sc, 2 * sc, 1.8 * sc);
+  lx.fillStyle = 'rgba(200, 20, 12, 0.8)'; lpx(s, cx - 2.4 * sc, cy - 2.1 * sc, 0.5, 0.5);
+  // the jaw hangs open, too long
+  lx.fillStyle = 'rgba(40, 0, 0, 0.95)'; lpx(s, cx - 0.9 * sc, cy + 3 * sc, 1.8 * sc, 3.2 * sc);
+  lx.fillStyle = 'rgba(0, 0, 0, 1)'; lpx(s, cx - 0.6 * sc, cy + 3.4 * sc, 1.2 * sc, 2.6 * sc);
+  // wet hair hanging in strands over the face and shoulders
+  for (let i = 0; i < 9; i++) {
+    const x0 = cx + (i - 4) * 1.25 * sc;
+    const len = (11 + (i % 3) * 4) * sc;
+    for (let k = 0; k < len; k += 0.5) {
+      const x = x0 + Math.sin(t * 1.2 + i * 1.7 + k * 0.22) * 0.5 * sc * (k / len);
+      lx.fillStyle = k < len * 0.3 ? HER.black : 'rgba(10, 4, 6, 0.85)';
+      lpx(s, x, cy - 7.5 * sc + k, 0.5, 0.6);
+    }
+  }
+}
+
+// draw something only where you can see out of the window (between the boards that are still up)
+function throughWindow(s, fn) {
+  lx.save();
+  lx.beginPath();
+  let y0 = 35;
+  const rows = S.boardsBuilt ? BOARD_ROWS.slice(0, S.boards) : [];
+  for (const [y, h] of rows) {
+    if (y > y0) lx.rect(45 * s, y0 * s, 32 * s, (y - y0) * s);
+    y0 = y + h;
+  }
+  if (y0 < 67) lx.rect(45 * s, y0 * s, 32 * s, (67 - y0) * s);
+  lx.clip();
+  fn();
+  lx.restore();
+}
+
+function herGlow(s, gx, gy, radius, k) {
+  const gr = radius * s;
+  lx.globalCompositeOperation = 'destination-out';
+  const lift = lx.createRadialGradient(gx * s, gy * s, 0, gx * s, gy * s, gr);
+  lift.addColorStop(0, `rgba(0, 0, 0, ${k * 0.8})`);
+  lift.addColorStop(1, 'rgba(0, 0, 0, 0)');
+  lx.fillStyle = lift;
+  lx.fillRect(gx * s - gr, gy * s - gr, gr * 2, gr * 2);
+  lx.globalCompositeOperation = 'source-over';
+  const glow = lx.createRadialGradient(gx * s, gy * s, 0, gx * s, gy * s, gr);
+  glow.addColorStop(0, `rgba(210, 22, 10, ${k})`);
+  glow.addColorStop(1, 'rgba(120, 0, 0, 0)');
+  lx.fillStyle = glow;
+  lx.fillRect(gx * s - gr, gy * s - gr, gr * 2, gr * 2);
+}
+
+const ease = (x) => (x < 0.5 ? 2 * x * x : 1 - (-2 * x + 2) ** 2 / 2);
+
+function drawHand(s, t) {
+  const hd = S.hand;
+  const dead = mode === 'lost' && (S.cause === 'hand' || S.cause === 'handAway');
+  const ph = dead ? 'crawl' : hd.phase;
+  if (ph === 'idle') return;
+
+  if (ph === 'warn') {
+    // she rises into the window from below the sill, fingertips dragging down the glass
+    const rise = ease(clamp((4 - hd.t) / 2.8, 0, 1));
+    herGlow(s, 61, 58, 16 + rise * 6, 0.15 + rise * 0.3);
+    throughWindow(s, () => {
+      drawHerHead(s, t, 62, 76 - rise * 30, 1, rise > 0.85 ? 1 : 0.25);
+      if (!S.glassBroken) {
+        const drag = (4 - hd.t) * 3.2;
+        for (let i = 0; i < 4; i++) {
+          limbSeg(s, 50 + i * 2.6, 34 + drag * 0.6, 50.5 + i * 2.6, 38 + drag, 0.7);
+          lx.fillStyle = 'rgba(190, 200, 215, 0.35)';   // scratches left on the glass
+          lpx(s, 50.3 + i * 2.6, 38, 0.4, drag);
+        }
       }
+    });
+    return;
+  }
+
+  if (ph === 'reach' || ph === 'retreat') {
+    const g = handGrip();
+    const out = ph === 'retreat' ? clamp(hd.t / 0.9, 0, 1) : 1;
+    herGlow(s, 61, 52, 20, ph === 'retreat' ? 0.25 : 0.5);
+    // her eye presses to a gap in the boards, watching you
+    throughWindow(s, () => drawHerHead(s, t, 63, 47, 1.05, ph === 'retreat' ? 0.1 : 1));
+    // her forearm comes through the gap and the hand hooks down over the board, pulling
+    const pull = (hd.jerk || 0) > 0 ? -0.7 : 0;
+    const by = g.board[0] + pull;
+    const wx = g.x + 5;
+    limbSeg(s, wx - 2 * out, g.y + 0.5, wx + 2 * out, g.y + 0.5, 2.4 * out + 0.4);
+    if (out > 0.25) {
+      for (let i = 0; i < 4; i++) {
+        const kx = wx - 3.3 + i * 2.2;
+        const len = (2.5 + hd.p * 2.2 + (i === 1 || i === 2 ? 0.8 : 0)) * out;
+        limbSeg(s, kx, g.y + 1, kx + 0.3, by + 0.5, 0.9);                 // knuckles over the board's top edge
+        limbSeg(s, kx + 0.3, by + 0.5, kx + 0.6, by + 0.5 + len, 0.8);    // fingers down its face
+        lx.fillStyle = HER.nail; lpx(s, kx + 0.35, by + 0.5 + len, 0.6, 0.8);
+      }
+    }
+    return;
+  }
+
+  if (ph === 'steal') {
+    // the board is gone; her arm reaches all the way to the wood pile, grabs, and drags logs back out
+    const T = STEAL_TIME - hd.t;
+    const sx = 58, sy = hd.gripY || 56;
+    const ext = T < 0.3 ? 0 : T < 1.1 ? ease((T - 0.3) / 0.8) : T < 1.4 ? 1 : 1 - ease(clamp((T - 1.4) / 1.0, 0, 1));
+    const tx = 114, ty = 135;
+    const hx = sx + (tx - sx) * ext, hy = sy + (ty - sy) * ext;
+    herGlow(s, 61, 52, 22, 0.5);
+    throughWindow(s, () => drawHerHead(s, t, 63, 47, 1.05, 1));
+    limb(s, sx, sy, hx, hy, -14 * Math.sin(Math.PI * Math.min(1, ext * 1.1)), 2.3);
+    const closed = T >= 1.15;
+    const dir = Math.atan2(ty - sy, tx - sx);
+    if (closed && hd.got > 0) {
+      for (let i = 0; i < Math.min(3, hd.got); i++) {
+        lx.fillStyle = 'rgba(160, 122, 78, 0.95)'; lpx(s, hx - 2 + i * 1.6, hy - 1 + (i % 2), 2.6, 2.2);
+        lx.fillStyle = 'rgba(90, 58, 34, 0.95)'; lpx(s, hx - 1.4 + i * 1.6, hy - 0.4 + (i % 2), 1.2, 1);
+      }
+    }
+    claw(s, hx, hy, dir, closed ? 0.18 : 0.42, closed ? 3.5 : 0.6, 5.5);
+    return;
+  }
+
+  // a bare window: she pulls herself through, head first, long arms reaching down the wall to the floor
+  const p = dead ? 1 + Math.min(1, lossT * 0.45) : hd.p;
+  const hx = 62 + p * 4, hy = 46 + p * 13, sc = 1.1 + p * 0.45;
+  herGlow(s, hx, hy, 30 + p * 12, 0.55);
+  drawHerHead(s, t, hx, hy, sc, 1);
+  for (const side of [-1, 1]) {
+    const shx = hx + side * 5 * sc, shy = hy + 9 * sc;
+    const reach = Math.min(1, p);
+    const handX = shx + side * (9 + reach * 9);
+    const handY = 66 + reach * 46 + Math.sin(t * 5 + side) * 0.6;
+    limb(s, shx, shy, handX, handY, side * (11 + reach * 4), 1.8);   // elbows jut up and out, like a spider's
+    claw(s, handX, handY, Math.PI / 2 + side * 0.25, 0.45, 2.6, 6);
+  }
+}
+
+/* ------------------------------------------------- small effects: shards, smoke, a falling board, wind */
+
+let fx = [];
+
+function spawnShards() {
+  for (let i = 0; i < 30; i++) {
+    fx.push({ kind: 'shard', x: rand(46, 76), y: rand(36, 66), vx: rand(6, 46), vy: rand(-18, 6), life: 0, max: rand(3, 5), floor: rand(116, 152) });
+  }
+}
+
+function spawnSmoke(x, y) {
+  for (let i = 0; i < 12; i++) fx.push({ kind: 'smoke', x: x + rand(-2, 2), y: y + rand(-1, 2), vx: rand(-4, 4), vy: rand(-14, -5), life: 0, max: rand(0.8, 1.8) });
+}
+
+function spawnBoardFall(row) {
+  fx.push({ kind: 'board', x: 61, y: row[0] + row[1] / 2, vx: rand(14, 24), vy: -12, rot: 0, vr: rand(2, 4), life: 0, max: 4, floor: rand(128, 146), h: row[1] });
+}
+
+function updateFx(dt) {
+  // wind blows snow in through the broken window: a little through boards, a lot through a bare frame
+  if (S.glassBroken && (mode === 'playing' || mode === 'dawn')) {
+    const rate = S.boards > 0 ? 4 : 11;
+    if (Math.random() < rate * dt) fx.push({ kind: 'flake', x: rand(46, 76), y: rand(36, 66), vx: rand(20, 42), vy: rand(3, 12), life: 0, max: rand(1.6, 3.2), ph: rand(0, 6) });
+  }
+  for (const f of fx) {
+    f.life += dt;
+    if (f.kind === 'shard' || f.kind === 'board') {
+      if (f.y < f.floor) {
+        f.vy += 70 * dt;
+        f.x += f.vx * dt; f.y += f.vy * dt;
+        if (f.kind === 'board') f.rot += f.vr * dt;
+        if (f.y >= f.floor) { f.y = f.floor; f.vx = f.vy = 0; f.vr = 0; }
+      }
+    } else if (f.kind === 'smoke') {
+      f.x += f.vx * dt; f.y += f.vy * dt; f.vx *= 0.98;
+    } else {
+      f.x += f.vx * dt + Math.sin(f.life * 4 + f.ph) * 0.3; f.y += f.vy * dt;
+    }
+  }
+  fx = fx.filter((f) => f.life < f.max);
+}
+
+function drawFx(s) {
+  for (const f of fx) {
+    const a = clamp(1 - f.life / f.max, 0, 1);
+    if (f.kind === 'shard') {
+      lx.fillStyle = `rgba(200, 220, 240, ${0.85 * Math.min(1, a * 2)})`;
+      lpx(s, f.x, f.y, 0.5 + (f.x % 1 > 0.5 ? 0.5 : 0), 0.5);
+    } else if (f.kind === 'smoke') {
+      lx.fillStyle = `rgba(110, 104, 100, ${0.45 * a})`;
+      lpx(s, f.x - 1, f.y - 1, 2 + f.life * 2, 2 + f.life * 2);
+    } else if (f.kind === 'flake') {
+      lx.fillStyle = `rgba(225, 235, 255, ${0.55 * a})`;
+      lpx(s, f.x, f.y, 0.5, 0.5);
+    } else if (f.kind === 'board') {
+      lx.save();
+      lx.globalAlpha = Math.min(1, a * 3);
+      lx.translate(f.x * s, f.y * s);
+      lx.rotate(f.rot);
+      lx.fillStyle = 'rgba(74, 50, 32, 1)'; lx.fillRect(-20 * s, (-f.h / 2) * s, 40 * s, f.h * s);
+      lx.fillStyle = 'rgba(90, 62, 40, 1)'; lx.fillRect(-20 * s, (-f.h / 2) * s, 40 * s, s);
+      lx.restore();
+    }
+  }
+  // faint streaks of wind through the broken window
+  if (S.glassBroken && mode === 'playing') {
+    const k = S.boards > 0 ? 0.04 : 0.08;
+    for (let i = 0; i < 4; i++) {
+      const ph = (animT * 0.9 + i * 0.27) % 1;
+      lx.fillStyle = `rgba(200, 215, 255, ${k * Math.sin(ph * Math.PI)})`;
+      lpx(s, 70 + ph * 50, 40 + i * 6 + ph * 10, 8, 0.5);
     }
   }
 }
@@ -1975,6 +2201,7 @@ function drawLight() {
   }
 
   drawHand(s, t);
+  drawFx(s);
   drawGrin(s, t);
 
   // cold: frost creeping in from the edges, heavier as you freeze
@@ -2429,7 +2656,7 @@ function frame(now) {
   drawPixels();
   drawLight();
   syncUI();
-  sfx.setLevels(mode === 'lost' || mode === 'ended' ? 0 : S.fire, S.time, door);
+  sfx.setLevels(mode === 'lost' || mode === 'ended' ? 0 : S.fire, S.time, door, S.glassBroken && mode === 'playing' ? (S.boards > 0 ? 0.4 : 1) : 0);
   stage.style.transform = shake > 0 ? `translate(${rand(-3, 3).toFixed(1)}px, ${rand(-3, 3).toFixed(1)}px)` : '';
   requestAnimationFrame(frame);
 }

@@ -35,7 +35,7 @@ Every threat has a tell and a counter. Threats arrive as the night goes on.
 | 10 pm | **The cold** | Teeth chattering at "cold"; at "freezing" frost and ice creep in from the screen edges, and your hands and trips slow down | The snow drains your warmth while you're out and when the fire is low (or the window is bare). A good fire warms you back up, and hot cooked meat warms you fast | You freeze |
 | 11 pm | **The thing in the trees** | A howl, and its amber eyes shining in the treeline outside the window. While you're out and it's close, **a grin grows beneath its eyes**: faint at first, then wider and toothier as it closes in, fast once it has howled | Don't go out while it's close. Run back when the grin starts to widen; you come home empty-handed | A full grin |
 | midnight | **The mimic** | Real visitors' **footsteps crunch through the snow before they knock**. The mimic just knocks, word for word in the voice of someone you'd open for. There is only one stranger | Keep the door shut when nothing walked up | You opened the door. It was not a person |
-| 1 am | **Her, at the window** | Claws drag down the glass, then it shatters, then a black shape backlit in red | Board the window beforehand. With boards up she claws through the gap to a rhythm of thuds, and you can burn her. If she outlasts you, she tears a board off and drags your wood out | Bare window: she climbs in, even while you're out. You can still nail boards up in the last seconds |
+| 1 am | **Her, at the window** | She rises into the window from below the sill: a gaunt black figure backlit in red, with one huge pale eye, an empty socket, a hanging jaw and wet hair. On her first visit the glass always explodes inward, boarded or not, and from then on wind and snow blow in, so you lose warmth faster: a little through boards, a lot through a bare frame | Board the window beforehand. Her eye watches through a gap while her hand hooks a board and pulls, to a rhythm of thuds. Burn the hand and she snatches it back, smoking. If she outlasts you, she tears the board off, reaches a long jointed arm all the way to your wood pile and drags logs out | Bare window: she climbs in on long spider-jointed arms, even while you're out. You can still nail boards up in the last seconds |
 | 3 am | **The walkers** | Some mimics have learned to fake footsteps. Nothing in the text or sound gives them away | A lit **blood lantern** shows a shadow of feet under the door, or nothing | You opened the door |
 
 **The door never opens by itself.** Every knock asks you: open it, or keep it shut. Opening for the right people matters:
@@ -267,6 +267,7 @@ Built with heavy AI assistance (Claude Code) under Zach Shirley's direction:
     - the night recap and the all-time death tally;
     - the false stranger, who demands to be fed and kills you at dawn;
     - the grin tied to the creature's eyes instead of floating free.
+  - **Her rebuild:** a scarier design with real animations for rising, grabbing, being burned, stealing and climbing in; the glass always breaking on her first visit; wind and cold through the broken window.
 - **Claude Code:**
   - the mechanics design within that direction;
   - the code, art, sound and writing;
