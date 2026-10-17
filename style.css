@@ -635,3 +635,9 @@ body.touch #dayList button { min-height: calc(14px * var(--s)); }
 .overlay .panel { max-height: calc(164px * var(--s)); min-height: 0; }
 #buildList, #journalList { flex: 1 1 auto; min-height: 0; }
 #buildClose, #journalClose, .overlay .sub, .overlay h2 { flex: none; }
+#saltFlare {
+  position: absolute; left: 50%; top: calc(68px * var(--s)); transform: translateX(-50%);
+  font-size: calc(7px * var(--s)); padding: calc(1px * var(--s)) calc(7px * var(--s)) calc(2px * var(--s));
+  color: #eef4ff; background: rgba(30, 40, 60, 0.9); border-color: #a8c8e8; animation: flicker 0.9s infinite;
+}
+#saltFlare .dim { color: #b8c8d8; font-size: calc(5.5px * var(--s)); }

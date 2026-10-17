@@ -6,7 +6,7 @@ import * as sfx from './sound.js';
 import { ACHIEVEMENTS, createStore } from './achievements.js';
 import { computeScore, qualifies, insertScore, cleanInitials, sanitizeBoard } from './score.js';
 
-const VERSION = '0.28';   // one step per commit to the repository
+const VERSION = '0.29';   // one step per commit to the repository
 const W = 320, H = 180;
 const FIRE = { x: 160, y: 136 };          // base of the flames
 const LIGHT_Y = 130;                       // centre of the light pool
@@ -57,7 +57,7 @@ const ui = {
   endRecap: $('endRecap'), endTally: $('endTally'), boardTally: $('boardTally'),
   day: $('day'), dayHours: $('dayHours'), dayList: $('dayList'), dayLog: $('dayLog'), dayNight: $('dayNight'),
   dayBtn: $('dayBtn'), endRunBtn: $('endRunBtn'), slam: $('slam'),
-  douse: $('douse'),
+  douse: $('douse'), saltFlare: $('saltFlare'),
   initials: $('initials'), initialsInput: $('initialsInput'), endBoard: $('endBoard'), retry: $('retryBtn'),
 };
 
@@ -101,6 +101,7 @@ function freshState() {
     lanternT: 0,
     cd: { stoke: 0, eat: 0 },
     trapUses: [],                                // catches left in each trap
+    trapSalt: [],                                // whether each trap is salted (it catches meat far more often)
     shed: false,
     shedWood: 0,
     shedBuilt: 0,                                // logs built into the woodshed so far (it needs PILE_CAP)
@@ -143,6 +144,7 @@ function freshState() {
     hatch: { phase: 'idle', t: 18, total: 1, p: 0 },
     hatchFed: 0,
     hatchBar: false,                             // a beam nailed across the cellar hatch
+    saltHatch: false,                            // a ring of salt around it (one use)
     buried: false,
     n2HintT: -1,
     strangerFalse: false,
@@ -436,7 +438,7 @@ function updateNight(dt) {
 
   // dread: the dark gets closer when the fire is low
   const before = S.dread;
-  if (S.fire === 0) S.dread += dt * (2.4 + h * 0.25);
+  if (S.fire === 0) S.dread += dt * (8 + h * 0.4);   // with the fire out, the dark has you in about ten seconds
   else if (S.fire === 1) S.dread += dt * (0.7 + h * 0.12);
   else S.dread = Math.max(0, S.dread - dt * 2.5);
   if (before < 50 && S.dread >= 50) say("they're getting bolder.");
@@ -661,6 +663,28 @@ function updateBlaze(dt) {
   if (S.blaze <= 0) { S.blaze = 0; die('burn'); }
 }
 
+// A last resort nobody tells you about: with the fire down to embers and the dark closing in, throw salt on it.
+// It flares blue-white, the eyes scatter, and the fire catches again.
+const saltFlareReady = () => mode === 'playing' && S.lit && !S.away && !dialog && S.fire <= 1 && S.dread >= 45 && S.salt >= 2;
+let flareT = 0;
+
+function saltFlare() {
+  if (!saltFlareReady()) return;
+  S.salt -= 2;
+  S.fire = Math.max(S.fire, 2);
+  S.decay = decayTime();
+  S.deadFor = 0;
+  S.dread = Math.max(0, S.dread - 70);
+  for (const e of eyes) e.out = true;
+  flareT = 1.4;
+  shake = 0.3;
+  sfx.hiss();
+  sfx.gust();
+  for (let i = 0; i < 30; i++) spawnEmber(true);
+  achieve('salt_flare');
+  say('you throw salt on the embers. they flare blue-white, and the eyes scatter. the fire catches again.');
+}
+
 function douse() {
   if (!(S.blaze > 0) || mode !== 'playing' || S.away || dialog) return;
   if (S.blood < 2) { say("you don't have enough blood to throw on it. two jars, at least."); return; }
@@ -678,18 +702,29 @@ function douse() {
 
 // Traps wear out: each catches a few times, and sometimes something tears one apart.
 function makeTrap() { return 3 + Math.floor(Math.random() * 2); }
-function syncTraps() { S.traps = S.trapUses.length; }
+function syncTraps() {
+  S.traps = S.trapUses.length;
+  S.trapSalt = (S.trapSalt || []).slice(0, S.traps);
+  while (S.trapSalt.length < S.traps) S.trapSalt.push(false);
+}
+const saltedTraps = () => (S.trapSalt || []).filter(Boolean).length;
 
 function checkTraps(rolls = 1) {
   let m = 0, b = 0, broke = 0, f = 0;
+  syncTraps();
   for (let r = 0; r < rolls; r++) {
-    S.trapUses = S.trapUses.map((u) => {
-      const caughtMeat = Math.random() < 0.3, caughtBlood = Math.random() < 0.3;
+    const uses = [], salt = [];
+    S.trapUses.forEach((u, i) => {
+      const salted = S.trapSalt[i];
+      const caughtMeat = Math.random() < (salted ? 0.55 : 0.3), caughtBlood = Math.random() < 0.3;   // salt draws them in
       if (caughtMeat) m += 1;
       if (caughtBlood) b += 1;
       if (S.nightNo >= 2 && Math.random() < 0.15) f += 1;   // from the second night, now and then a pelt
-      return u - (caughtMeat || caughtBlood ? 1 : 0) - (Math.random() < 0.08 ? 99 : 0);
-    }).filter((u) => (u > 0 ? true : (broke += 1, false)));
+      const left = u - (caughtMeat || caughtBlood ? 1 : 0) - (Math.random() < 0.08 ? 99 : 0);
+      if (left > 0) { uses.push(left); salt.push(salted); } else broke += 1;   // a broken trap takes its salt with it
+    });
+    S.trapUses = uses;
+    S.trapSalt = salt;
   }
   syncTraps();
   if (m) addRaw(m);
@@ -1461,7 +1496,7 @@ function renderAchievements() {
       li.innerHTML = '<span class="mark"></span><span class="name"></span><span class="desc"></span>';
       li.querySelector('.mark').textContent = has ? '✦' : '·';
       li.querySelector('.name').textContent = secret ? '???' : a.name;
-      li.querySelector('.desc').textContent = secret ? 'something very unlucky.' : a.later ? `${a.desc} (a later version)` : a.desc;
+      li.querySelector('.desc').textContent = secret ? (a.hint || '???') : a.later ? `${a.desc} (a later version)` : a.desc;
       ui.achList.appendChild(li);
     }
   }
@@ -1621,6 +1656,15 @@ function slamHatch() {
 // half of the meat on the rack. No meat, and it takes the stranger. No stranger, and it takes you.
 function hatchMissed() {
   const hc = S.hatch;
+  if (S.saltHatch) {
+    S.saltHatch = false;
+    hc.phase = 'slammed';
+    hc.t = 0.8;
+    sfx.hiss();
+    sfx.scream();
+    say(S.away ? 'back at the house, the salt ring around the hatch is scattered. something touched it and went back down.' : 'its fingers touch the salt ring. it shrieks and drops back down. the ring is scattered.');
+    return;
+  }
   if (S.hatchBar) {
     S.hatchBar = false;
     hc.phase = 'slammed';
@@ -1856,6 +1900,12 @@ const BUILDS = [
   { id: 'saltWin', name: 'salt the window sill', desc: 'the next time she would get through the window, she recoils instead.',
     show: () => !S.saltWin && (S.salt > 0 || S.nightNo >= 2), cost: () => ({ salt: 2 }),
     done: () => { S.saltWin = true; say('you pour a line of salt along the window sill.'); } },
+  { id: 'saltTrap', name: 'salt a trap', desc: () => `rub salt into a trap. a salted trap catches meat far more often, for as long as it lasts; when it breaks, the salt goes with it. (${saltedTraps()} of ${S.traps} salted)`,
+    show: () => S.traps > saltedTraps() && S.salt > 0, cost: () => ({ salt: 1 }),
+    done: () => { syncTraps(); S.trapSalt[S.trapSalt.indexOf(false)] = true; say('you rub salt into the jaws of a trap. the smell will carry.'); } },
+  { id: 'saltHatch', name: 'salt around the hatch', desc: 'a ring of salt around the cellar hatch. the next time it would get out, it touches the salt and recoils instead. one use.',
+    show: () => S.nightNo >= 2 && !S.saltHatch && S.salt > 0, cost: () => ({ salt: 2 }),
+    done: () => { S.saltHatch = true; say('you pour a ring of salt around the hatch.'); } },
   { id: 'bar', name: 'bar the hatch', desc: 'nail a beam across the cellar hatch. if it comes up and you miss the slam, the beam breaks instead of it getting out. slam it in time and the beam stays whole.',
     show: () => S.nightNo >= 2 && !S.hatchBar, cost: () => ({ wood: 4 }),
     done: () => { S.hatchBar = true; say('you nail a beam across the hatch. something underneath goes quiet.'); } },
@@ -1907,9 +1957,9 @@ function toggleBuild(force) {
 // build something there right now; click it for a card with what it is, what it does and what it costs.
 const SPOTS = [
   { id: 'window', x: 61, y: 29, builds: ['boards', 'saltWin'] },
-  { id: 'door', x: 274, y: 44, builds: ['saltDoor', 'trap'] },
+  { id: 'door', x: 274, y: 44, builds: ['saltDoor', 'trap', 'saltTrap'] },
   { id: 'lantern', x: 240, y: 52, builds: ['lantern'] },
-  { id: 'hatch', x: 220, y: 109, builds: ['bar'] },
+  { id: 'hatch', x: 220, y: 109, builds: ['bar', 'saltHatch'] },
   { id: 'fire', x: 136, y: 94, builds: ['rack'] },
   { id: 'meat', x: 207, y: 34, builds: ['cure'] },
   { id: 'shed', x: 307, y: 72, builds: ['shed'] },
@@ -2045,6 +2095,7 @@ function updateAmbient(dt) {
   shake = Math.max(0, shake - dt);
   trapWreck = Math.max(0, trapWreck - dt);
   cabT = Math.max(0, cabT - dt);
+  flareT = Math.max(0, flareT - dt);
   doze = Math.max(0, doze - dt);
   hunterEyes = clamp(hunterEyes + dt * (S.hunter.near && mode === 'playing' ? 0.8 : -0.8), 0, 1);
 
@@ -2152,7 +2203,7 @@ function updateEyes(dt) {
   eyeSpawn -= dt;
   if (live < want && eyeSpawn <= 0) {
     spawnEye();
-    eyeSpawn = mode === 'lost' ? 0.08 : rand(1.2, 3.5);
+    eyeSpawn = mode === 'lost' ? 0.08 : S.fire === 0 ? rand(0.3, 0.7) : rand(1.2, 3.5);
   }
   for (const e of eyes) {
     if (mode !== 'lost') {
@@ -2164,13 +2215,8 @@ function updateEyes(dt) {
     if (e.out) {
       e.alpha -= dt * 2.5;
     } else {
-      e.alpha = Math.min(1, e.alpha + dt * (mode === 'lost' ? 3 : 0.5));
-      const dx = FIRE.x - e.x, dy = LIGHT_Y - e.y, d = Math.hypot(dx, dy) || 1;
-      if (S.fire === 0 && S.lit && lightDist(e.x, e.y) > dispR + 12) {
-        const sp = 1.6 + S.dread / 40;
-        e.x += (dx / d) * dt * sp;
-        e.y += (dy / d) * dt * sp;
-      }
+      // they open where they are and stay there, watching; the death that follows brings them closer
+      e.alpha = Math.min(1, e.alpha + dt * (mode === 'lost' ? 3 : 0.9));
     }
     e.blink -= dt;
     if (e.blink <= 0 && e.blinkT < 0) { e.blinkT = 0; e.blink = rand(2, 6); }
@@ -2577,7 +2623,11 @@ const BROKEN_TRAP = [
 function drawTraps() {
   if (trapWreck > 0) drawMap(BROKEN_TRAP, 268, 136, TRAP_COLORS);
   // spare traps lying by the door until they're set outside
-  for (let i = 0; i < S.traps; i++) drawMap(BEAR_TRAP, 243 - (i % 2) * 10, 106 - Math.floor(i / 2) * 3 + (i % 2), TRAP_COLORS);
+  for (let i = 0; i < S.traps; i++) {
+    const x = 243 - (i % 2) * 10, y = 106 - Math.floor(i / 2) * 3 + (i % 2);
+    drawMap(BEAR_TRAP, x, y, TRAP_COLORS);
+    if (S.trapSalt && S.trapSalt[i]) { px.fillStyle = '#ece8e0'; px.fillRect(x + 2, y + 1, 1, 1); px.fillRect(x + 5, y + 2, 1, 1); px.fillRect(x + 7, y + 1, 1, 1); }
+  }
 }
 
 const SPR_COLORS = { h: '#4b4650', H: '#5d5763', f: '#120d0b', e: '#c9b48a', c: '#38333e', C: '#2a2630', b: '#1d1815', s: '#7a6a5a' };
@@ -2927,6 +2977,13 @@ function drawHatch() {
 // salt lines across the door's threshold and the window sill
 function drawSalt() {
   px.fillStyle = '#d8d4cc';
+  if (S.saltHatch) {
+    const { x, y, w, h } = HATCH;
+    for (let i = 0; i < 26; i++) {
+      const a = (i / 26) * Math.PI * 2;
+      px.fillRect(Math.round(x + w / 2 + Math.cos(a) * (w / 2 + 3)), Math.round(y + h / 2 + Math.sin(a) * (h / 2 + 2)), 1, 1);
+    }
+  }
   if (S.saltDoor) for (let x = 257; x < 291; x += 2) px.fillRect(x, 111, 1 + (x % 3 === 0 ? 1 : 0), 1);
   if (S.saltWin) for (let x = 45; x < 77; x += 2) px.fillRect(x, 68, 1 + (x % 3 === 0 ? 1 : 0), 1);
 }
@@ -3389,6 +3446,26 @@ function drawLight() {
   }
   lx.restore();
 
+  // salt on the fire: a cold white-blue flare that fills the room for a moment
+  if (flareT > 0) {
+    const k = flareT / 1.4;
+    const fr = (60 + 140 * (1 - k)) * s;
+    lx.save();
+    lx.globalCompositeOperation = 'destination-out';
+    let fg = lx.createRadialGradient(FIRE.x * s, LIGHT_Y * s, 0, FIRE.x * s, LIGHT_Y * s, fr);
+    fg.addColorStop(0, `rgba(0,0,0,${0.95 * k})`);
+    fg.addColorStop(1, 'rgba(0,0,0,0)');
+    lx.fillStyle = fg;
+    lx.fillRect(0, 0, light.width, light.height);
+    lx.globalCompositeOperation = 'lighter';
+    fg = lx.createRadialGradient(FIRE.x * s, LIGHT_Y * s, 0, FIRE.x * s, LIGHT_Y * s, fr);
+    fg.addColorStop(0, `rgba(200, 225, 255, ${0.35 * k})`);
+    fg.addColorStop(1, 'rgba(0,0,0,0)');
+    lx.fillStyle = fg;
+    lx.fillRect(0, 0, light.width, light.height);
+    lx.restore();
+  }
+
   // the candle by the woodshed cabinet
   if (S.shed && S.lit) {
     const cx = CABINET.x + 10.5, cy = CABINET.y + 2;
@@ -3535,17 +3612,7 @@ function drawLight() {
     const a = clamp(e.alpha, 0, 1);
     if (a <= 0.01) continue;
     const lid = e.blinkT >= 0 ? Math.min(1, Math.abs(e.blinkT - 0.11) / 0.11) : 1;
-    const ex = e.x * s, ey = e.y * s;
-    const glow = lx.createRadialGradient(ex, ey, 0, ex, ey, 7 * s);
-    glow.addColorStop(0, e.red ? `rgba(255, 60, 40, ${0.12 * a})` : `rgba(255, 220, 150, ${0.09 * a})`);
-    glow.addColorStop(1, 'rgba(0,0,0,0)');
-    lx.fillStyle = glow;
-    lx.fillRect(ex - 7 * s, ey - 7 * s, 14 * s, 14 * s);
-    if (lid < 0.15) continue;
-    lx.fillStyle = e.red ? `rgba(255, 74, 58, ${a})` : `rgba(255, 238, 180, ${a})`;
-    const h = Math.max(1, Math.round(s * 1.2 * lid));
-    lx.fillRect(Math.round(ex - 3.5 * s), Math.round(ey - h / 2), Math.round(2 * s), h);
-    lx.fillRect(Math.round(ex + 1.5 * s), Math.round(ey - h / 2), Math.round(2 * s), h);
+    eyePair(s, e.x, e.y, 1, lid * Math.min(1, a * 1.5), e.red, a);   // the same slitted eyes the dark kills you with
   }
 
   // the tall thing in the doorway
@@ -3662,6 +3729,7 @@ function startDeath(cause) {
   if (cause === 'dark') {
     // the eyes already watching you stay where they are; more open around them once the last coal goes out
     for (const e of eyes) if (!e.out && e.alpha > 0.3) deathEyes.push({ x: e.x, y: e.y, red: e.red, sz: 1, at: -1 });
+    eyes = [];
     for (let tries = 0; deathEyes.length < 15 && tries < 300; tries++) {
       const x = rand(14, 306), y = rand(14, 168);
       if (Math.hypot(x - 160, (y - 100) * 1.6) < 46) continue;
@@ -4329,6 +4397,7 @@ function syncUI() {
   resCounts.cooked.parentElement.classList.toggle('spoiling', spoilingSoon(S.cookedLife.filter((l) => l < CURED / 2)));
   const blazing = S.blaze > 0 && mode === 'playing' && !S.away && !dialog;
   ui.douse.classList.toggle('hidden', !blazing);
+  ui.saltFlare.classList.toggle('hidden', !saltFlareReady() || blazing);
   if (blazing) ui.douse.style.setProperty('--cd', `${(S.blaze / 9) * 100}%`);
   ui.clock.textContent = mode === 'day' ? `day · ${dayClock(S.dayHours)} · dark at 10` : S.won ? '6:00 am · dawn' : S.lit ? `${S.nightNo > 1 ? `night ${S.nightNo} · ` : ''}${clockText(S.night)} · dawn at 6` : '';
   const [hl, hc] = hungerLabel();
@@ -4613,6 +4682,7 @@ ui.build.addEventListener('click', () => toggleBuild());
 ui.strike.addEventListener('click', strikeHand);
 ui.slam.addEventListener('click', slamHatch);
 ui.douse.addEventListener('click', douse);
+ui.saltFlare.addEventListener('click', saltFlare);
 ui.dayBtn.addEventListener('click', startDay);
 ui.endRunBtn.addEventListener('click', () => endRun());
 ui.dayNight.addEventListener('click', startNextNight);

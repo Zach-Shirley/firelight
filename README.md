@@ -32,7 +32,7 @@ Every threat has a tell and a counter. Threats arrive as the night goes on.
 
 | From | Threat | The tell | What saves you | Death |
 | --- | --- | --- | --- | --- |
-| 10 pm | **The dark** | Eyes gather, a heartbeat starts, red creeps in from the edges | Keep the fire above smoldering. It burns down faster every hour | The dark comes in |
+| 10 pm | **The dark** | Slitted eyes open around the room, a heartbeat starts, red creeps in from the edges. Once the fire is out you have **about ten seconds** | Keep the fire above smoldering. It burns down faster every hour | The dark comes in |
 | 10 pm | **Hunger** | A stomach growl at "hungry"; at "starving" it repeats and a dull red border closes in. **Meat goes bad**: raw in two minutes, cooked in four, and its count turns green when something is about to turn | Keep eating, which means traps early: at night they're the only meat, checked on every wood trip. Cook raw meat first; raw makes you sick. Salt-cured meat keeps | You starve |
 | 11 pm | **The thing in the trees** | A howl, and its amber eyes shining in the treeline outside the window. While you're out and it's close, **a grin grows beneath its eyes** | One rule: once it's close, the grin fills in **four seconds**, every time. Leave while its eyes are in the treeline and you have four seconds. If it howls while you're already out, you get a moment to turn back first. Running back brings you home empty-handed | A full grin |
 | midnight | **The mimic** | Real visitors' **footsteps crunch through the snow before they knock**. The mimic just knocks, word for word in the voice of someone you'd open for. There is only one stranger | Keep the door shut when nothing walked up | You opened the door. It was not a person |
@@ -128,6 +128,8 @@ Click an ember for a card with what it does and what it costs. The **build** but
 | Fur coat | 4 fur | You get cold outside a third more slowly |
 | Insulate the walls | 6 fur | The house loses heat more slowly and the fire warms you a little faster. (Six fur is also 18 points at dawn; whether insulation is worth it is up to you) |
 | Salt the doorway / the sill | 2 salt each | One use each; see night 2 |
+| Salt a trap | 1 salt | A salted trap catches meat far more often, for as long as it lasts; the salt goes when the trap breaks. You can see the white flecks on it |
+| Salt around the hatch (night 2) | 2 salt | One use: the next time it would get out, it touches the salt and drops back down. Spent before the beam |
 | Bar the hatch (night 2) | 4 wood | A beam across the cellar hatch. Breaks instead of you the first time you miss the slam |
 
 ## The trader
@@ -327,8 +329,8 @@ The background music is generated in the browser like the rest of the sound: a l
 
 ## Achievements
 
-29 achievements, under **achievements** on the title screen, with a toast and a chime when you earn one:
-- **A death for every way to die**, 13 in all, including the very rare death lost in the white (shown as ??? until you get it).
+30 achievements, under **achievements** on the title screen, with a toast and a chime when you earn one:
+- **A death for every way to die**, 13 in all, including the very rare death lost in the white. Two are secret, shown as ??? with a hint until you find them.
 - **Surviving nights 1, 2 and 3.** Nights 4 and 5 are listed for a later version.
 - **Feats.** A few that mean something:
   - keeping her alive to the third dawn;
@@ -348,7 +350,7 @@ They're stored in this browser for now (`achievements.js`). Each unlock keeps it
 
 Open the game once with `?dev` on the address (https://firelight-topaz.vercel.app/?dev) and the title menu gets a **playtest** button, remembered in that browser. It starts you at the day before night 2 or 3, or straight into night 2 or 3, with a basic kit: boarded window, two traps (three on night 3), the lantern, the stranger, some food and wood, and on night 3 a woodshed and the drying rack. Playtest runs don't count toward the stats or the leaderboard.
 
-The version is in the bottom-right corner (v0.28 is the 28th commit), so you can tell a refresh picked up the latest build.
+The version is in the bottom-right corner (v0.29 is the 29th commit), so you can tell a refresh picked up the latest build.
 
 ## Future ideas
 
