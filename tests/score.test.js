@@ -2,21 +2,19 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { computeScore, qualifies, insertScore, cleanInitials, sanitizeBoard } from '../score.js';
 
-test('score is what you held on to at dawn', () => {
-  const r = computeScore({ wood: 20, raw: 1, cooked: 2, blood: 1, fire: 3 });
-  assert.equal(r.total, 20 + 2 + 6 + 5 + 30);
-  assert.deepEqual(r.lines.map((l) => l[0]), ['wood left', 'cooked meat left', 'raw meat left', 'blood left', 'fire at dawn']);
+test('dawn is worth 100, and what you lived through counts more than what you hoarded', () => {
+  const r = computeScore({ wood: 21, cooked: 2, blood: 1, salt: 1, fire: 3 });
+  assert.equal(r.total, 100 + (10 + 2 + 2 + 1 + 15));
+  assert.deepEqual(r.lines.map((l) => l[0]), ['made it to dawn', 'what you held on to']);
 });
 
-test('letting the right people in and company at dawn are worth points', () => {
-  const r = computeScore({ trusted: 3, companion: true });
-  assert.equal(r.total, 30 + 25);
-  assert.ok(r.lines.some((l) => l[0] === 'people you let in'));
-  assert.ok(r.lines.some((l) => l[0] === 'not alone'));
+test('people let in, mimics kept out, burns and company each add up', () => {
+  const r = computeScore({ trusted: 3, mimicsKept: 2, burned: 2, companion: true });
+  assert.equal(r.total, 100 + 30 + 20 + 10 + 25);
 });
 
-test('missing values count as zero', () => {
-  assert.equal(computeScore({}).total, 0);
+test('missing values still give the dawn bonus', () => {
+  assert.equal(computeScore({}).total, 100);
 });
 
 test('qualifies while the board has room, then only beats the lowest', () => {

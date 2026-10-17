@@ -41,6 +41,10 @@
 
     <button id="slam" class="hidden" title="(F or space)">slam the hatch!</button>
 
+    <button id="douse" class="hidden" title="(X)">douse it with blood! <span class="dim">2 blood</span></button>
+
+    <div id="shed" class="hidden"><canvas id="shedIcon" width="24" height="20"></canvas><div class="shed-count"><span id="shedCount">0</span> logs</div><button id="shedDoor" title="(W)">bring in</button></div>
+
     <button id="strike" class="hidden" title="(F or space)">burn the hand! <span class="dim">1 wood</span></button>
 
     <div id="away" class="hidden">
@@ -90,14 +94,15 @@
           <ul class="how">
             <li>Survive one night, 10 pm to 6 am. It takes about seven minutes, and it gets worse every hour.</li>
             <li><b>Stoke the fire</b> (S). If it stays out, the dark comes in.</li>
-            <li>Stay <b>warm</b>. The snow takes your warmth when you're out or the fire is low. <b>Eat</b> (E) hot cooked meat to warm up; <b>cook</b> (C) it first. Raw meat makes you sick.</li>
+            <li><b>Eat</b> (E) all night or you starve. <b>Cook</b> (C) raw meat first; raw makes you sick. Meat goes bad: raw in two minutes, cooked in four.</li>
+            <li>The room holds 25 logs in one pile. Stack more and it topples into the fire.</li>
             <li>Go out to <b>gather wood</b> (G) or <b>hunt</b> (H). While you're out, no one is minding the room, and something hunts the trees.</li>
             <li>People knock. Not everything that knocks is a person. The door only opens if you open it.</li>
             <li>Your score is what you still have at dawn. Everything you build or burn costs you.</li>
             <li>Survive to dawn and you can <b>rest through the day</b> and face a <b>second night</b>, which is worse.</li>
             <li class="touch-only">On a phone, play sideways and tap the buttons.</li>
           </ul>
-          <p class="keys">S stoke · E eat · C cook · G wood · H hunt · F burn · R run back · B build · J journal · M sound · Esc menu</p>
+          <p class="keys">S stoke · E eat · C cook · G wood · H hunt · F burn/slam · X douse · W woodshed · R run back · B build · J journal · M sound · Esc menu</p>
           <button class="backBtn">back</button>
         </div>
 

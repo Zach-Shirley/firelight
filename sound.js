@@ -550,3 +550,22 @@ export function creak() {
   o.start(t);
   o.stop(t + 1);
 }
+
+// A trap springing apart: a metal clank and a scrape.
+export function trapSnap() {
+  if (!ctx || !enabled) return;
+  const t = ctx.currentTime + 0.05;
+  [880, 1320, 660].forEach((f, i) => {
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.type = 'square';
+    o.frequency.value = f;
+    const at = t + i * 0.03;
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.exponentialRampToValueAtTime(0.05, at + 0.004);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + 0.18);
+    o.connect(g).connect(master);
+    o.start(at);
+    o.stop(at + 0.2);
+  });
+}

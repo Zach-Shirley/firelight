@@ -13,7 +13,9 @@ A short horror-survival game in chunky pixel art. One night lasts about seven mi
 | Key | Action |
 | --- | --- |
 | S | Stoke the fire (1 wood) |
-| E | Eat: hot cooked meat warms you up; raw if that's all you have (it barely helps and makes you sick). 1.5 s cooldown |
+| E | Eat: cooked meat if you have it, raw if that's all you have (raw fills you less and makes you sick). 1.5 s cooldown |
+| X | Douse a blaze with blood (2 blood) |
+| W | Bring logs in from the woodshed |
 | C | Cook up to 3 raw meat. It finishes on its own in about 6 s, as long as the fire is lit |
 | G | Go out for wood (short trip) |
 | H | Go out to hunt (longer trip: meat, sometimes blood) |
@@ -32,10 +34,11 @@ Every threat has a tell and a counter. Threats arrive as the night goes on.
 | From | Threat | The tell | What saves you | Death |
 | --- | --- | --- | --- | --- |
 | 10 pm | **The dark** | Eyes gather, a heartbeat starts, red creeps in from the edges | Keep the fire above smoldering. It burns down faster every hour | The dark comes in |
-| 10 pm | **The cold** | Teeth chattering at "cold"; at "freezing" frost and ice creep in from the screen edges, and your hands and trips slow down | The snow drains your warmth while you're out and when the fire is low (or the window is bare). A good fire warms you back up, and hot cooked meat warms you fast | You freeze |
-| 11 pm | **The thing in the trees** | A howl, and its amber eyes shining in the treeline outside the window. While you're out and it's close, **a grin grows beneath its eyes**: faint at first, then wider and toothier as it closes in, fast once it has howled | Don't go out while it's close. Run back when the grin starts to widen; you come home empty-handed | A full grin |
+| 10 pm | **Hunger** | A stomach growl at "hungry"; at "starving" it repeats and a dull red border closes in. **Meat goes bad**: raw in two minutes, cooked in four, and its count turns green when something is about to turn | Keep eating, which means keep hunting all night. Cook raw meat first; raw makes you sick. Salt-cured meat keeps | You starve |
+| 11 pm | **The thing in the trees** | A howl, and its amber eyes shining in the treeline outside the window. While you're out and it's close, **a grin grows beneath its eyes** | One rule: once it's close, the grin fills in **four seconds**, every time. Leave while its eyes are in the treeline and you have four seconds. If it howls while you're already out, you get a moment to turn back first. Running back brings you home empty-handed | A full grin |
 | midnight | **The mimic** | Real visitors' **footsteps crunch through the snow before they knock**. The mimic just knocks, word for word in the voice of someone you'd open for. There is only one stranger | Keep the door shut when nothing walked up | You opened the door. It was not a person |
 | 1 am | **Her, at the window** | She rises into the window from below the sill: a gaunt black figure backlit in red, with one huge pale eye, an empty socket, a hanging jaw and wet hair. On her first visit the glass always explodes inward, boarded or not, and from then on wind and snow blow in, so you lose warmth faster: a little through boards, a lot through a bare frame | Board the window beforehand. Her eye watches through a gap while her hand hooks a board and pulls, to a rhythm of thuds. Burn the hand and she snatches it back, smoking. If she outlasts you, she tears the board off, reaches a long jointed arm all the way to your wood pile and drags logs out | Bare window: she climbs in on long spider-jointed arms, even while you're out. You can still nail boards up in the last seconds |
+| any time | **The fire itself** | The wood pile leans toward the fire when it's over 25 logs | Keep the pile at or under 25, or build a woodshed. If it topples, logs crash into the fire and it roars toward the roof: **douse it with 2 blood** in time | The cabin burns down |
 | 3 am | **The walkers** | Some mimics have learned to fake footsteps. Nothing in the text or sound gives them away | A lit **blood lantern** shows a shadow of feet under the door, or nothing | You opened the door |
 
 **The door never opens by itself.** Every knock asks you: open it, or keep it shut. Opening for the right people matters:
@@ -88,35 +91,47 @@ Make it to dawn and you choose: **end here** and bank your score, or **rest thro
 
 ## Building
 
-Everything you build costs score, so building is a tradeoff.
+Everything you build costs something you could have kept.
 
 | Build | Cost | What it does |
 | --- | --- | --- |
 | Window boards | 8 wood | Three boards. Without them, her first visit at 1 am kills you. Repair one for 3 wood |
-| Trap (up to 3) | 5 wood each | Raw meat and blood, collected on every trip. The smell keeps the thing in the trees close for longer |
+| Trap (up to 3) | 5 wood each | Raw meat and blood, collected on every trip. **Each wears out** after a few catches, and sometimes something tears one apart (you hear it snap). The smell keeps the thing in the trees close for longer |
+| Blood lantern | 8 wood + 4 blood | Red light under the door shows whether anything is actually standing there. That's the only way to catch the walkers after 3 am. It burns a jar of blood every minute, and goes dark when you run out |
+| **Woodshed** | 25 wood (a full pile) + 15 s outside | A shed against the outside wall that holds 100 more logs. Extra wood goes into it instead of toppling the pile, and a little shed with an open door appears on the right of the screen; **bring in** moves logs back to the pile. You build it outside for longer than a hunt, so pick a moment when the thing in the trees and she are both quiet |
+| Cure meat | 1 salt | Rubs salt into 2 cooked meat so it never goes bad |
 | Salt the doorway / the sill | 2 salt each | One use each; see night 2 |
 | Weigh down the hatch (night 2) | 6 wood | Holds the hatch shut through two pushes |
-| Blood lantern | 8 wood + 4 blood | Red light under the door shows whether anything is actually standing there. That's the only way to catch the walkers after 3 am. It burns a jar of blood every minute, and goes dark when you run out |
+
+## The trader
+
+Once a night, from midnight, slow footsteps and a clink: a tall man in a long gray coat and a wide hat. Let him in and **he opens the coat**. His goods hang on hooks in the lining, more than should fit.
+
+| Item | Price | What it does |
+| --- | --- | --- |
+| Iron fire grate | 3 blood + 1 cooked meat | The fire burns down 40% slower |
+| Snowshoes | 2 blood + 2 cooked meat | Every trip is 30% faster |
+| Bone spear | 3 blood | If the thing in the trees catches you, you get away. Once |
+| Salt | 1 blood | 3 salt, for curing meat (and salt lines on night 2) |
+
+![The trader](docs/trader.jpg)
 
 ## Score
 
-Only a night survived to dawn scores.
+Only a night survived to dawn scores, and mostly for **how you lived through it**. What you hoard counts for much less, so a pile of 80 logs is not the point.
 
-| Kept at dawn | Points |
+| At dawn | Points |
 | --- | --- |
-| Each wood | 1 |
-| Each cooked meat | 3 |
-| Each raw meat | 2 |
-| Each blood | 5 |
-| Each level of fire | 10 |
+| Made it to dawn | 100 |
 | Each real person you let in | 10 |
+| Each mimic kept out | 10 |
+| Each time you burned her back | 5 |
 | The stranger still with you | 25 |
+| What you held on to | half a point per log (pile and shed), 1 per cooked meat, 2 per blood, 1 per salt, 5 per level of fire |
 
-Stockpiling is the hard part, because surviving means spending.
+The resource bar uses small pixel icons: a log end (with the pile's 25-log limit), charred cooked meat, raw meat (purple, veined, with something like an eye in it), salt and a jar of blood.
 
-The resource bar uses small pixel icons: a log end, charred cooked meat, raw meat (purple, veined, with something like an eye in it) and a jar of blood.
-
-Every ending, death or dawn, shows a **recap of your night**: people let in, mimics kept out, times you burned her back, trips, meat cooked, your closest call with the grin and your coldest moment. It also shows an **all-time tally**, for example "14 nights · 2 dawns · killed by: the mimic 6, her, at the window 3, the cold 2". The tally also appears under best nights on the title screen. The simulation's automated nights don't count toward it.
+Every ending, death or dawn, shows a **recap of your night**: people let in, mimics kept out, times you burned her back, trips, meat cooked, your closest call with the grin and how hungry you got. It also shows an **all-time tally**, for example "14 nights · 2 dawns · killed by: the mimic 6, her, at the window 3, hunger 2". The tally also appears under best nights on the title screen. The simulation's automated nights don't count toward it.
 
 The top-10 board takes three arcade initials. It's stored in the browser on that computer, like a single arcade cabinet; a shared online board would need a server, which was left out of scope.
 
@@ -134,13 +149,16 @@ The top-10 board takes three arcade initials. It's stored in the browser on that
 - **Strong:** knows every tell. It boards up before 1 am, gets the lantern before the walkers, waits out the howling, burns the claws and feeds the stranger only on her last plea. It reacts a beat late, like a person, and misreads the footsteps now and then.
 - **Skilled:** the same, but with instant, perfect reactions.
 
-Results on 2026-10-16, after the latest changes (cold instead of hunger, the false stranger, the grin tied to its eyes):
+Results on 2026-10-17, after the economy round (food back, spoilage, the 25-log pile, worn-out traps, steady yields, the four-second grin, survival-weighted scoring):
 
 | Player | Nights | Survives | Main causes of death |
 | --- | --- | --- | --- |
-| Beginner | 150 | 0% | mimic 39%, her at the window 37%, the trees 23% |
-| Learner | 150 | 21% | mimic 56%, her at the window 22% |
-| Strong | 150 | 81% | mimic 13%, her at the window 4%, the dark 2% |
+| Beginner | 120 | 0% | the trees 65%, mimic 20%, her at the window 14% |
+| Learner | 120 | 14% | mimic 36%, hunger 30%, her at the window 16% |
+| Strong | 120 | 78% | mimic 20% |
+| Hoarder | 150 | 69% | mimic 22%, her at the window 8% |
+
+The **hoarder** plays like the strong player but with the rush-traps-then-hoard plan: three traps at once, wood until midnight, then as few trips as possible. Before this round that plan let a good player coast through the rest of the night. Now it survives slightly less often than steady play (69% against 78%) and scores the same (median 293 against 287): the pile caps at 25, meat spoils, traps wear out and hunger keeps you going out.
 
 Night 2, among the runs that reach it (`sim.runTwo`):
 
@@ -149,7 +167,7 @@ Night 2, among the runs that reach it (`sim.runTwo`):
 | Learner | 45 of 200 | 9% | mimic 47%, the cold 16%, the hatch while away 13% |
 | Strong | 48 of 60 | 63% | the hatch while away 15%, the dark 10%, her at the window 10% |
 
-Two-night scores for the strong player land between about 360 and 810, against roughly 100–280 for one night.
+Two-night scores for the strong player now land between about 620 and 910.
 
 A real first-time player lands between the beginner and the learner, so the large majority of first nights end in death. The doubled lantern cost is what brought the strong player down from about 93% to 84%: it now has to work to have the lantern lit when the walkers start.
 
@@ -257,6 +275,13 @@ Checked on 2026-10-16:
   - dawn, the score screen and initials.
 - **9 unit tests pass,** with no console errors.
 - **Screenshots** were staged with the test hook, so their numbers aren't from real play.
+
+## Future ideas
+
+A possible longer run, noted for later and very much subject to change:
+- **Nights 1 and 2:** as they are.
+- **Nights 3 and 4:** a blizzard, which is where the cold mechanic would come back.
+- **Night 5:** a blood moon.
 
 ## Known limits
 

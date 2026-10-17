@@ -24,6 +24,7 @@ function beginner(f, S, mem, picky = false) {
     if (d.id === 'knock') return f.choose(Math.random() < 0.7 ? 0 : 1);
     if (d.id === 'kidAsk') return f.choose(Math.random() < 0.5 && food(S) >= 1 ? 0 : 1);
     if (d.id === 'cutter') return f.choose(2);
+    if (d.id === 'shop') return f.choose(keyed(d, 'leave'));
     if (d.id === 'plea') { const i = feedAny(d); return f.choose(i >= 0 && Math.random() < 0.6 ? i : keyed(d, 'no')); }
     if (d.id === 'demand') { const i = feedAny(d); return f.choose(i >= 0 ? i : keyed(d, 'no')); }
     if (d.id === 'strangerDead') return f.choose(Math.random() < 0.5 ? 0 : 1);
@@ -43,9 +44,9 @@ function beginner(f, S, mem, picky = false) {
   }
   if (!S.lit || S.fire <= 2) f.act.stoke();
   if (S.meat >= 2) f.act.cook();
-  if (S.chill >= 75 && (picky ? S.cooked > 0 : food(S) > 0)) f.act.eat();
+  if (S.hunger >= 75 && (picky ? S.cooked > 0 : food(S) > 0)) f.act.eat();
   if (!S.boardsBuilt && S.wood >= 14) f.act.build('boards');
-  if (food(S) === 0 && S.chill < 40) return f.act.hunt();
+  if (food(S) === 0 && S.hunger > 50) return f.act.hunt();
   if (S.wood < 4) return f.act.wood();
 }
 
@@ -64,9 +65,9 @@ function learner(f, S, mem) {
   if (!d && !S.away) {
     // a reader learns from the first bout of sickness: cook first, eat raw only when desperate
     if (S.meat >= 1 && S.fire >= 1) f.act.cook();
-    if (S.chill >= 60 && S.cooked > 0) f.act.eat();
-    if (S.chill >= 85 && S.cooked === 0) f.act.eat();
-    if (S.chill >= 50) { if (S.fire <= 2) f.act.stoke(); return; }   // "you are cold": warm up by the fire before going out again
+    if (S.hunger >= 70 && S.cooked > 0) f.act.eat();
+    if (S.hunger >= 88 && S.cooked === 0) f.act.eat();
+    if (S.wood >= 23) { if (S.fire <= 3) f.act.stoke(); }   // the pile is nearly full: burn some, don't fetch more
     if (S.hint >= 2) {
       if (S.hand.phase === 'reach') f.act.strike();
       if (!S.boardsBuilt && S.wood >= 8) f.act.build('boards');
@@ -84,7 +85,7 @@ function learner(f, S, mem) {
   if (!d && !S.away && S.hint >= 3 && S.hunter.near) {
     if (!S.lit || S.fire <= 2) f.act.stoke();
     if (S.meat >= 1) f.act.cook();
-    if (S.chill >= 75 && food(S) > 0) f.act.eat();
+    if (S.hunger >= 75 && food(S) > 0) f.act.eat();
     return;
   }
   return beginner(f, S, mem, true);
@@ -94,7 +95,7 @@ function learner(f, S, mem) {
 // boards the window before 1 am, burns the claw, feeds the stranger only on her last plea.
 // With human = true it reacts like a strong player rather than a machine: a beat late to the claw and the
 // howl, and it misreads the footsteps now and then.
-function skilled(f, S, mem, human = false) {
+function skilled(f, S, mem, human = false, hoard = false) {
   const d = f.dialog;
   if (d) {
     if (d.id === 'knock') {
@@ -105,6 +106,7 @@ function skilled(f, S, mem, human = false) {
     }
     if (d.id === 'kidAsk') return f.choose(food(S) >= 3 ? 0 : 1);
     if (d.id === 'cutter') return f.choose(food(S) >= 3 && S.wood < 10 ? 0 : 2);
+    if (d.id === 'shop') { for (const k of ['grate', 'spear', 'shoes']) { const i = keyed(d, k); if (i >= 0) return f.choose(i); } return f.choose(keyed(d, 'leave')); }
     if (d.id === 'plea') { const i = keyed(d, 'cooked'); return f.choose(d.last && i >= 0 ? i : keyed(d, 'no')); }
     if (d.id === 'demand') return f.choose(keyed(d, 'leave'));
     if (d.id === 'strangerDead') return f.choose(0);
@@ -122,22 +124,36 @@ function skilled(f, S, mem, human = false) {
   if (S.hand.phase === 'crawl' && S.wood >= 8) f.act.build(S.boardsBuilt ? 'repair' : 'boards');
   if (!S.lit || S.fire <= 2 || (S.fire === 3 && S.wood > 12)) f.act.stoke();
   if (S.meat >= 1 && S.fire >= 1) f.act.cook();
-  if (S.chill >= 55 && S.cooked > 0) f.act.eat();
-  if (S.chill >= 85 && S.cooked === 0 && S.meat > 0) f.act.eat();
+  if (S.hunger >= 60 && S.cooked > 0) f.act.eat();
+  if (S.hunger >= 88 && S.cooked === 0 && S.meat > 0) f.act.eat();
+  if (S.blaze > 0) f.act.douse();
+  if (S.salt >= 1 && S.cooked >= 2) f.act.build('cure');
+  if (S.shed && S.wood < 12 && S.shedWood > 0) f.act.bringIn();
+  if (!S.shed && S.wood >= 25 && !S.hunter.near && S.hand.phase === 'idle' && S.hour !== 0) f.act.build('shed');
   if (!S.boardsBuilt && S.wood >= 9 && S.night > 50) f.act.build('boards');
   if (S.boardsBuilt && S.boards < 2 && S.wood >= 8) f.act.build('repair');
   if (S.traps < 2 && S.wood >= 9 && S.boardsBuilt) f.act.build('trap');
   if (!S.lantern && S.blood >= 4 && S.wood >= 10) f.act.build('lantern');
   if (S.hunter.near) return;
-  if (S.chill > 45) return;   // warm up before the next trip
+  if (hoard) {
+    // the hoarder's plan: three traps at once, wood until midnight, then as few trips as possible
+    if (S.traps < 3 && S.wood >= 5) f.act.build('trap');
+    if (S.night < 2 * 52.5 && S.wood < 25) return f.act.wood();
+    if (food(S) === 0 && S.hunger > 40) return f.act.hunt();
+    if (S.wood < 6) return f.act.wood();
+    return;
+  }
   if (food(S) < 2) return f.act.hunt();
   if (S.lantern === false && S.blood < 4 && S.night > 150 && S.wood >= 8) return f.act.hunt();
-  if (S.wood < 12) return f.act.wood();
+  if (S.wood < 12 || (S.shed && S.wood + S.shedWood < 40)) return f.act.wood();
 }
 
 const strong = (f, S, mem) => skilled(f, S, mem, true);
 
-export const players = { beginner, learner, strong, skilled };
+// Plays like the strong player, but with Zach's plan: rush three traps, haul wood until midnight, then sit tight.
+const hoarder = (f, S, mem) => skilled(f, S, mem, true, true);
+
+export const players = { beginner, learner, strong, skilled, hoarder };
 
 // How each player spends the day between the nights: in priority order, while the hours last.
 const dayPlans = {
@@ -145,6 +161,7 @@ const dayPlans = {
   learner: ['sleep', 'window', 'chop', 'hunt', 'traps'],
   strong: ['sit', 'sleep', 'window', 'scavenge', 'chop', 'traps', 'hunt'],
   skilled: ['sit', 'sleep', 'window', 'scavenge', 'chop', 'traps', 'hunt'],
+  hoarder: ['sleep', 'chop', 'window', 'traps'],
 };
 
 function spendDay(f, name) {
