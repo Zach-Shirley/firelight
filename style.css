@@ -630,3 +630,8 @@ body.touch #dayList button { min-height: calc(14px * var(--s)); }
 #spotCard button { font-size: calc(6px * var(--s)); padding: 0 calc(4px * var(--s)); }
 #spotCard .desc { font-size: calc(5px * var(--s)); color: var(--ink-dim); line-height: 1.05; margin-top: calc(1px * var(--s)); }
 #spotCard .cost { font-size: calc(5.5px * var(--s)); color: var(--ember); }
+
+/* the build and journal panels: the list scrolls, the close button always shows */
+.overlay .panel { max-height: calc(164px * var(--s)); min-height: 0; }
+#buildList, #journalList { flex: 1 1 auto; min-height: 0; }
+#buildClose, #journalClose, .overlay .sub, .overlay h2 { flex: none; }

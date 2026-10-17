@@ -348,7 +348,7 @@ They're stored in this browser for now (`achievements.js`). Each unlock keeps it
 
 Open the game once with `?dev` on the address (https://firelight-topaz.vercel.app/?dev) and the title menu gets a **playtest** button, remembered in that browser. It starts you at the day before night 2 or 3, or straight into night 2 or 3, with a basic kit: boarded window, two traps (three on night 3), the lantern, the stranger, some food and wood, and on night 3 a woodshed and the drying rack. Playtest runs don't count toward the stats or the leaderboard.
 
-The version is in the bottom-right corner (v0.27 is the 27th commit), so you can tell a refresh picked up the latest build.
+The version is in the bottom-right corner (v0.28 is the 28th commit), so you can tell a refresh picked up the latest build.
 
 ## Future ideas
 
