@@ -298,7 +298,7 @@ const snow = Array.from({ length: 10 }, () => ({ x: rand(45, 76), y: rand(35, 66
 function resetTransients() {
   particles = []; fx = []; eyes = []; doze = 0; pileLean = -1; traderOpen = 0; dialog = null; pendingVisit = null; msgQueue = []; msgTimer = 0;
   door = doorTarget = 0; doorCloseIn = -1; walker = null; visitorAtDoor = null; figure = 0;
-  dispR = 0; shake = 0; hunterEyes = 0; dawnT = 0; lossT = 0;
+  dispR = 0; shake = 0; hunterEyes = 0; dawnT = 0; lossT = 0; trapWreck = 0;
   ui.dialogue.classList.add('hidden');
   ui.message.classList.remove('show');
   toggleJournal(false);
@@ -593,7 +593,7 @@ function checkTraps(rolls = 1) {
   let m = 0, b = 0, broke = 0;
   for (let r = 0; r < rolls; r++) {
     S.trapUses = S.trapUses.map((u) => {
-      const caughtMeat = Math.random() < 0.45, caughtBlood = Math.random() < 0.22;
+      const caughtMeat = Math.random() < 0.38, caughtBlood = Math.random() < 0.32;
       if (caughtMeat) m += 1;
       if (caughtBlood) b += 1;
       return u - (caughtMeat || caughtBlood ? 1 : 0) - (Math.random() < 0.08 ? 99 : 0);
@@ -602,7 +602,7 @@ function checkTraps(rolls = 1) {
   syncTraps();
   if (m) addRaw(m);
   S.blood += b;
-  if (broke) sfx.trapSnap();
+  if (broke) { sfx.trapSnap(); trapWreck = 25; shake = Math.max(shake, 0.25); }
   return { m, b, broke };
 }
 
@@ -744,19 +744,19 @@ function finishTrip(kind) {
     addWood(n);
     parts.push(`+${n} wood`);
   } else {
-    if (Math.random() < 0.7) {
-      const n = Math.random() < 0.35 ? 2 : 1;
+    if (Math.random() < 0.6) {
+      const n = Math.random() < 0.3 ? 2 : 1;
       addRaw(n);
       parts.push(`+${n} raw meat`);
     }
-    if (Math.random() < 0.3) { S.blood += 1; parts.push('+1 blood'); }
+    if (Math.random() < 0.45) { S.blood += 1; parts.push('+1 blood'); }
     if (Math.random() < 0.5) { addWood(1); parts.push('+1 wood'); }
   }
   // traps are checked on the way back
   const caught = checkTraps();
   if (caught.m) parts.push(`+${caught.m} raw meat from the traps`);
   if (caught.b) parts.push(`+${caught.b} blood from the traps`);
-  if (caught.broke) parts.push(caught.broke === 1 ? 'one trap is broken' : `${caught.broke} traps are broken`);
+  if (caught.broke) parts.push(caught.broke === 1 ? 'one trap is torn apart. you drag what is left of it inside' : `${caught.broke} traps are torn apart`);
   const lead = kind === 'wood'
     ? pick(['you come back with an armful of branches.', 'snapped limbs, half buried in snow.', 'you drag a fallen branch back inside.'])
     : (parts.some((p) => p.includes('meat')) ? 'the hunt goes well enough.' : 'nothing moved out there. nothing you could catch.');
@@ -1766,6 +1766,7 @@ function updateAmbient(dt) {
   }
   figure = Math.max(0, figure - dt * (mode === 'lost' ? 0.3 : 1));
   shake = Math.max(0, shake - dt);
+  trapWreck = Math.max(0, trapWreck - dt);
   doze = Math.max(0, doze - dt);
   hunterEyes = clamp(hunterEyes + dt * (S.hunter.near && mode === 'playing' ? 0.8 : -0.8), 0, 1);
 
@@ -2230,7 +2231,16 @@ function drawMeat() {
   }
 }
 
+let trapWreck = 0;   // seconds left showing a broken trap you dragged back in
+
 function drawTraps() {
+  if (trapWreck > 0) {
+    // the mangled trap, tossed down inside the door: bent jaws, a torn chain, blood on it
+    px.fillStyle = '#4a4440'; px.fillRect(236, 119, 7, 1); px.fillRect(237, 117, 1, 3); px.fillRect(242, 116, 1, 3); px.fillRect(239, 118, 2, 1);
+    px.fillStyle = '#8a8480'; px.fillRect(237, 116, 1, 1); px.fillRect(239, 117, 1, 1); px.fillRect(241, 116, 1, 1); px.fillRect(243, 115, 1, 1);
+    px.fillStyle = '#5a5450'; px.fillRect(243, 120, 1, 1); px.fillRect(245, 120, 1, 1); px.fillRect(247, 119, 1, 1);
+    px.fillStyle = '#6a0a0a'; px.fillRect(238, 120, 4, 1); px.fillRect(240, 119, 1, 1);
+  }
   // spare trap frames leaning by the door until they're set outside
   for (let i = 0; i < S.traps; i++) {
     px.fillStyle = '#4a4440'; px.fillRect(246 + i * 3, 104 - i, 2, 7);

@@ -555,19 +555,32 @@ export function creak() {
 export function trapSnap() {
   if (!ctx || !enabled) return;
   const t = ctx.currentTime + 0.05;
-  [880, 1320, 660].forEach((f, i) => {
+  thud(t, 0.7);   // the jaws slamming shut on nothing
+  [620, 930, 470, 1240].forEach((f, i) => {   // then iron ringing as it breaks apart
     const o = ctx.createOscillator();
     const g = ctx.createGain();
     o.type = 'square';
-    o.frequency.value = f;
-    const at = t + i * 0.03;
+    o.frequency.value = f * (0.97 + Math.random() * 0.06);
+    const at = t + 0.02 + i * 0.07;
     g.gain.setValueAtTime(0.0001, at);
-    g.gain.exponentialRampToValueAtTime(0.05, at + 0.004);
-    g.gain.exponentialRampToValueAtTime(0.0001, at + 0.18);
+    g.gain.exponentialRampToValueAtTime(0.09, at + 0.004);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + 0.35);
     o.connect(g).connect(master);
     o.start(at);
-    o.stop(at + 0.2);
+    o.stop(at + 0.4);
   });
+  const src = ctx.createBufferSource();   // and a rattle of chain
+  src.buffer = noiseBuf;
+  const bp = ctx.createBiquadFilter();
+  bp.type = 'bandpass';
+  bp.frequency.value = 2400;
+  bp.Q.value = 3;
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  for (let i = 0; i < 6; i++) { g.gain.linearRampToValueAtTime(0.25, t + 0.1 + i * 0.07); g.gain.linearRampToValueAtTime(0.02, t + 0.13 + i * 0.07); }
+  g.gain.linearRampToValueAtTime(0.0001, t + 0.6);
+  src.connect(bp).connect(g).connect(master);
+  src.start(t, 0, 0.7);
 }
 
 // Filtered noise with a gain envelope: shared by the death sounds below.
