@@ -19,7 +19,8 @@
     <canvas id="pix"></canvas>
     <canvas id="light"></canvas>
 
-    <div id="hud"><div id="res"></div><div id="clock"></div><div id="hunger"></div></div>
+    <div id="version"></div>
+    <div id="hud"><div id="res"></div><div id="clock"></div><div id="hunger"></div><div id="cold"></div></div>
 
     <div id="menu">
       <button id="soundBtn" title="sound (M)">sound on</button>
@@ -88,6 +89,18 @@
           <button id="newBtn">new night</button>
           <button id="boardBtn">best nights</button>
           <button id="howBtn">how to play</button>
+          <button id="devBtn" class="hidden">playtest</button>
+        </div>
+
+        <div id="devPanel" class="subpanel hidden">
+          <p class="dev-note">Start partway through with a basic kit (boarded window, 2 traps, the lantern, the stranger, some food and wood). Playtest runs don't count toward stats or the leaderboard.</p>
+          <div class="menu-col">
+            <button data-dev="day2">the day before night 2</button>
+            <button data-dev="night2">night 2</button>
+            <button data-dev="day3">the day before night 3</button>
+            <button data-dev="night3">night 3: the blizzard</button>
+          </div>
+          <button class="backBtn">back</button>
         </div>
 
         <div id="howPanel" class="subpanel hidden">
@@ -97,9 +110,9 @@
             <li><b>Eat</b> (E) all night or you starve. <b>Cook</b> (C) raw meat first; raw makes you sick. Meat goes bad: raw in two minutes, cooked in four.</li>
             <li>The room holds 25 logs in one pile. Stack more and it topples into the fire.</li>
             <li>Go out to <b>gather wood</b> (G). <b>Traps</b> are the only way to get meat at night, and you check them on every trip. While you're out, no one is minding the room, and something hunts the trees.</li>
-            <li>People knock. Not everything that knocks is a person. The door only opens if you open it.</li>
+            <li>People knock. Not everything that knocks is a person. The door only opens if you open it. Under a lit blood lantern, count the feet under the door.</li>
             <li>Only a night survived to dawn scores: for making it, the people you let in, and what you still have.</li>
-            <li>Survive to dawn and you can <b>rest through the day</b> and face a <b>second night</b>, which is worse.</li>
+            <li>Survive to dawn and you can <b>rest through the day</b> and face the next night, which is worse. A run is up to <b>three nights</b>; the third is a blizzard, where the cold can kill you and the wood comes in wet.</li>
             <li class="touch-only">On a phone, play sideways and tap the buttons.</li>
           </ul>
           <p class="keys">S stoke · E eat · C cook · G wood · F burn/slam · X douse · R run back · B build · J journal · M sound · N music · Esc menu</p>
@@ -119,8 +132,8 @@
     <div id="day" class="screen hidden">
       <div class="panel end-panel day-panel">
         <h2>day</h2>
-        <p class="day-text">The sun is up and nothing hunts in daylight. You have <span id="dayHours">8 hours</span> before dark.</p>
-        <p class="day-text day-warn">Tonight will be worse. Everything comes two hours sooner: the thing in the trees and the knocking from the moment it gets dark, her at the window from eleven, and the walkers from one in the morning.</p>
+        <p class="day-text">The sun is up and nothing hunts in daylight. It is 6 in the morning; dark comes at 10. You have <span id="dayHours">16 hours</span>.</p>
+        <p id="dayWarn" class="day-text day-warn"></p>
         <ul id="dayList"></ul>
         <ol id="dayLog"></ol>
         <div class="end-buttons"><button id="dayNight">wait for dark</button></div>

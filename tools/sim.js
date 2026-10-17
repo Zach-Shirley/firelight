@@ -11,6 +11,12 @@ const F = () => window.__firelight;
 const heardFootsteps = (v) => v.who !== 'mimic' || v.fake;
 const lanternTruth = (S, v) => (S.lantern && S.lanternLit ? v.who !== 'mimic' : null);
 const food = (S) => S.meat + S.cooked;
+// In the blizzard, how cold each player lets themselves get before going out again (a beginner doesn't notice).
+const COLD_LIMIT = { beginner: 85, learner: 55, strong: 30, skilled: 30, hoarder: 30 };
+function goOut(f, S, mem) {
+  if (S.nightNo >= 3 && S.cold > (COLD_LIMIT[mem.name] ?? 40)) { if (S.fire <= 3) f.act.stoke(); return undefined; }
+  return f.act.wood();
+}
 // pick a dialogue choice by its key, if it is available
 const keyed = (d, key) => d.choices.findIndex((c) => c.key === key && (!c.can || c.can()));
 const feedAny = (d) => { const i = keyed(d, 'cooked'); return i >= 0 ? i : keyed(d, 'raw'); };
@@ -22,8 +28,7 @@ function beginner(f, S, mem, picky = false) {
   if (!d && !S.away && S.hatch.phase === 'lift') { if (mem.hatchAt !== S.hatchFed + ':' + Math.round(S.night / 5)) { mem.hatchAt = S.hatchFed + ':' + Math.round(S.night / 5); mem.willSlam = Math.random() < (picky ? 0.75 : 0.5); } if (mem.willSlam) f.act.slam(); }
   if (d) {
     if (d.id === 'knock') return f.choose(Math.random() < 0.7 ? 0 : 1);
-    if (d.id === 'kidAsk') return f.choose(Math.random() < 0.5 && food(S) >= 1 ? 0 : 1);
-    if (d.id === 'cutter') return f.choose(2);
+    if (d.id === 'cutter') return f.choose(keyed(d, 'no'));
     if (d.id === 'shop') return f.choose(keyed(d, 'leave'));
     if (d.id === 'plea') { const i = feedAny(d); return f.choose(i >= 0 && Math.random() < 0.6 ? i : keyed(d, 'no')); }
     if (d.id === 'demand') { const i = feedAny(d); return f.choose(i >= 0 ? i : keyed(d, 'no')); }
@@ -47,8 +52,8 @@ function beginner(f, S, mem, picky = false) {
   if (S.hunger >= 75 && (picky ? S.cooked > 0 : food(S) > 0)) f.act.eat();
   if (!S.boardsBuilt && S.wood >= 14) f.act.build('boards');
   if (food(S) === 0 && S.hunger > 50 && S.traps < 1 && S.wood >= 6) f.act.build('trap');   // the build menu says traps are the only meat
-  if (food(S) === 0 && S.hunger > 50) return f.act.wood();
-  if (S.wood < 4) return f.act.wood();
+  if (food(S) === 0 && S.hunger > 50) return goOut(f, S, mem);
+  if (S.wood < 4) return goOut(f, S, mem);
 }
 
 // A first-time player who reads: plays like a beginner, but follows each of the stranger's hints once heard.
@@ -73,13 +78,13 @@ function learner(f, S, mem) {
       if (S.hand.phase === 'reach') f.act.strike();
       if (!S.boardsBuilt && S.wood >= 8) f.act.build('boards');
       if (S.boardsBuilt && S.boards === 0 && S.wood >= 3) f.act.build('repair');
-      if (!S.boardsBuilt && S.wood < 8 && !S.hunter.near) return f.act.wood();
+      if (!S.boardsBuilt && S.wood < 8 && !S.hunter.near) return goOut(f, S, mem);
     }
     if (S.hint >= 4 && !S.lantern && S.blood >= 4 && S.wood >= 10) f.act.build('lantern');
     // told the lantern matters: save wood, and blood from the traps
     if (S.hint >= 4 && !S.lantern && !S.hunter.near && S.stalk < 10) {
-      if (S.wood < 12) return f.act.wood();
-      if (S.blood < 4) { if (S.traps < 2 && S.wood >= 6) f.act.build('trap'); return f.act.wood(); }
+      if (S.wood < 12) return goOut(f, S, mem);
+      if (S.blood < 4) { if (S.traps < 2 && S.wood >= 6) f.act.build('trap'); return goOut(f, S, mem); }
     }
   }
   if (!d && S.away && ((S.hint >= 3 && S.hunter.near) || S.stalk > 45)) return f.act.runBack();
@@ -105,8 +110,7 @@ function skilled(f, S, mem, human = false, hoard = false) {
       const open = truth ?? heardFootsteps(d.visit);
       return f.choose(open !== misread ? 0 : 1);
     }
-    if (d.id === 'kidAsk') return f.choose(food(S) >= 3 ? 0 : 1);
-    if (d.id === 'cutter') return f.choose(food(S) >= 3 && S.wood < 10 ? 0 : 2);
+    if (d.id === 'cutter') { const i = food(S) >= 3 && S.wood < 10 ? keyed(d, 'meatForWood') : S.wood >= 18 && food(S) < 2 ? keyed(d, 'woodFor2') : -1; return f.choose(i >= 0 ? i : keyed(d, 'no')); }
     if (d.id === 'shop') { for (const k of ['grate', 'spear', 'shoes']) { const i = keyed(d, k); if (i >= 0) return f.choose(i); } return f.choose(keyed(d, 'leave')); }
     if (d.id === 'plea') { const i = keyed(d, 'cooked'); return f.choose(d.last && i >= 0 ? i : keyed(d, 'no')); }
     if (d.id === 'demand') return f.choose(keyed(d, 'leave'));
@@ -128,6 +132,9 @@ function skilled(f, S, mem, human = false, hoard = false) {
   if (S.hunger >= 60 && S.cooked > 0) f.act.eat();
   if (S.hunger >= 88 && S.cooked === 0 && S.meat > 0) f.act.eat();
   if (S.blaze > 0) f.act.douse();
+  if (S.fur >= 4 && !S.coat) f.act.build('coat');
+  if (S.nightNo >= 3 && !S.rack && S.wood >= 20) f.act.build('rack');
+  if (S.nightNo >= 3 && S.cold > 25 && S.fire <= 3) f.act.stoke();
   if (S.salt >= 1 && S.cooked >= 2) f.act.build('cure');
   if (!S.shed && S.wood >= 25 && !S.hunter.near && S.hand.phase === 'idle' && S.hour !== 0) f.act.build('shed');
   if (!S.boardsBuilt && S.wood >= 9 && S.night > 50) f.act.build('boards');
@@ -139,13 +146,13 @@ function skilled(f, S, mem, human = false, hoard = false) {
   if (hoard) {
     // the hoarder's plan: three traps at once, wood until midnight, then as few trips as possible
     if (S.traps < 3 && S.wood >= 6) f.act.build('trap');
-    if (S.night < 2 * 52.5 && S.wood < 25) return f.act.wood();
-    if (food(S) === 0 && S.hunger > 40) return f.act.wood();
-    if (S.wood < 6) return f.act.wood();
+    if (S.night < 2 * 52.5 && S.wood < 25) return goOut(f, S, mem);
+    if (food(S) === 0 && S.hunger > 40) return goOut(f, S, mem);
+    if (S.wood < 6) return goOut(f, S, mem);
     return;
   }
-  if (food(S) < 2 && S.traps) return f.act.wood();   // meat only comes from the traps, checked on each trip
-  if (S.wood < 12 || (S.shed && S.wood + S.shedWood < 40)) return f.act.wood();
+  if (food(S) < 2 && S.traps) return goOut(f, S, mem);   // meat only comes from the traps, checked on each trip
+  if (S.wood < 12 || (S.shed && S.wood + S.shedWood < 40)) return goOut(f, S, mem);
 }
 
 const strong = (f, S, mem) => skilled(f, S, mem, true);
@@ -177,7 +184,7 @@ export function runTwo(name, n) {
   window.__simulating = true;
   for (let i = 0; i < n; i++) {
     f.newNight();
-    const mem = { reacted: new Set(), handId: '0', willStrike: false, howlDelay: 1, clawDelay: 0.2 };
+    const mem = { name, reacted: new Set(), handId: '0', willStrike: false, howlDelay: 1, clawDelay: 0.2 };
     let guard = 0;
     while (f.mode === 'playing' && guard++ < 2000) { players[name](f, f.state, mem); f.step(0.5, false); }
     if (!f.state.won) continue;
@@ -208,13 +215,34 @@ export function runTwo(name, n) {
   return r;
 }
 
+// Start straight at a later night with the playtest kit (see devKit in main.js) and play it out.
+export function runFrom(name, which, n) {
+  const f = F();
+  const out = { deaths: {}, wins: 0, scores: [], times: [] };
+  window.__simulating = true;
+  for (let i = 0; i < n; i++) {
+    f.dev(which);
+    if (which.startsWith('day')) spendDay(f, name);
+    const mem = { name, reacted: new Set(), handId: '0', willStrike: false, howlDelay: 1, clawDelay: 0.2 };
+    let guard = 0;
+    while (f.mode === 'playing' && guard++ < 2000) { players[name](f, f.state, mem); f.step(0.5, false); }
+    const S = f.state;
+    if (S.won) { out.wins += 1; f.step(5, false); if (f.dialog) f.choose(0); out.scores.push(S.final); }
+    else { out.deaths[S.cause] = (out.deaths[S.cause] || 0) + 1; out.times.push(Math.round(S.night)); f.step(4, false); }
+  }
+  window.__simulating = false;
+  out.scores.sort((a, b) => a - b);
+  out.times.sort((a, b) => a - b);
+  return summarize(out, n);
+}
+
 export function run(name, n) {
   const f = F();
   const out = { deaths: {}, wins: 0, scores: [], times: [] };
   window.__simulating = true;
   for (let i = 0; i < n; i++) {
     f.newNight();
-    const mem = { reacted: new Set(), handId: '0', willStrike: false, howlDelay: 1, clawDelay: 0.2 };
+    const mem = { name, reacted: new Set(), handId: '0', willStrike: false, howlDelay: 1, clawDelay: 0.2 };
     let guard = 0;
     while (f.mode === 'playing' && guard++ < 2000) {
       players[name](f, f.state, mem);

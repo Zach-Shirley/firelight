@@ -5,6 +5,7 @@
 import * as sfx from './sound.js';
 import { computeScore, qualifies, insertScore, cleanInitials, sanitizeBoard } from './score.js';
 
+const VERSION = '0.22';   // one step per commit to the repository
 const W = 320, H = 180;
 const FIRE = { x: 160, y: 136 };          // base of the flames
 const LIGHT_Y = 130;                       // centre of the light pool
@@ -20,6 +21,7 @@ const START_HOUR = 22;
 const STOKE_CD = 2.5;
 const EAT_CD = 1.5;
 const COOK_TIME = 6;          // about one wood trip
+const cookTime = () => (S.stove ? 4 : COOK_TIME);
 const SHED_LOG_TIME = 1;        // seconds outside for each log you build into the woodshed
 const TRIPS = {
   wood: { time: 6, label: 'gathering wood in the dark' },
@@ -47,7 +49,7 @@ const ui = {
   journal: $('journal'), journalList: $('journalList'),
   buildPanel: $('build'), buildList: $('buildList'),
   sound: $('soundBtn'),
-  title: $('title'), titleMenu: $('titleMenu'), howPanel: $('howPanel'), boardPanel: $('boardPanel'),
+  title: $('title'), titleMenu: $('titleMenu'), howPanel: $('howPanel'), boardPanel: $('boardPanel'), devPanel: $('devPanel'), dayWarn: $('dayWarn'),
   boardList: $('boardList'), cont: $('contBtn'),
   ending: $('ending'), endTitle: $('endTitle'), endText: $('endText'), endHint: $('endHint'), endScore: $('endScore'),
   endRecap: $('endRecap'), endTally: $('endTally'), boardTally: $('boardTally'),
@@ -101,6 +103,17 @@ function freshState() {
     shedWood: 0,
     shedBuilt: 0,                                // logs built into the woodshed so far (it needs PILE_CAP)
     blaze: 0,
+    cold: 0,                                     // 0 warm .. 100 frozen (blizzard nights only)
+    coldSaid: 0,
+    wet: [],                                     // seconds until each wet log is dry (wet logs are used up first)
+    smoke: 0,                                    // 0..1 smoke from wet wood, collecting under the roof (looks only)
+    rack: false,                                 // drying rack
+    rackT: 20,                                   // seconds until the rack smokes the next piece of meat
+    fur: 0,
+    coat: false,
+    insulated: false,
+    stove: false,
+    charm: false,                                // the bone charm, for one night
     grate: false,
     shoes: false,
     spear: false,
@@ -141,9 +154,10 @@ function freshState() {
     mimicWalked: false,
     hint: 0,
     hintT: 12,
-    kidVisits: 0,
-    kidGiftT: -1,
     cutterVisits: 0,
+    traderTonight: Math.random() < 0.6,          // the trader only comes some nights
+    met: {},                                     // who you've opened the door for: they greet you as an old friend
+    dev: false,                                  // started from the playtest menu: no stats, no leaderboard
     ended: false,
     won: false,
     scored: false,
@@ -183,7 +197,7 @@ function save() {
 const CAUSE_NAMES = {
   dark: 'the dark', starve: 'hunger', burn: 'the fire', mimic: 'the mimic', hand: 'her, at the window', handAway: 'her, at the window',
   hunter: 'the thing in the trees', risen: "the stranger's body", falseStranger: 'the false stranger',
-  cellar: 'the thing under the floor', cellarAway: 'the thing under the floor',
+  cellar: 'the thing under the floor', cellarAway: 'the thing under the floor', freeze: 'the cold',
 };
 
 function loadStats() {
@@ -195,7 +209,7 @@ function loadStats() {
 
 function recordNight(won) {
   const st = loadStats();
-  if (S.recorded || window.__simulating) return st;   // simulated nights don't count
+  if (S.recorded || window.__simulating || S.dev) return st;   // simulated and playtest nights don't count
   S.recorded = true;
   st.nights += 1;
   if (won) st.dawns += 1;
@@ -215,7 +229,7 @@ function tallyText(st) {
 
 // Close calls: for each threat, the nearest you came to it. The recap shows the nearest one overall,
 // leaving out whatever actually killed you.
-const CLOSE_KILLERS = { grin: ['hunter'], dark: ['dark'], hunger: ['starve'], her: ['hand', 'handAway'], hatch: ['cellar', 'cellarAway'], blaze: ['burn'] };
+const CLOSE_KILLERS = { cold: ['freeze'], grin: ['hunter'], dark: ['dark'], hunger: ['starve'], her: ['hand', 'handAway'], hatch: ['cellar', 'cellarAway'], blaze: ['burn'] };
 
 function nearMiss(kind, d, text) {
   S.rec.close ||= {};
@@ -307,8 +321,10 @@ function resetTransients() {
 /* ------------------------------------------------------------- the night */
 
 const clockHour = () => Math.min(NIGHT_HOURS - 1, Math.floor(S.night / HOUR));
-// on the second night everything that hunts you behaves as if it were two hours later
-const hour = () => Math.min(NIGHT_HOURS - 1, clockHour() + (S.nightNo === 2 ? 2 : 0));
+// from the second night everything that hunts you behaves as if it were two hours later
+const hour = () => Math.min(NIGHT_HOURS - 1, clockHour() + (S.nightNo >= 2 ? 2 : 0));
+const LAST_NIGHT = 3;
+const blizzard = () => S.nightNo >= 3;   // nights 3 (and later 4): the blizzard
 
 function clockText(night) {
   const total = START_HOUR * 60 + Math.floor((night / HOUR) * 60);
@@ -338,13 +354,23 @@ const HOUR_LINES_2 = {
   7: 'the last hour of the second night. hold on.',
 };
 
-const decayTime = () => Math.max(7, 13 - hour() * 0.8) * (S.glassBroken && S.boards === 0 ? 0.8 : 1) * (S.grate ? 1.4 : 1);
+const HOUR_LINES_3 = {
+  1: "eleven o'clock. the wind screams around the cabin.",
+  2: 'midnight. you can no longer see the trees.',
+  3: 'one in the morning. she is at the window early, and the cold makes her quick.',
+  4: 'two in the morning. the cold gets in everywhere.',
+  5: 'three in the morning. the walls creak under the snow.',
+  6: 'four in the morning. it has not let up at all.',
+  7: 'the last hour of the third night. hold on.',
+};
+
+const decayTime = () => Math.max(7, 13 - hour() * 0.8) * (S.glassBroken && S.boards === 0 ? 0.8 : 1) * (S.grate ? 1.4 : 1) * (S.stove ? 1.25 : 1);
 
 function updateNight(dt) {
   S.night += dt;
   const h = hour();
   const ch = clockHour();
-  if (ch > S.hourSaid) { S.hourSaid = ch; say((S.nightNo === 2 ? HOUR_LINES_2 : HOUR_LINES)[ch]); }
+  if (ch > S.hourSaid) { S.hourSaid = ch; say((S.nightNo >= 3 ? HOUR_LINES_3 : S.nightNo === 2 ? HOUR_LINES_2 : HOUR_LINES)[ch]); }
   if (S.night >= NIGHT_HOURS * HOUR) { startDawn(); return; }
 
   // the fire burns down, faster every hour
@@ -376,6 +402,9 @@ function updateNight(dt) {
   if (S.dread > 40) nearMiss('dark', S.dread / 100, `the dark ${Math.round(S.dread)}% of the way in`);
   if (S.hunger > 82) nearMiss('hunger', (S.hunger - 70) / 30, `hunger at ${Math.round(S.hunger)}%`);
 
+  updateCold(dt);
+  if (mode !== 'playing') return;
+  updateWet(dt);
   spoilMeat(dt);
   restockPile();
   updatePile(dt);
@@ -446,7 +475,7 @@ function updateNight(dt) {
   if (mode !== 'playing') return;
   updateDoor(dt);
   // no sleep: now and then your eyes close for a moment
-  if (S.tired && S.nightNo === 2) {
+  if (S.tired && S.nightNo >= 2) {
     S.dozeT -= dt;
     if (S.dozeT <= 0) { S.dozeT = rand(18, 30); doze = 1.4; say('your eyes close for a moment.'); }
   }
@@ -455,6 +484,13 @@ function updateNight(dt) {
     S.n2HintT -= dt;
     if (S.n2HintT <= 0) {
       openDialogue({ id: 'hint', portrait: 'stranger', text: 'The stranger keeps looking at the floor. "There\'s a hatch under there, and something under the hatch. When the boards creak, slam it. If you go out, pile logs on it first. And salt on the doorway will stop one of them. One."', choices: [{ label: 'nod', act: () => {} }] });
+    }
+  }
+  // night 3: she knows this weather (a placeholder; her story comes in a later pass)
+  if (S.n3HintT > 0 && S.stranger === 'inside' && !dialog && !S.away) {
+    S.n3HintT -= dt;
+    if (S.n3HintT <= 0) {
+      openDialogue({ id: 'hint', portrait: 'stranger', text: 'The stranger watches the snow pile against the window. "I have seen this snow before," she says quietly. "The last time, it did not stop for three nights. Keep warm. Don\'t stay out there long."', choices: [{ label: 'nod', act: () => {} }] });
     }
   }
   updateStranger(dt);
@@ -480,6 +516,54 @@ function updateHunter(dt) {
     say('the howling moves off, deeper into the woods.');
   }
 }
+
+/* ------------------------------------------------------------- the blizzard: cold and wet wood */
+
+// Out in the blizzard you get cold fast; by the fire you warm back up, faster the bigger it is.
+// One trip chills you badly; two in a row could kill you.
+const COLD_OUT = 4.5;                       // per second outside
+const WARMING = [1, 0.3, -1.5, -3, -4];     // per second inside, by fire level (negative warms you)
+const DRY_TIME = 40;                        // seconds for a wet log to dry in the house
+
+function updateCold(dt) {
+  if (!blizzard()) { S.cold = 0; return; }
+  let rate;
+  if (S.away) {
+    rate = COLD_OUT * (S.coat ? 0.65 : 1);
+  } else {
+    rate = WARMING[S.fire];
+    if (rate < 0) rate *= (S.stove ? 1.3 : 1) * (S.insulated ? 1.15 : 1);
+    else rate *= S.insulated ? 0.7 : 1;
+    if (S.glassBroken && S.boards === 0) rate += 0.5;
+  }
+  S.cold = clamp(S.cold + rate * dt, 0, 100);
+  if (S.cold < 50) S.coldSaid = 0;
+  if (S.cold >= 60 && S.coldSaid < 1) { S.coldSaid = 1; sfx.shiver(0.7); say("you're shaking with cold."); }
+  if (S.cold >= 85 && S.coldSaid < 2) { S.coldSaid = 2; sfx.shiver(1); say("you can't feel your hands. get to the fire."); }
+  if (S.cold >= 60 && Math.random() < dt * 0.25) sfx.shiver(0.4 + (S.cold - 60) / 80);
+  if (S.cold > 70) nearMiss('cold', (S.cold - 55) / 45, `cold at ${Math.round(S.cold)}%`);
+  if (S.cold >= 100) die('freeze');
+}
+
+function addWet(n) { for (let i = 0; i < n; i++) S.wet.push(DRY_TIME); }
+
+// wet logs dry in the house (three times faster on the drying rack, eight at a time); the rack also smokes
+// meat so it keeps; the smoke under the roof thins out
+function updateWet(dt) {
+  if (S.wet.length > S.wood + S.shedWood) S.wet.length = S.wood + S.shedWood;   // used up first
+  S.wet = S.wet.map((t, i) => t - dt * (S.rack && i < 8 ? 3 : 1)).filter((t) => t > 0);
+  S.smoke = Math.max(0, S.smoke - dt / 30);
+  if (S.rack && S.fire >= 1) {
+    S.rackT -= dt;
+    if (S.rackT <= 0) {
+      S.rackT = 20;
+      const i = S.cookedLife.findIndex((l) => l < CURED / 2);
+      if (i >= 0) { S.cookedLife[i] = CURED; say('a strip of meat on the rack is smoked through. it will keep now.'); }
+    }
+  }
+}
+
+const wetInPile = () => Math.min(S.wet.length, S.wood);
 
 /* ------------------------------------------------------------- food, wood and traps */
 
@@ -589,32 +673,40 @@ function makeTrap() { return 3 + Math.floor(Math.random() * 2); }
 function syncTraps() { S.traps = S.trapUses.length; }
 
 function checkTraps(rolls = 1) {
-  let m = 0, b = 0, broke = 0;
+  let m = 0, b = 0, broke = 0, f = 0;
   for (let r = 0; r < rolls; r++) {
     S.trapUses = S.trapUses.map((u) => {
       const caughtMeat = Math.random() < 0.26, caughtBlood = Math.random() < 0.3;
       if (caughtMeat) m += 1;
       if (caughtBlood) b += 1;
+      if (S.nightNo >= 2 && Math.random() < 0.15) f += 1;   // from the second night, now and then a pelt
       return u - (caughtMeat || caughtBlood ? 1 : 0) - (Math.random() < 0.08 ? 99 : 0);
     }).filter((u) => (u > 0 ? true : (broke += 1, false)));
   }
   syncTraps();
   if (m) addRaw(m);
   S.blood += b;
+  S.fur += f;
   if (broke) { sfx.trapSnap(); trapWreck = 25; shake = Math.max(shake, 0.25); }
-  return { m, b, broke };
+  return { m, b, broke, f };
 }
 
 /* ------------------------------------------------------------- the trader */
 
 // A tall man in a long coat, once a night from midnight. He opens the coat and his goods hang inside it.
 const SHOP = [
-  { id: 'grate', name: 'iron fire grate', price: { blood: 3, cooked: 1 }, desc: 'the fire burns down much slower.', has: () => S.grate,
+  { id: 'grate', name: 'iron fire grate', price: { blood: 3, cooked: 1 }, desc: 'the fire burns down much slower.', has: () => S.grate || S.stove,
     buy: () => { S.grate = true; S.decay = decayTime(); return 'he sets an iron grate over your fire pit. it fits perfectly. you did not see him measure it.'; } },
   { id: 'shoes', name: 'snowshoes', price: { blood: 2, cooked: 2 }, desc: 'every trip out is faster.', has: () => S.shoes,
     buy: () => { S.shoes = true; return 'he hands you a pair of bent-wood snowshoes, still warm from his coat.'; } },
   { id: 'spear', name: 'bone spear', price: { blood: 3 }, desc: 'if the thing in the trees catches you, you get away. once.', has: () => S.spear,
     buy: () => { S.spear = true; return 'he gives you a spear of long, yellowed bone. he does not say what it came from.'; } },
+  { id: 'stove', name: 'iron stove', price: { blood: 5, cooked: 2 }, desc: 'your fire in an iron box with a chimney pipe. it cooks faster, warms you more and burns longer, but it throws less light.',
+    has: () => S.stove, avail: () => S.nightNo >= 2,
+    buy: () => { S.stove = true; S.grate = false; S.decay = decayTime(); return 'he and you wrestle an iron stove over the fire pit and fit the pipe through the roof. the room goes dimmer, and warmer.'; } },
+  { id: 'charm', name: 'bone charm', price: { blood: 3, cooked: 2 }, desc: 'for the rest of tonight, the thing in the trees takes seven seconds to catch you instead of four. it crumbles at dawn.',
+    has: () => S.charm, avail: () => true,
+    buy: () => { S.charm = true; return 'he ties a charm of knotted finger bones around your wrist. it is warm, like it has a pulse.'; } },
   { id: 'salt', name: 'a bag of salt', price: { blood: 1 }, desc: '3 salt. cures cooked meat so it keeps.', has: () => false,
     buy: () => { S.salt += 3; return 'he pours salt from a pocket that should not be that deep. +3 salt'; } },
 ];
@@ -631,7 +723,7 @@ function pay(p) {
 
 function openShop(first) {
   visitorAtDoor = 'trader';
-  const wares = SHOP.filter((w) => !w.has());
+  const wares = SHOP.filter((w) => !w.has() && (!w.avail || w.avail()));
   openDialogue({
     id: 'shop', portrait: 'trader', door: true,
     text: (first
@@ -653,13 +745,14 @@ function openShop(first) {
 
 function startTrip(kind) {
   if (!canAct() || S.away || !S.lit) return;
-  const slow = (S.hunger >= 90 ? 1.3 : 1) * (S.sick > 0 ? 1.3 : 1) * (S.tired && S.nightNo === 2 ? 1.2 : 1) * (S.shoes && kind !== 'shed' ? 0.7 : 1);
+  const slow = (S.hunger >= 90 ? 1.3 : 1) * (S.sick > 0 ? 1.3 : 1) * (S.tired && S.nightNo >= 2 ? 1.2 : 1) * (S.shoes && kind !== 'shed' ? 0.7 : 1);
   // the woodshed: you take out what wood you have (up to what it still needs) and build log by log
   const logs = kind === 'shed' ? Math.min(S.wood, PILE_CAP - S.shedBuilt) : 0;
   if (kind === 'shed' && logs < 1) { say('you need wood to build with.'); return; }
-  const total = TRIPS[kind].time * slow * (kind === 'shed' ? logs : 1);
+  const total = TRIPS[kind].time * slow * (kind === 'shed' ? logs : 1) * (blizzard() ? 1.5 : 1);
   // if it is already out there when you leave, there is no head start
-  S.away = { kind, t: total, total, startedNear: S.hunter.near, logs, placed: 0 };
+  S.away = { kind, t: total, total, startedNear: S.hunter.near, logs, placed: 0,
+    stumble: blizzard() && kind !== 'drag' && Math.random() < 0.04 ? rand(1, total * 0.7) : -1 };
   S.stalk = 0;   // the four seconds always start from the moment you step out
   if (kind !== 'drag') S.rec.trips += 1;
   toggleBuild(false);
@@ -688,6 +781,15 @@ function updateTrip(dt) {
   const a = S.away;
   if (!a) return;
   a.t -= dt;
+  // lost in the white for a moment: a rare stumble that costs a few seconds out there
+  if (a.stumble > 0 && a.total - a.t >= a.stumble) {
+    a.stumble = -1;
+    a.t += 2.5;
+    a.total += 2.5;
+    sfx.gust();
+    sfx.thump(0.4);
+    say('you lose the path for a moment in the white.');
+  }
   if (a.kind === 'shed') {
     // a log goes into the walls every SHED_LOG_TIME seconds of the trip
     const due = Math.min(a.logs, Math.floor(((a.total - a.t) / a.total) * a.logs + 1e-6));
@@ -697,7 +799,7 @@ function updateTrip(dt) {
   // a howl while you're already out gives you a moment to run first; leaving while it's close does not.
   if (hour() >= 1) {
     const close = S.hunter.near && (a.startedNear || S.hunter.since > 2.5);
-    if (close) S.stalk += dt * 25;
+    if (close) S.stalk += dt * (S.charm ? 100 / 7 : 25);   // four seconds, or seven with the bone charm
     else S.stalk = Math.max(0, S.stalk - dt * 4);
     if (S.stalk >= 100) {
       if (S.spear) {
@@ -739,11 +841,13 @@ function finishTrip(kind) {
   const parts = [];
   const n = pick([3, 4, 4, 4, 5]);   // the same forest all night
   addWood(n);
-  parts.push(`+${n} wood`);
+  if (blizzard()) addWet(n);
+  parts.push(blizzard() ? `+${n} wet wood` : `+${n} wood`);
   // traps are checked on the way back
   const caught = checkTraps();
   if (caught.m) parts.push(`+${caught.m} raw meat from the traps`);
   if (caught.b) parts.push(`+${caught.b} blood from the traps`);
+  if (caught.f) parts.push(`+${caught.f} fur`);
   if (caught.broke) parts.push(caught.broke === 1 ? 'one trap is torn apart. you drag what is left of it inside' : `${caught.broke} traps are torn apart`);
   const lead = pick(['you come back with an armful of branches.', 'snapped limbs, half buried in snow.', 'you drag a fallen branch back inside.']);
   say(`${lead} ${parts.join(', ')}`.trim());
@@ -784,7 +888,7 @@ function updateHand(dt) {
     if (hd.t <= 0) {
       if (S.boards > 0) {
         hd.phase = 'reach';
-        hd.total = hd.t = Math.max(3.2, 5.5 - (hour() - 3) * 0.45);
+        hd.total = hd.t = Math.max(3.2, 5.5 - (hour() - 3) * 0.45) * (blizzard() ? 0.7 : 1);
         hd.beat = 0;
         say('a long black hand punches through a gap in the boards and takes hold.');
       } else {
@@ -805,7 +909,7 @@ function updateHand(dt) {
     // nailing boards up in time still saves you
     if (S.boards > 0) {
       hd.phase = 'reach';
-      hd.total = hd.t = 3.5;
+      hd.total = hd.t = 3.5 * (blizzard() ? 0.7 : 1);
       hd.beat = 0;
       say('you get the boards up just in time. she claws at them.');
     } else if (hd.t <= 0) {
@@ -894,52 +998,42 @@ function handGrip() {
 function realPool() {
   const h = hour();
   const pool = [];
-  if (h >= 2 && !S.traderCame) pool.push('trader', 'trader');
-  if (S.kidVisits === 0) pool.push('kid');
-  if (h >= 2 && S.cutterVisits < 2) pool.push('woodcutter');
-  if (h >= 2) pool.push('fleeing', 'fleeing');
-  pool.push('traveler');
+  if (h >= 2 && S.traderTonight && !S.traderCame) pool.push('trader');
+  if (h >= 1 && S.cutterVisits < 3) pool.push('woodcutter');
   return pool;
 }
 
 const MIMIC_CHANCE = [0, 0, 0.3, 0.38, 0.45, 0.5, 0.55, 0.6];
 const WALKS_FROM = 5;   // from 3 am some mimics fake footsteps; only the blood lantern tells
 
+// Knocks are rare: the stranger, the woodcutter, the trader, and the things that sound like them.
 function updateDoor(dt) {
   if (pendingVisit || dialog || !S.lit) return;
-  if (S.kidGiftT > 0) {
-    S.kidGiftT -= dt;
-    if (S.kidGiftT <= 0) { S.kidGiftT = -1; queueVisit('kidGift'); return; }
-  }
   S.doorT -= dt;
   if (S.doorT > 0) return;
   const h = hour();
-  S.doorT = rand(26, 40) * (1 - h * 0.04);
+  S.doorT = rand(45, 70) * (1 - h * 0.04);
   if (S.firstVisit) { S.firstVisit = false; queueVisit('stranger'); return; }
+  const pool = realPool();
   if (Math.random() < MIMIC_CHANCE[h]) {
-    const looks = ['traveler', 'woodcutter'];
-    if (h >= 2) looks.push('fleeing');
-    if (S.kidVisits > 0) looks.push('kidGift');
-    else looks.push('kid');
+    // it copies a voice you'd open the door for. from night 2 it knows the trader's, too
+    const looks = ['woodcutter'];
+    if (S.nightNo >= 2) looks.push('trader');
     if (S.stranger !== 'none') looks.push('stranger', 'stranger');
     queueVisit('mimic', pick(looks), h >= WALKS_FROM && Math.random() < 0.6);
-  } else {
-    queueVisit(pick(realPool()));
+  } else if (pool.length) {
+    queueVisit(pick(pool));
   }
 }
 
 function queueVisit(who, as = who, fake = false) {
   const real = who !== 'mimic';
-  pendingVisit = { who, as, fake, t: real || fake ? 3.2 : 0.9, away: !!S.away };
+  // under the door, in the lantern's light, people stand on two feet. a mimic gets it wrong: one, or three
+  pendingVisit = { who, as, fake, feet: real ? 2 : pick([1, 3]), t: real || fake ? 3.2 : 0.9, away: !!S.away };
   if (S.away) return;   // you can't hear footsteps from the trees; the snow will tell you when you're back
   if (real || fake) {
-    if (as === 'fleeing') {
-      sfx.footsteps(8);
-      say('someone is running through the snow toward the door.');
-    } else {
-      sfx.footsteps();
-      say('footsteps crunch through the snow, up to the door.');
-    }
+    sfx.footsteps();
+    say('footsteps crunch through the snow, up to the door.');
   }
 }
 
@@ -960,38 +1054,38 @@ function updatePending(dt) {
   if (pendingVisit.t > 0) return;
   const v = pendingVisit;
   pendingVisit = null;
-  sfx.knock(v.as === 'fleeing' ? 7 : v.as === 'kid' || v.as === 'kidGift' ? 2 : 3, false);
+  sfx.knock(v.as === 'trader' ? 2 : 3, v.as === 'trader');
   openDialogue(knockDialogue(v));
 }
 
-// The text never gives the mimic away. It copies whoever it is pretending to be, word for word.
+// The text never gives the mimic away. It copies whoever it is pretending to be, word for word, even the way
+// they greet you once you've let them in before.
 function knockText(v) {
   switch (v.as) {
-    case 'stranger': return 'A knock. A woman\'s voice through the door, cracked with cold: "Please. I just need the fire. I won\'t be any trouble."';
-    case 'kid': return 'A small knock. A thin voice: "Do you have anything to eat? Anything at all?"';
-    case 'kidGift': return 'A small knock. "It\'s me again," says the kid. "I brought you something."';
-    case 'woodcutter': return 'Three heavy thumps. A gruff voice: "Woodcutter. Cut more than I can haul tonight. Want to trade?"';
-    case 'trader': return 'Two slow knocks, and something clinks. A dry voice: "Evening. I sell what a person needs on a night like this."';
-    case 'fleeing': return 'Frantic pounding. A man\'s voice, out of breath: "Let me in! Please! It\'s right behind me!"';
-    default: return 'A knock. A voice you don\'t know: "Hello? Is someone in there? I saw the light."';
+    case 'woodcutter': return S.met.woodcutter
+      ? 'Three heavy thumps. The gruff voice again: "It\'s me. The woodcutter. Still got more wood than I can haul."'
+      : 'Three heavy thumps. A gruff voice: "Woodcutter. Cut more than I can haul tonight. Want to trade?"';
+    case 'trader': return S.met.trader
+      ? 'Two slow knocks, and something clinks. The dry voice: "Evening again. I kept a few things back for you."'
+      : 'Two slow knocks, and something clinks. A dry voice: "Evening. I sell what a person needs on a night like this."';
+    default: return 'A knock. A woman\'s voice through the door, cracked with cold: "Please. I just need the fire. I won\'t be any trouble."';
   }
 }
 
 const lanternLit = () => S.lantern && S.lanternLit;
+const FEET_AT = { 1: [271], 2: [267, 276], 3: [263, 271, 279] };
 
-function lanternText(v) {
-  if (!lanternLit()) return '';
-  return v.who === 'mimic'
-    ? ' In the blood lantern\'s red light, there is no shadow under the door. Nothing is standing there.'
-    : ' In the blood lantern\'s red light, you can see the shadow of two feet shifting under the door.';
+// The same words for everyone: you have to count the feet yourself.
+function lanternText() {
+  return lanternLit() ? ' In the blood lantern\'s red light, shadows shift in the gap under the door.' : '';
 }
 
 function knockDialogue(v) {
   return {
     id: 'knock',
     visit: v,
-    portrait: lanternLit() ? (v.who === 'mimic' ? 'doorEmpty' : 'doorFeet') : 'door',
-    text: knockText(v) + lanternText(v),
+    portrait: lanternLit() ? `doorFeet${v.feet || 2}` : 'door',
+    text: knockText(v) + lanternText(),
     choices: [
       { label: 'open the door', act: () => openDoorFor(v) },
       { label: 'keep it shut', act: () => keepShut(v) },
@@ -1035,52 +1129,26 @@ function openDoorFor(v) {
       walker = { x: 274, y: 113, step: 0 };
       say('the stranger shuffles to the fire and sits down.');
       break;
-    case 'kid':
-      S.kidVisits += 1;
-      visitorAtDoor = 'kid';
-      openDialogue({
-        id: 'kidAsk', portrait: 'kid', door: true,
-        text: 'A thin kid stands in the snow, hugging their elbows. They look at your meat, then at you.',
-        choices: [
-          { label: 'give 1 meat', can: () => anyMeat() >= 1, act: () => { takeMeat(); S.kidGiftT = 45; say('the kid eats it in about four seconds, then runs off.'); } },
-          { label: 'nothing to spare', act: () => say('the kid nods, like they expected that, and walks away.') },
-        ],
-      });
-      break;
-    case 'kidGift':
-      visitorAtDoor = 'kid';
-      S.blood += 2; addRaw(1);
-      doorCloseIn = 2;
-      say('the kid presses a bundle into your hands: something raw, and a jar of something dark. +1 raw meat, +2 blood');
-      break;
     case 'woodcutter':
       S.cutterVisits += 1;
+      S.met.woodcutter = true;
       visitorAtDoor = 'woodcutter';
       openDialogue({
         id: 'cutter', portrait: 'woodcutter', door: true,
         text: 'A broad woodcutter leans in the doorway, a sled of split logs behind him. "Meat for wood," he says. "Or wood for meat. Your pick."',
         choices: [
-          { label: 'give 1 meat for 7 wood', can: () => anyMeat() >= 1, act: () => { takeMeat(); addWood(7); say('he stacks seven logs by the door. +7 wood'); } },
-          { label: 'give 6 wood for 1 cooked meat', can: () => S.wood >= 6, act: () => { S.wood -= 6; addCooked(1); say('he hands over a strip of smoked meat. +1 cooked meat'); } },
-          { label: 'no trade', act: () => say('the woodcutter drags his sled back into the dark.') },
+          { key: 'meatForWood', label: 'give 1 meat for 7 wood', can: () => anyMeat() >= 1, act: () => { takeMeat(); addWood(7); say(blizzard() ? 'he stacks seven logs by the door, dry from under his oilcloth. +7 dry wood' : 'he stacks seven logs by the door. +7 wood'); } },
+          { key: 'woodForMeat', label: 'give 6 wood for 1 cooked meat', can: () => S.wood >= 6, act: () => { S.wood -= 6; addCooked(1); say('he hands over a strip of smoked meat. +1 cooked meat'); } },
+          { key: 'woodFor2', label: 'give 10 wood for 2 cooked meat', can: () => S.wood >= 10, act: () => { S.wood -= 10; addCooked(2); say('he hands over two strips of smoked meat. +2 cooked meat'); } },
+          { key: 'no', label: 'no trade', act: () => say('the woodcutter drags his sled back into the dark.') },
         ],
       });
       break;
     case 'trader':
       S.traderCame = true;
+      S.met.trader = true;
       openShop(true);
       break;
-    case 'fleeing':
-      visitorAtDoor = 'traveler';
-      addRaw(1); S.blood += 1;
-      doorCloseIn = 1.6;
-      say('a man falls through the door, gasping. when he can stand, he pushes a bloody pack at you and runs on toward the river. +1 raw meat, +1 blood');
-      break;
-    default:
-      visitorAtDoor = 'traveler';
-      addWood(3);
-      doorCloseIn = 2.2;
-      say('a lost traveler warms their hands for a minute, leaves you three logs, and moves on. +3 wood');
   }
 }
 
@@ -1091,16 +1159,6 @@ function keepShut(v) {
     return;
   }
   S.rec.turnedAway += 1;
-  if (v.who === 'fleeing') {
-    // leaving him out there has a cost: whatever caught him stays at your door
-    sfx.scream();
-    shake = 0.25;
-    S.dread = Math.min(90, S.dread + 35);
-    S.hunter.near = true; S.hunter.since = 0; S.hunter.t = 25;
-    if (S.hand.phase === 'idle' && hour() >= 3) S.hand.t = Math.min(S.hand.t, 8);
-    say('the pounding stops. a scream, cut short. then something sniffing at the bottom of the door.');
-    return;
-  }
   if (v.who === 'stranger') S.stranger = 'refused';
   say('the footsteps crunch away into the snow.');
 }
@@ -1260,6 +1318,8 @@ const DEATHS = {
     : 'real visitors walk up through the snow. listen for footsteps before the knock. and there is only one stranger.') },
   hand: { text: 'She climbed in through the broken window.', hint: 'board the window before one in the morning. glass will not stop her, and fire will.' },
   handAway: { text: 'You came back to a broken window. She was already inside.', hint: 'board the window before one in the morning. a bare window lets her in, whether you are home or not.' },
+  freeze: { text: () => (S.away ? 'You froze in the snow, a little way from the door.' : 'You froze by a fire too small to save you.'),
+    hint: 'in the blizzard, one trip outside chills you badly and two in a row can kill you. warm up by a strong fire between trips. a fur coat helps.' },
   hunter: { text: 'Something found you in the trees.', hint: 'when it howls close and its eyes shine in the treeline, stay inside.' },
   risen: { text: 'The stranger got up again. It was not the stranger anymore.', hint: 'if you let her in, she has to eat cooked meat. feed her when she begs the third time, or get her body out of the house.' },
 };
@@ -1333,11 +1393,20 @@ const canAct = () => mode === 'playing' && !dialog && !S.away;
 
 function stoke() {
   if (!canAct() || S.cd.stoke > 0 || S.wood < 1) return;
+  // dry wood first; with only wet logs left, the fire takes it but burns for half as long, and smokes
+  const wet = S.wood + S.shedWood - S.wet.length < 1;
   S.wood -= 1;
+  if (wet) S.wet.shift();
   const was = S.fire;
   S.fire = S.fire === 0 ? 2 : Math.min(4, S.fire + 1);
-  S.decay = decayTime();
-  S.cd.stoke = STOKE_CD * (S.hunger >= 90 ? 2 : 1) * (S.sick > 0 ? 1.3 : 1) * (S.tired && S.nightNo === 2 ? 1.25 : 1);
+  S.decay = decayTime() * (wet ? 0.5 : 1);
+  if (wet) {
+    S.smoke = Math.min(1, S.smoke + 0.35);
+    sfx.sputter();
+    spawnSmoke(160, 128); spawnSmoke(157, 124); spawnSmoke(163, 120);
+    if (Math.random() < 0.4) say('the wet wood hisses and smokes. it will not burn for long.');
+  }
+  S.cd.stoke = STOKE_CD * (S.hunger >= 90 ? 2 : 1) * (S.sick > 0 ? 1.3 : 1) * (S.tired && S.nightNo >= 2 ? 1.25 : 1);
   S.deadFor = 0;
   if (!S.lit) {
     S.lit = true;
@@ -1381,7 +1450,7 @@ function cook() {
   if (S.fire < 1) { say('you need a fire to cook on.'); return; }
   const n = Math.min(3, S.meat);
   takeRaw(n);
-  S.cooking = { n, t: COOK_TIME };
+  S.cooking = { n, t: cookTime(), total: cookTime() };
   S.rec.cooked += n;
   sfx.sizzle();
   say(`you skewer ${n} raw meat over the fire. it will cook on its own.`);
@@ -1396,7 +1465,7 @@ function cook() {
 const nextHatch = () => rand(34, 52) * (1 - hour() * 0.04);
 
 function updateHatch(dt) {
-  if (S.nightNo !== 2) return;
+  if (S.nightNo < 2) return;
   const hc = S.hatch;
   if (clockHour() < 1 && hc.phase === 'idle') return;
   hc.t -= dt;
@@ -1472,7 +1541,8 @@ function hatchFeeds() {
 
 /* ------------------------------------------------------------------ the day */
 
-// Between the nights: eight hours of daylight to spend. Every choice costs hours.
+// Between the nights: daylight from 6 am to 10 pm, sixteen hours to spend. Every choice costs hours, and sleep
+// takes six of them.
 const DAY_ACTIONS = [
   { id: 'chop', name: 'chop wood', hours: 2, desc: 'a big pile of split logs.', show: () => true,
     act: () => { const n = 9 + Math.floor(Math.random() * 4); const before = S.wood + S.shedWood; addWood(n); const kept = Math.min(n, S.wood + S.shedWood - before); if (!S.shed && S.wood > PILE_CAP) S.wood = PILE_CAP; const got = S.wood + S.shedWood - before; return got < n ? `you chop more than the room can hold. you keep ${got} and leave the rest to the snow.` : `you chop wood until your arms shake. +${n} wood`; } },
@@ -1486,7 +1556,7 @@ const DAY_ACTIONS = [
     act: () => {
       const c = checkTraps(2);
       S.dayDone.traps = true;
-      return (c.m + c.b ? `the traps held something. +${c.m} raw meat, +${c.b} blood` : 'every trap is sprung and empty. something got there first.') + (c.broke ? ` ${c.broke} broke.` : '');
+      return (c.m + c.b + c.f ? `the traps held something. +${c.m} raw meat, +${c.b} blood${c.f ? `, +${c.f} fur` : ''}` : 'every trap is sprung and empty. something got there first.') + (c.broke ? ` ${c.broke} broke.` : '');
     } },
   { id: 'scavenge', name: 'scavenge the empty village', hours: 3, desc: 'salt, maybe nails, maybe worse.', show: () => true,
     act: () => {
@@ -1520,19 +1590,32 @@ const DAY_ACTIONS = [
       S.dayDone.sit = true; S.salt += 2;
       return 'she presses a pouch of salt into your hands. "something lives under this floor," she says. "when the boards creak, slam that hatch shut. if you go out, pile logs on it." +2 salt';
     } },
-  { id: 'sleep', name: 'sleep', hours: 3, desc: "you haven't slept. go into the night without it and you'll be slow, and your eyes will close.", show: () => S.tired,
+  { id: 'sleep', name: 'sleep', hours: 6, desc: "you haven't slept. go into the night without it and you'll be slow, and your eyes will close.", show: () => S.tired,
     act: () => { S.tired = false; return 'you sleep by the coals. no dreams. you wake to long shadows.'; } },
 ];
 
 const dayName = (a) => (typeof a.name === 'function' ? a.name() : a.name);
 const dayDesc = (a) => (typeof a.desc === 'function' ? a.desc() : a.desc);
 
+const DAY_HOURS = 16;
+const dayClock = (hoursLeft) => clockText(((22 - hoursLeft - START_HOUR + 24) % 24) * HOUR);
+
+// what the next night brings, told during the day
+const NIGHT_WARNINGS = {
+  2: 'Tonight will be worse. Everything comes two hours sooner: the thing in the trees and the knocking from the moment it gets dark, her at the window from eleven, and the walkers from one in the morning.',
+  3: 'A blizzard is coming tonight. Everything still comes two hours sooner. Out in it, everything takes half again as long, and the cold can kill you: one trip chills you badly, two in a row could freeze you. The wood you bring in will be wet, and wet wood barely burns until it dries.',
+};
+
 function startDay() {
-  if (S.nightNo !== 1 || !S.won) return;
+  if (S.nightNo >= LAST_NIGHT || !S.won) return;
   S.carry = S.final;
   S.phase = 'day';
   const spoiled = spoilOverDay();
-  S.dayHours = 8;
+  S.wet = [];   // a day by the coals dries every log
+  S.smoke = 0;
+  S.cold = 0;
+  S.charm = false;
+  S.dayHours = DAY_HOURS;
   S.tired = true;
   S.dayDone = {};
   S.dayLog = spoiled ? [`the meat you kept went bad in the warmth of the day. -${spoiled} meat`] : [];
@@ -1556,11 +1639,12 @@ function showDay() {
 
 function renderDay() {
   ui.dayHours.textContent = `${S.dayHours} hour${S.dayHours === 1 ? '' : 's'}`;
+  ui.dayWarn.textContent = NIGHT_WARNINGS[S.nightNo + 1] || '';
   ui.dayList.innerHTML = '';
   for (const a of DAY_ACTIONS.filter((x) => x.show())) {
     const li = document.createElement('li');
     const ok = a.hours <= S.dayHours && (!a.can || a.can());
-    li.innerHTML = `<div class="row"><span class="name"></span><button ${ok ? '' : 'disabled'}>${a.hours} h</button></div><div class="desc"></div>`;
+    li.innerHTML = `<div class="row"><span class="name"></span><button ${ok ? '' : 'disabled'}>${a.hours} h → ${dayClock(S.dayHours - a.hours)}</button></div><div class="desc"></div>`;
     li.querySelector('.name').textContent = dayName(a);
     li.querySelector('.desc').textContent = dayDesc(a);
     li.querySelector('button').addEventListener('click', () => doDay(a.id));
@@ -1586,27 +1670,33 @@ function doDay(id) {
   save();
 }
 
-// Night 2 keeps what you have and what is broken. Everything that hunts you starts two hours "later".
-function startNight2() {
+// The next night keeps what you have and what is broken. From night 2 everything that hunts you starts two
+// hours "later"; night 3 is the blizzard.
+const NIGHT_START = {
+  2: ['the sun is down. the second night begins. dawn is eight hours away.', 'they are already awake. tonight everything comes two hours sooner.'],
+  3: ['the sun is down, and the blizzard comes with it. the third night begins.', 'out there everything takes longer, the cold bites, and the wood comes in wet.'],
+};
+
+function startNextNight() {
   if (mode !== 'day') return;
   ui.day.classList.add('hidden');
+  const n = S.nightNo + 1;
   Object.assign(S, {
-    phase: 'night', nightNo: 2, night: 0, hourSaid: 0, won: false, ended: false, scored: false, recorded: false, cause: '',
-    hunger: 20, hungerSaid: 0, sick: 0, dread: 0, darkTime: 0, deadFor: 0, stalk: 0,
-    away: null, doorT: 22, firstVisit: false, kidGiftT: -1, kidVisits: 0, cutterVisits: 0, riseT: -1,
+    phase: 'night', nightNo: n, night: 0, hourSaid: 0, won: false, ended: false, scored: false, recorded: false, cause: '',
+    hunger: 20, hungerSaid: 0, sick: 0, dread: 0, darkTime: 0, deadFor: 0, stalk: 0, cold: 0, coldSaid: 0, smoke: 0,
+    away: null, doorT: 30, firstVisit: false, cutterVisits: 0, riseT: -1, traderCame: false, traderTonight: Math.random() < 0.6,
     hunter: { near: false, t: 24, since: 0 }, hand: { phase: 'idle', t: 40, total: 1, p: 0, beat: 0 },
-    hatch: { phase: 'idle', t: 18, total: 1, p: 0 }, hatchFed: 0, dozeT: 22,
+    hatch: { phase: 'idle', t: 18, total: 1, p: 0 }, hatchFed: 0, dozeT: 22, charm: false,
     rec: { letIn: 0, turnedAway: 0, mimicsKept: 0, fed: 0, burned: 0, boardsLost: 0, trips: 0, cooked: 0, raw: 0, closest: 0, close: {}, slammed: 0 },
   });
   S.decay = decayTime();
-  if (S.stranger === 'inside') { S.sHunger = 30; S.sPlea = 0; S.n2HintT = S.strangerFalse ? -1 : 9; }
+  if (S.stranger === 'inside') { S.sHunger = 30; S.sPlea = 0; S.n2HintT = S.strangerFalse || n !== 2 ? -1 : 9; S.n3HintT = S.strangerFalse || n !== 3 ? -1 : 60; }
   if (S.fire === 0) S.fire = 1;
   S.lit = true;
   resetTransients();
   setMode('playing');
-  say('the sun is down. the second night begins. dawn is eight hours away.');
-  say('they are already awake. tonight everything comes two hours sooner.');
-  if (S.tired) setTimeout(() => { if (S.nightNo === 2 && mode === 'playing') say("you didn't sleep. your eyes are heavy."); }, 3000);
+  for (const line of NIGHT_START[n]) say(line);
+  if (S.tired) setTimeout(() => { if (S.nightNo === n && mode === 'playing') say("you didn't sleep. your eyes are heavy."); }, 3000);
   save();
 }
 
@@ -1629,6 +1719,15 @@ const BUILDS = [
     desc: () => `a shed against the outside wall that holds 100 more logs, so the pile never topples. it takes ${PILE_CAP} logs, built in a second each outside. you carry out what wood you have and build log by log; run back any time and what you built stays.`,
     show: () => !S.shed, cost: () => ({}), ok: () => S.wood >= 1, costText: 'the wood you carry',
     done: () => { startTrip('shed'); } },
+  { id: 'rack', name: 'drying rack', desc: 'a frame by the fire. dries wet wood three times faster, eight logs at a time, and smokes cooked meat so it never goes bad: one piece every 20 seconds while the fire burns. (salt stays free for the salt lines.)',
+    show: () => !S.rack, cost: () => ({ wood: 12 }),
+    done: () => { S.rack = true; say('you lash a drying rack together beside the fire.'); } },
+  { id: 'coat', name: 'fur coat', desc: 'you get cold outside a third more slowly. (fur is also worth 3 points each at dawn.)',
+    show: () => !S.coat && (S.fur > 0 || blizzard()), cost: () => ({ fur: 4 }),
+    done: () => { S.coat = true; say('you stitch the pelts into a rough coat. it stinks, and it is warm.'); } },
+  { id: 'insulate', name: 'insulate the walls', desc: 'stuff fur into the cracks between the logs. the house loses heat more slowly and the fire warms you a little faster.',
+    show: () => !S.insulated && (S.fur > 0 || blizzard()), cost: () => ({ fur: 6 }),
+    done: () => { S.insulated = true; say('you pack fur into every crack in the walls. the draft eases.'); } },
   { id: 'cure', name: 'cure meat with salt', desc: () => `rub salt into 2 cooked meat so it never goes bad. (${curedCount()} cured)`,
     show: () => S.salt > 0 && S.cooked - curedCount() >= 2, cost: () => ({ salt: 1 }),
     done: () => {
@@ -1637,13 +1736,13 @@ const BUILDS = [
       say('you rub salt into the meat. it will keep now.');
     } },
   { id: 'saltDoor', name: 'salt the doorway', desc: 'a line across the threshold. the next thing you open the door to that is not a person cannot cross it.',
-    show: () => !S.saltDoor && (S.salt > 0 || S.nightNo === 2), cost: () => ({ salt: 2 }),
+    show: () => !S.saltDoor && (S.salt > 0 || S.nightNo >= 2), cost: () => ({ salt: 2 }),
     done: () => { S.saltDoor = true; say('you pour a line of salt across the threshold.'); } },
   { id: 'saltWin', name: 'salt the window sill', desc: 'the next time she would get through the window, she recoils instead.',
-    show: () => !S.saltWin && (S.salt > 0 || S.nightNo === 2), cost: () => ({ salt: 2 }),
+    show: () => !S.saltWin && (S.salt > 0 || S.nightNo >= 2), cost: () => ({ salt: 2 }),
     done: () => { S.saltWin = true; say('you pour a line of salt along the window sill.'); } },
   { id: 'weigh', name: 'weigh down the hatch', desc: 'pile logs on the cellar hatch. they hold it down twice, then they tumble off.',
-    show: () => S.nightNo === 2 && !S.hatchWeighted, cost: () => ({ wood: 6 }),
+    show: () => S.nightNo >= 2 && !S.hatchWeighted, cost: () => ({ wood: 6 }),
     done: () => { S.hatchWeighted = true; S.weightHolds = 0; say('you stack logs on the hatch. something underneath goes quiet. it will not stay quiet forever.'); } },
 ];
 
@@ -1738,7 +1837,10 @@ function updateGame(dt) {
   if (S.lit) updateNight(dt);
   if (mode !== 'playing') return;
   updatePending(dt);
-  if (S.fire > 0 && Math.random() < dt * S.fire * 2.5) sfx.crackle(S.fire);
+  if (S.fire > 0 && Math.random() < dt * S.fire * 2.5) {
+    if (S.smoke > 0.25 && Math.random() < 0.4) sfx.sizzle();   // wet wood: a damp hiss instead of a snap
+    else sfx.crackle(S.fire);
+  }
   saveTimer -= dt;
   if (saveTimer <= 0) { save(); saveTimer = 3; }
 }
@@ -1781,6 +1883,7 @@ function updateAmbient(dt) {
         id: 'dawn', portrait: S.stranger === 'inside' ? 'stranger' : 'dawn',
         text: S.stranger === 'inside'
           ? 'Gray light creeps across the floor. The eyes are gone. The stranger stands and stretches, and for the first time she smiles. "They never come in the light," she says.'
+          : S.nightNo >= 3 ? 'Gray light, and at last the snow stops falling. Three nights. Under the floor, something settles and goes still.'
           : S.nightNo === 2 ? 'Gray light again. The second night is over. Under the floor, something settles and goes still.' : 'Gray light creeps across the floor. The eyes are gone. You made it through the night.',
         choices: [{ label: 'see the morning', act: () => showEnding(true) }],
       });
@@ -1795,7 +1898,7 @@ function updateAmbient(dt) {
 
 function updateWalker(dt) {
   if (!walker) return;
-  const tx = 194, ty = 136;
+  const tx = 193, ty = 139;
   const dx = tx - walker.x, dy = ty - walker.y;
   const d = Math.hypot(dx, dy);
   const sp = 24 * dt;
@@ -2072,11 +2175,12 @@ function drawFire() {
       px.fillRect(Math.round(p.x), Math.round(p.y), 1, 1);
       continue;
     }
+    if (S.stove) continue;   // the flames are inside the iron box
     px.fillStyle = t < 0.18 ? '#fff3b0' : t < 0.42 ? '#ffd35a' : t < 0.68 ? '#ff9a2e' : t < 0.88 ? '#e8551c' : '#a8281a';
     const s = t < 0.5 ? 2 : 1;
     px.fillRect(Math.round(p.x), Math.round(p.y), s, s);
   }
-  if (S.fire > 0) {
+  if (S.fire > 0 && !S.stove) {
     px.fillStyle = '#fff3b0';
     const w = FLAME_W[S.fire];
     px.fillRect(FIRE.x - w + 1, FIRE.y - 1, w * 2 - 1, 2);
@@ -2089,21 +2193,48 @@ function drawWoodPile() {
   const n = Math.min(S.wood, PILE_CAP + 4);
   const lean = pileLean >= 0 ? (3 - pileLean) / 3 : 0;
   let left = n;
+  const dry = n - wetInPile();
+  let drawn = 0;
   for (let row = 0, width = 7; left > 0 && row < 7; row++, width = Math.max(1, width - 1)) {
     const tilt = lean * row * row * 0.9 + (lean > 0 ? Math.sin(animT * 30 + row) * lean * row * 0.3 : 0);
     for (let i = 0; i < width && left > 0; i++, left--) {
       const x = Math.round(82 + i * 6 + row * 3 + tilt);
       const y = 142 - row * 4;
-      px.fillStyle = C.logBark; px.fillRect(x, y, 6, 5); px.fillRect(x + 1, y - 1, 4, 7);
-      px.fillStyle = C.logEnd; px.fillRect(x + 1, y, 4, 5);
-      px.fillStyle = C.logRing; px.fillRect(x + 2, y + 2, 2, 1);
+      const wet = drawn++ >= dry;
+      px.fillStyle = wet ? '#2a2a30' : C.logBark; px.fillRect(x, y, 6, 5); px.fillRect(x + 1, y - 1, 4, 7);
+      px.fillStyle = wet ? '#5a6672' : C.logEnd; px.fillRect(x + 1, y, 4, 5);
+      px.fillStyle = wet ? '#3a4652' : C.logRing; px.fillRect(x + 2, y + 2, 2, 1);
+      if (wet) { px.fillStyle = '#d8e4f0'; px.fillRect(x + 1, y - 1, 2, 1); px.fillRect(x + 4, y + 4, 1, 1); }
     }
   }
 }
 
+// The drying rack beside the fire: two posts and crossbars, wet logs leaning on it, meat strips smoking.
+function drawRack() {
+  if (!S.rack) return;
+  R('#3a2618', 128, 96, 2, 22); R('#3a2618', 142, 96, 2, 22);
+  R('#4a3222', 127, 97, 18, 1); R('#4a3222', 128, 106, 16, 1);
+  const logs = Math.min(3, S.wet.length);
+  for (let i = 0; i < logs; i++) { R('#2a2a30', 130 + i * 4, 108, 3, 9); R('#5a6672', 130 + i * 4, 108, 3, 1); }
+  const strips = Math.min(3, S.cookedLife.filter((l) => l < CURED / 2).length);
+  for (let i = 0; i < strips; i++) { R('#5a2e1c', 131 + i * 4, 98, 2, 6); R('#94522e', 131 + i * 4, 98, 1, 4); }
+}
+
+// The iron stove over the pit: a box with a glowing grate in its door and a pipe up through the roof.
+function drawStove() {
+  if (!S.stove) return;
+  R('#1e1e22', 166, 0, 5, 122); R('#2e2e34', 166, 0, 1, 122);
+  for (let y = 12; y < 120; y += 22) R('#3a3a40', 166, y, 5, 1);
+  R('#1a1a1e', 146, 122, 29, 17); R('#34343a', 146, 122, 29, 1); R('#26262c', 146, 138, 29, 1);
+  R('#101012', 148, 139, 3, 2); R('#101012', 170, 139, 3, 2);
+  const glow = ['#2a1410', '#7a2a10', '#c8501a', '#ff7a2a', '#ffb347'][S.fire];
+  R('#0c0c0e', 152, 127, 16, 8);
+  for (let x = 153; x < 167; x += 3) R(S.fire && Math.random() < 0.9 ? glow : '#0c0c0e', x, 128, 2, 6);
+}
+
 // an iron grate over the pit, if you bought one
 function drawGrate() {
-  if (!S.grate) return;
+  if (!S.grate || S.stove) return;
   px.fillStyle = '#2a2a2e';
   px.fillRect(147, 133, 26, 1);
   for (let x = 149; x < 172; x += 4) px.fillRect(x, 131, 1, 9);
@@ -2115,16 +2246,17 @@ let traderOpen = 0;
 function drawTrader() {
   if (visitorAtDoor !== 'trader' || door < 0.3) { traderOpen = 0; return; }
   traderOpen = Math.min(1, traderOpen + 0.04);
-  const cx = 274, feet = 111;
+  const cx = 274, feet = 107;   // the coat is drawn from here; his legs reach the floor at 111
   const coat = '#2e2c30', coatHi = '#3e3b42', lining = '#3a1210', hat = '#1e1c20';
   // legs and boots
-  px.fillStyle = '#141216'; px.fillRect(cx - 3, feet - 4, 2, 4); px.fillRect(cx + 1, feet - 4, 2, 4);
+  px.fillStyle = '#141216'; px.fillRect(cx - 3, feet - 4, 2, 8); px.fillRect(cx + 1, feet - 4, 2, 8);
+  px.fillStyle = '#0a0808'; px.fillRect(cx - 4, feet + 2, 3, 2); px.fillRect(cx + 1, feet + 2, 3, 2);
   // the coat, swinging open
   const half = 6 + Math.round(traderOpen * 7);
   if (traderOpen > 0.15) {
     px.fillStyle = lining; px.fillRect(cx - half + 2, feet - 24, half * 2 - 4, 21);
     // his goods on hooks
-    const items = SHOP.filter((w) => !w.has()).map((w) => w.id);
+    const items = SHOP.filter((w) => !w.has() && (!w.avail || w.avail())).map((w) => w.id);
     const k = traderOpen;
     if (k > 0.6) {
       if (items.includes('grate')) { px.fillStyle = '#5a5a60'; px.fillRect(cx - 9, feet - 21, 5, 1); for (let x = cx - 9; x < cx - 4; x += 2) px.fillRect(x, feet - 21, 1, 4); }
@@ -2233,23 +2365,7 @@ function drawTraps() {
   }
 }
 
-const FALSE_COLORS = { h: '#47424c', H: '#57515d', f: '#120d0b', e: '#b8402c', c: '#36313c', C: '#2a2630', b: '#1d1815', s: '#7a6a5a' };
 const SPR_COLORS = { h: '#4b4650', H: '#5d5763', f: '#120d0b', e: '#c9b48a', c: '#38333e', C: '#2a2630', b: '#1d1815', s: '#7a6a5a' };
-const TRAVELER_COLORS = { ...SPR_COLORS, h: '#5a4030', H: '#6e5038', c: '#4a3a2a', C: '#3a2a1e' };
-const WOODCUTTER_COLORS = { ...SPR_COLORS, h: '#7a2a22', H: '#8a3a2a', c: '#3a4a3a', C: '#2a3a2a' };
-const KID_COLORS = { r: '#3a2a1e', k: '#5a4434', e: '#1a1210', s: '#7a2a22', c: '#4a4a3a', b: '#1d1815' };
-
-const STAND = [
-  '..hhh..', '.hHhhh.', '.hfffh.', '.hfefh.', '.hhhhh.', 'cccccc.',
-  'ccCcccc', 'ccCcccc', '.cCccc.', '.ccccc.', '.ccccc.',
-];
-const LEGS = [['.b...b.', '.b...b.'], ['..b.b..', '..b.b..']];
-const SIT = [
-  '....hhh..', '...hHhhh.', '...fffhh.', '...ffehh.', '...hhhhh.',
-  '..cccccc.', '.cccCcccc', 'ssccCcccc', '.ccccccc.', 'bbccccccc',
-];
-const DEAD = ['....hhh.....', 'ccchhHhhcccc', 'ccccCccccccC', 'bbcccccccCcc'];
-const KID = ['..rrr..', '.rrrrr.', '.rkkkr.', '.rkekr.', '..sss..', '.ccccc.', '.ccccc.', '.c...c.', '.b...b.'];
 
 function drawMap(map, x, y, colors = SPR_COLORS) {
   for (let r = 0; r < map.length; r++) {
@@ -2263,59 +2379,131 @@ function drawMap(map, x, y, colors = SPR_COLORS) {
   }
 }
 
+// People, drawn at a believable size for the room: about 38 pixels standing, in a doorway 61 tall.
+// Everyone shares the same build and differs by silhouette: the stranger's long hooded cloak, the woodcutter's
+// broad coat, cap, beard and axe, and the trader's tall hat and long coat (see drawTrader).
+const CLOAK = { cloak: '#4b4650', hi: '#5d5763', lo: '#38333e', face: '#120d0b', eye: '#c9b48a', hand: '#7a6a5a', boot: '#1d1815' };
+const CLOAK_FALSE = { ...CLOAK, cloak: '#47424c', hi: '#57515d', lo: '#36313c', eye: '#b8402c' };
+const CLOAK_RISEN = { ...CLOAK, cloak: '#3e3a42', hi: '#4c4752', lo: '#2c2830', eye: '#d02814', hand: '#5a5048' };
+const strangerLook = () => (S.strangerFalse ? CLOAK_FALSE : CLOAK);
+
+const R = (c, x, y, w, h) => { px.fillStyle = c; px.fillRect(x, y, w, h); };
+
+// the stranger standing or walking, feet at (cx, fy)
+function drawCloaked(cx, fy, pal, step = -1) {
+  const sway = step >= 0 ? (step % 2 ? 1 : -1) : 0;
+  // boots, stepping when she walks
+  R(pal.boot, cx - 4 + (sway > 0 ? -1 : 0), fy - 2, 3, 2);
+  R(pal.boot, cx + 1 + (sway < 0 ? 1 : 0), fy - 2, 3, 2);
+  // the cloak, wider toward the hem
+  for (let y = fy - 28; y < fy - 2; y++) {
+    const k = (y - (fy - 28)) / 26;
+    const half = Math.round(4 + k * 3);
+    const hem = y > fy - 6 ? sway : 0;
+    R(pal.cloak, cx - half + hem, y, half * 2 + 1, 1);
+    R(pal.lo, cx - half + hem, y, 1, 1);
+    R(pal.lo, cx + half + hem, y, 1, 1);
+  }
+  R(pal.hi, cx - 2, fy - 26, 1, 20);           // folds
+  R(pal.lo, cx + 2, fy - 24, 1, 19);
+  R(pal.hand, cx - 2, fy - 18, 4, 2);          // hands clasped in front
+  // the hood, the face in shadow, two pale eyes
+  R(pal.cloak, cx - 4, fy - 36, 9, 9);
+  R(pal.cloak, cx - 3, fy - 38, 7, 2);
+  R(pal.hi, cx - 3, fy - 37, 2, 4);
+  R(pal.lo, cx + 4, fy - 35, 1, 8);
+  R(pal.face, cx - 2, fy - 34, 5, 6);
+  R(pal.eye, cx - 1, fy - 32, 1, 1);
+  R(pal.eye, cx + 2, fy - 32, 1, 1);
+}
+
+// sitting by the fire, knees drawn up, facing it (to the left): drawn row by row as a silhouette
+// [left, right] edges relative to cx, from the top of the hood down to the floor
+const SIT_ROWS = [
+  [-2, 1], [-3, 2], [-4, 3], [-4, 3], [-5, 3], [-5, 3], [-5, 3], [-4, 3], [-4, 3],   // hood
+  [-4, 4], [-5, 4], [-5, 5], [-5, 5], [-6, 5], [-6, 5],                                 // shoulders, hunched
+  [-7, 5], [-9, 5], [-10, 6], [-10, 6], [-10, 6], [-10, 6], [-10, 6], [-9, 6],         // arms around her knees
+  [-9, 6], [-10, 7], [-10, 7], [-11, 7], [-11, 7], [-11, 7], [-12, 8], [-12, 8],       // the cloak pooled on the floor
+];
+function drawCloakedSitting(cx, fy, pal) {
+  const top = fy - SIT_ROWS.length;
+  SIT_ROWS.forEach(([l, r], i) => {
+    const y = top + i;
+    R(pal.cloak, cx + l, y, r - l + 1, 1);
+    R(pal.lo, cx + r, y, 1, 1);
+    if (i > 9) R(pal.hi, cx - 1, y, 1, 1);                     // a fold down her back
+  });
+  R(pal.hi, cx - 2, top, 2, 1); R(pal.hi, cx - 3, top + 1, 2, 2);   // the light catching the hood
+  R(pal.hi, cx - 9, top + 16, 5, 1);                               // and the tops of her knees
+  // her face in the hood's opening, turned toward the fire
+  R(pal.face, cx - 5, top + 3, 3, 5);
+  R(pal.face, cx - 4, top + 8, 2, 1);
+  R(pal.eye, cx - 4, top + 5, 1, 1);
+  R(pal.hand, cx - 9, top + 18, 3, 2);                            // hands around her knees
+  R(pal.lo, cx - 7, top + 22, 1, 7);                              // where the knees meet the cloak
+  R(pal.boot, cx - 13, fy - 2, 3, 2);                             // a boot toe out from under the hem
+}
+
+// lying slumped on the floor
+function drawCloakedDead(cx, fy, pal) {
+  R(pal.cloak, cx - 11, fy - 6, 22, 6);
+  R(pal.lo, cx - 11, fy - 1, 22, 1);
+  R(pal.hi, cx - 6, fy - 6, 10, 1);
+  R(pal.cloak, cx - 17, fy - 8, 7, 7);         // the hood
+  R(pal.face, cx - 17, fy - 5, 3, 4);
+  R(pal.boot, cx + 11, fy - 3, 4, 3);
+  R(pal.hand, cx - 9, fy - 1, 3, 1);
+}
+
+// the woodcutter: broad, a red cap, a beard, an axe over his shoulder
+function drawWoodcutter(cx, fy) {
+  R('#1d1815', cx - 5, fy - 3, 4, 3); R('#1d1815', cx + 1, fy - 3, 4, 3);
+  R('#3a3028', cx - 5, fy - 14, 4, 11); R('#3a3028', cx + 1, fy - 14, 4, 11);
+  R('#3a4a3a', cx - 7, fy - 27, 14, 14);
+  R('#2a3a2a', cx - 7, fy - 27, 1, 14); R('#2a3a2a', cx, fy - 25, 1, 11);
+  R('#4a5a48', cx - 5, fy - 27, 3, 1);
+  R('#2a1a10', cx - 7, fy - 16, 14, 2);         // belt
+  R('#8a7a5a', cx - 1, fy - 16, 2, 2);
+  R('#3a4a3a', cx - 9, fy - 26, 2, 11); R('#3a4a3a', cx + 7, fy - 26, 2, 11);   // arms
+  R('#5a3a20', cx - 9, fy - 15, 2, 2); R('#5a3a20', cx + 7, fy - 15, 2, 2);     // mitts
+  R('#8a6248', cx - 3, fy - 34, 7, 6);          // face
+  R('#5a3a20', cx - 3, fy - 30, 7, 3); R('#5a3a20', cx - 2, fy - 27, 5, 1);    // beard
+  R('#1a1210', cx - 2, fy - 32, 1, 1); R('#1a1210', cx + 2, fy - 32, 1, 1);
+  R('#7a2a22', cx - 4, fy - 37, 9, 3); R('#9a3a2a', cx - 4, fy - 35, 9, 1);    // cap
+  for (let i = 0; i < 20; i++) R('#5a3a22', cx + 8 + Math.floor(i / 7), fy - 14 - i, 1, 1);   // the axe handle
+  R('#9a9a9a', cx + 9, fy - 37, 5, 3); R('#c8c8c8', cx + 13, fy - 37, 1, 3);
+}
+
 function drawStranger() {
   if (walker) {
-    const legs = LEGS[Math.floor(walker.step * 6) % 2];
-    const x = Math.round(walker.x) - 3, y = Math.round(walker.y) - 13;
-    const col = S.strangerFalse ? FALSE_COLORS : SPR_COLORS;
-    drawMap(STAND, x, y, col);
-    drawMap(legs, x, y + 11, col);
+    drawCloaked(Math.round(walker.x), Math.round(walker.y), strangerLook(), Math.floor(walker.step * 6));
     return;
   }
   if (mode === 'lost' && S.cause === 'risen') {
-    const col = { ...SPR_COLORS, e: '#d02814' };
+    // it gets up in jerks: lying, then sitting, then standing
     const jit = Math.random() < 0.3 ? 1 : 0;
-    if (lossT < 0.7) drawMap(DEAD, 186 + jit, 135);
-    else if (lossT < 1.4) drawMap(SIT, 186, 128 - jit, col);
-    else if (lossT < 2.0) { drawMap(STAND, 190 + jit, 124, col); drawMap(LEGS[0], 190, 135, col); }
+    if (lossT < 0.7) drawCloakedDead(196 + jit, 140, CLOAK_RISEN);
+    else if (lossT < 1.4) drawCloakedSitting(194, 139 - jit, CLOAK_RISEN);
+    else if (lossT < 2.0) drawCloaked(193 + jit, 138, CLOAK_RISEN);
     return;
   }
-  if (mode === 'lost' && S.cause === 'falseStranger') {
-    drawMap(STAND, 190, 124, FALSE_COLORS);
-    drawMap(LEGS[0], 190, 135, FALSE_COLORS);
-    return;
-  }
+  if (mode === 'lost' && S.cause === 'falseStranger') { drawCloaked(193, 138, CLOAK_FALSE); return; }
   if (S.stranger === 'dead' && !S.carcass && !(S.away && S.away.kind === 'drag')) {
-    // slumped against the wall; if left too long, she moves
+    // slumped on the floor; if left too long, she moves
     const twitch = S.riseT > 0 && Math.random() < 0.25 ? 1 : 0;
-    drawMap(DEAD, 186, 135 - twitch);
+    drawCloakedDead(196, 140 - twitch, CLOAK);
     return;
   }
   if (S.stranger !== 'inside') return;
-  const col = S.strangerFalse ? FALSE_COLORS : SPR_COLORS;
-  if (dawnLevel() > 0.6) {
-    drawMap(STAND, 190, 124, col);
-    drawMap(LEGS[0], 190, 135, col);
-    return;
-  }
+  if (dawnLevel() > 0.6) { drawCloaked(193, 138, strangerLook()); return; }
   const bob = !S.strangerFalse && Math.sin(S.time * 1.6) > 0.6 ? 1 : 0;
-  const shiver = !S.strangerFalse && S.fire === 0 ? (Math.random() < 0.3 ? 1 : 0) : 0;
-  drawMap(SIT, 186 + shiver, 128 + bob, col);
+  const shiver = !S.strangerFalse && (S.fire === 0 || (S.cold || 0) > 60) ? (Math.random() < 0.3 ? 1 : 0) : 0;
+  drawCloakedSitting(194 + shiver, 139 + bob, strangerLook());
 }
 
 function drawVisitor() {
-  if (!visitorAtDoor || door < 0.3) return;
-  if (visitorAtDoor === 'woodcutter') {
-    drawMap(STAND, 270, 96, WOODCUTTER_COLORS);
-    drawMap(LEGS[0], 270, 107, WOODCUTTER_COLORS);
-    px.fillStyle = '#5a3a22'; px.fillRect(277, 92, 1, 12);
-    px.fillStyle = '#9a9a9a'; px.fillRect(278, 92, 3, 3);
-  } else if (visitorAtDoor === 'traveler') {
-    drawMap(STAND, 270, 97, TRAVELER_COLORS);
-    drawMap(LEGS[0], 270, 108, TRAVELER_COLORS);
-  } else {
-    drawMap(KID, 271, 102, KID_COLORS);
-  }
+  if (visitorAtDoor !== 'woodcutter' || door < 0.3) return;
+  drawWoodcutter(272, 111);
 }
 
 function drawBoards() {
@@ -2382,20 +2570,31 @@ function drawPixels() {
   drawWoodPile();
   drawPitLogs();
   drawGrate();
+  drawRack();
   drawCoals();
   drawStranger();
-  drawCooking();
   drawFire();
+  drawStove();
+  drawCooking();
 }
 
 // meat on a stick over the fire, browning as it cooks
 function drawCooking() {
   if (!S.cooking) return;
+  if (S.stove) {
+    // a pan on the stovetop
+    R('#2a2a2e', 150, 120, 20, 2); R('#2a2a2e', 170, 120, 5, 1);
+    for (let i = 0; i < S.cooking.n; i++) {
+      const k = clamp(1 - S.cooking.t / (S.cooking.total || COOK_TIME), 0, 1);
+      R(k > 0.6 ? '#5a2e1c' : '#8a2a20', 153 + i * 5, 118, 4, 2);
+    }
+    return;
+  }
   px.fillStyle = '#3a2414';
   px.fillRect(147, 124, 1, 14); px.fillRect(173, 124, 1, 14);
   px.fillRect(146, 124, 3, 1); px.fillRect(172, 124, 3, 1);
   px.fillStyle = '#5a3a22'; px.fillRect(146, 125, 29, 1);
-  const k = clamp(1 - S.cooking.t / COOK_TIME, 0, 1);
+  const k = clamp(1 - S.cooking.t / (S.cooking.total || COOK_TIME), 0, 1);
   const lerp = (a, b) => Math.round(a + (b - a) * k);
   const col = `rgb(${lerp(140, 84)}, ${lerp(34, 44)}, ${lerp(28, 24)})`;
   for (let i = 0; i < S.cooking.n; i++) {
@@ -2409,9 +2608,10 @@ function targetRadius() {
   if (mode === 'lost' && S.cause === 'burn') return 180;
   if (mode === 'lost' && S.cause === 'dark') return 0;
   if (mode === 'lost' && S.cause === 'starve') return LIGHT_R[S.fire] * (1 - seg(0.5, 4.5) * 0.6);
+  if (mode === 'lost' && S.cause === 'freeze') return LIGHT_R[S.fire] * (1 - seg(0.3, 4.6) * 0.75);
   if (!S.lit) return 5;
   if (S.fire === 0) return 6 + 10 * Math.max(0, 1 - S.deadFor / 30);
-  return LIGHT_R[S.fire] + (S.blaze > 0 ? 40 : 0);
+  return LIGHT_R[S.fire] * (S.stove ? 0.8 : 1) + (S.blaze > 0 ? 40 : 0);   // a stove keeps its fire boxed in
 }
 
 // draw one low-res pixel block on the light layer
@@ -2939,11 +3139,25 @@ function drawLight() {
     lx.fillStyle = 'rgba(170, 30, 22, 0.75)';
     lpx(s, 257, 110, 34, 1.5);
     const v = dialog && dialog.id === 'knock' ? dialog.visit : null;
-    if (v && v.who !== 'mimic') {
+    if (v) {
       lx.fillStyle = 'rgba(10, 4, 4, 0.95)';
       const shift = Math.sin(t * 2) > 0 ? 1 : 0;
-      lpx(s, 267 + shift, 110, 4, 1.5); lpx(s, 276 + shift, 110, 4, 1.5);
+      for (const fx of FEET_AT[v.feet || 2]) lpx(s, fx + shift, 110, 4, 1.5);
     }
+  }
+
+  // smoke from wet wood, collecting under the roof and drifting over the top of the window (looks only)
+  if (S.smoke > 0.02) {
+    lx.save();
+    lx.globalCompositeOperation = 'source-over';
+    for (let x = 0; x < W; x += 2) {
+      const y = 10 + S.smoke * 34 + Math.sin(x * 0.06 + t * 0.7) * 4 + Math.sin(x * 0.17 - t * 1.1) * 2;
+      lx.fillStyle = `rgba(52, 48, 46, ${0.62 * Math.min(1, S.smoke * 1.4)})`;
+      lpx(s, x, 0, 2, y);
+      lx.fillStyle = `rgba(70, 64, 60, ${0.3 * S.smoke})`;
+      lpx(s, x, y, 2, 3);
+    }
+    lx.restore();
   }
 
   // morning light through the window
@@ -3054,6 +3268,24 @@ function drawLight() {
     edge(light.width, 0, light.width - bw, 0, light.width - bw, 0, bw, light.height);
   }
 
+  // freezing: a white-blue frost border closing in
+  if (S.cold >= 85 && (mode === 'playing' || (mode === 'lost' && S.cause === 'freeze'))) {
+    const k = clamp((S.cold - 85) / 15, 0.15, 1) * (0.85 + 0.15 * Math.sin(t * 2));
+    const bw = (0.05 + 0.1 * k) * light.height;
+    const col = `rgba(200, 222, 245, ${0.16 + 0.24 * k})`;
+    const edge = (x0, y0, x1, y1, x, y, w, h) => {
+      const g2 = lx.createLinearGradient(x0, y0, x1, y1);
+      g2.addColorStop(0, col);
+      g2.addColorStop(1, 'rgba(200, 222, 245, 0)');
+      lx.fillStyle = g2;
+      lx.fillRect(x, y, w, h);
+    };
+    edge(0, 0, 0, bw, 0, 0, light.width, bw);
+    edge(0, light.height, 0, light.height - bw, 0, light.height - bw, light.width, bw);
+    edge(0, 0, bw, 0, 0, 0, bw, light.height);
+    edge(light.width, 0, light.width - bw, 0, light.width - bw, 0, bw, light.height);
+  }
+
   // sick from raw meat: a faint sour-green cast
   if (S.sick > 0 && mode === 'playing') {
     lx.fillStyle = `rgba(50, 80, 20, ${0.1 * Math.min(1, S.sick / 25) * (0.8 + 0.2 * Math.sin(t * 1.7))})`;
@@ -3075,7 +3307,7 @@ function drawLight() {
 // Every way to die has its own few seconds before the red screen. lossT runs from 0 when you die.
 const DEATH_LEN = {
   dark: 5.6, starve: 5.6, burn: 5.8, mimic: 5.4, hand: 5.2, handAway: 5.2, hunter: 5.6,
-  risen: 5.6, cellar: 5.2, cellarAway: 5.2, falseStranger: 5.6,
+  risen: 5.6, cellar: 5.2, cellarAway: 5.2, falseStranger: 5.6, freeze: 5.6,
 };
 const deathLen = () => DEATH_LEN[S.cause] || 4;
 const seg = (a, b) => clamp((lossT - a) / (b - a), 0, 1);   // progress 0..1 through one stretch of a death
@@ -3098,6 +3330,7 @@ const DEATH_CUES = {
   risen: [[0.7, () => sfx.crack()], [1.4, () => sfx.crack()], [2.1, () => sfx.breath()], [2.9, () => sfx.growl(1.1)], [3.1, () => sfx.footsteps(4)]],
   cellar: [[0, () => sfx.slam()], [1.0, () => sfx.scratch()], [2.9, () => { sfx.drag(); sfx.thump(1); shake = 0.3; }]],
   falseStranger: [[0.7, () => sfx.crack()], [1.8, () => sfx.breath()], [3.2, () => sfx.growl(1.3)]],
+  freeze: [[0.1, () => sfx.gust()], [0.6, () => sfx.heartbeat(0.7)], [2.0, () => sfx.heartbeat(0.45)], [3.6, () => sfx.heartbeat(0.25)], [3.0, () => sfx.gust()]].sort((a, b) => a[0] - b[0]),
 };
 DEATH_CUES.handAway = DEATH_CUES.hand;
 DEATH_CUES.cellarAway = DEATH_CUES.cellar;
@@ -3108,6 +3341,14 @@ let deathEyes = [];
 function startDeath(cause) {
   deathCue = 0;
   deathEyes = [];
+  if (cause === 'freeze') {
+    // frost crystals that grow in from every edge
+    for (let i = 0; i < 150; i++) {
+      const side = i % 4;
+      const along = Math.random();
+      deathEyes.push({ side, along, len: rand(5, 20), bend: rand(-0.9, 0.9), at: rand(0, 2.2), inset: rand(0, 14) });
+    }
+  }
   if (cause === 'dark') {
     // the eyes that open around you once the last coal goes out
     for (let tries = 0; deathEyes.length < 15 && tries < 300; tries++) {
@@ -3416,7 +3657,7 @@ function deathMimic(s, t) {
   if (lossT < 2.7) {
     inDoorway(s, () => {
       const grow = ease(seg(1.2, 2.2));
-      const h = lerp(27, 58, grow);
+      const h = lerp(38, 60, grow);
       const tilt = lossT < 1.35 ? 0 : lerp(0.5, 1.9, ease(seg(1.35, 2.5)));
       tallThing(s, t, 274, 111, h, {
         pal: MIMIC_PAL, tilt, reach: lerp(0.3, 1, grow), mouth: seg(2.1, 2.7),
@@ -3481,7 +3722,7 @@ function deathRisen(s, t) {
   if (lossT < 2.0) return;   // sitting up and standing are pixel sprites; see drawStranger
   const grow = ease(seg(2.0, 2.8));
   const k = ease(seg(2.8, 5.0));
-  tallThing(s, t, lerp(193, 168, k), lerp(136, 200, k), lerp(lerp(15, 40, grow), 190, k), {
+  tallThing(s, t, lerp(193, 168, k), lerp(138, 200, k), lerp(lerp(38, 54, grow), 190, k), {
     pal: RISEN_PAL, tilt: lerp(0.3, 1.2, grow) + Math.sin(t * 3) * 0.05, reach: lerp(0.5, 1, grow),
     mouth: seg(2.6, 3.4), walk: lossT > 2.8, eyes: 'rgba(230, 40, 20, 1)',
   });
@@ -3526,12 +3767,12 @@ function deathFalseStranger(s, t) {
   const bend = ease(seg(3.0, 4.8));
   asLayer(0.72, () => {
     lx.save();
-    const fx = 196 * s, fy = 136 * s;
+    const fx = 196 * s, fy = 138 * s;
     lx.translate(fx, fy);
     lx.transform(1, 0, -0.35 - 0.3 * grow, 1, 0, 0);   // cast up and away from the window
     lx.scale(1 + bend * 1.8, 1 + bend * 0.6);
     lx.translate(-fx, -fy);
-    tallThing(s, t, 196, 136, lerp(14, 128, grow), {
+    tallThing(s, t, 196, 138, lerp(38, 128, grow), {
       pal: SHADOW_PAL, tilt: lerp(0.1, 0.9, grow) + bend * 1.2, reach: 1, spread: grow * 0.9,
       mouth: seg(2.2, 3.2),
     });
@@ -3545,9 +3786,54 @@ function deathFalseStranger(s, t) {
   }
 }
 
+// Freezing: frost grows in from the edges, your breath shows and fades, and the fire seems to shrink away.
+function deathFreeze(s, t) {
+  lx.fillStyle = `rgba(150, 180, 220, ${0.18 * seg(0.2, 3)})`;
+  lx.fillRect(0, 0, light.width, light.height);
+  // a white glaze creeping in from the edges
+  const glaze = seg(0.2, 4.6);
+  const vg = lx.createRadialGradient(light.width / 2, light.height / 2, light.height * lerp(0.75, 0.2, glaze), light.width / 2, light.height / 2, light.width * 0.62);
+  vg.addColorStop(0, 'rgba(210, 228, 248, 0)');
+  vg.addColorStop(1, `rgba(210, 228, 248, ${0.75 * glaze})`);
+  lx.fillStyle = vg;
+  lx.fillRect(0, 0, light.width, light.height);
+  // and frost ferns growing over it: short stems, branching as they go
+  lx.fillStyle = 'rgba(236, 244, 255, 0.85)';
+  for (const c of deathEyes) {
+    const k = ease(seg(c.at, c.at + 2.2));
+    if (k <= 0) continue;
+    const len = c.len * k;
+    const dir = [Math.PI / 2, Math.PI, -Math.PI / 2, 0][c.side] + c.bend;
+    let x = c.side === 0 ? c.along * W : c.side === 1 ? W - c.inset : c.side === 2 ? c.along * W : c.inset;
+    let y = c.side === 0 ? c.inset : c.side === 1 ? c.along * H : c.side === 2 ? H - c.inset : c.along * H;
+    for (let d = 0; d < len; d += 0.5) {
+      x += Math.cos(dir) * 0.5; y += Math.sin(dir) * 0.5;
+      lpx(s, x, y, 0.5, 0.5);
+      if (Math.round(d * 2) % 5 === 0) {
+        const b = (len - d) * 0.45;
+        for (const side of [1, -1]) {
+          for (let e = 0.5; e < b; e += 0.5) lpx(s, x + Math.cos(dir + side * 0.8) * e, y + Math.sin(dir + side * 0.8) * e, 0.5, 0.5);
+        }
+      }
+    }
+  }
+  // your breath, slower and fainter each time
+  for (const [at, a] of [[0.4, 0.5], [1.8, 0.35], [3.3, 0.2]]) {
+    const k = seg(at, at + 1.4);
+    if (k <= 0 || k >= 1) continue;
+    const r = (6 + k * 18) * s;
+    const g = lx.createRadialGradient(160 * s, (176 - k * 26) * s, 0, 160 * s, (176 - k * 26) * s, r);
+    g.addColorStop(0, `rgba(230, 236, 245, ${a * (1 - k)})`);
+    g.addColorStop(1, 'rgba(230, 236, 245, 0)');
+    lx.fillStyle = g;
+    lx.fillRect(160 * s - r, (176 - k * 26) * s - r, r * 2, r * 2);
+  }
+}
+
 const DEATH_SCENES = {
   dark: deathDark, starve: deathStarve, burn: deathBurn, mimic: deathMimic, hand: deathHand, handAway: deathHand,
   hunter: deathHunter, risen: deathRisen, cellar: deathCellar, cellarAway: deathCellar, falseStranger: deathFalseStranger,
+  freeze: deathFreeze,
 };
 
 function drawDeath(s, t) {
@@ -3593,15 +3879,6 @@ const PORTRAITS = {
   stranger: { map: HOODED, colors: SPR_COLORS },
   strangerFalse: { map: HOODED, colors: { ...SPR_COLORS, e: '#b8402c', h: '#47424c', H: '#57515d' } },
   woodcutter: { map: BEARDED, colors: { h: '#7a2a22', H: '#9a3a2a', f: '#8a6248', e: '#1a1210', n: '#6a4a36', b: '#5a3a20', m: '#2a1a10', c: '#3a4a3a', C: '#2a3a2a' } },
-  kid: {
-    map: [
-      '................', '.....rrrrrr.....', '....rrrrrrrr....', '...rrrrrrrrrr...',
-      '...rrffffffrr...', '..rrffffffffrr..', '..rrfeffffefrr..', '..rrffffffffrr..',
-      '...rffffffffr...', '...rfffmmfffr...', '....ffffffff....', '.....ffffff.....',
-      '...ssssssssss...', '..ssssssssssss..', '.cccsssssssccc..', 'cccccccccccccccc',
-    ],
-    colors: { r: '#3a2a1e', f: '#8a6a54', e: '#1a1210', m: '#5a3a2e', s: '#7a2a22', c: '#4a4a3a' },
-  },
   door: { map: DOOR_MAP, colors: DOOR_COLORS },
   trader: {
     map: [
@@ -3613,8 +3890,9 @@ const PORTRAITS = {
     colors: { h: '#1e1c20', r: '#5a1a14', f: '#7a7064', e: '#0e0c0c', m: '#3a2a2a', c: '#2e2c30', L: '#3a1210' },
   },
   dead: { map: HOODED.map((r) => r.replace(/e/g, 'f')), colors: { ...SPR_COLORS, f: '#060303' }, bg: '#1a0505' },
-  doorFeet: { map: [...DOOR_MAP.slice(0, 15), 'frxxrrrrrrxxrrrf'], colors: DOOR_COLORS },
-  doorEmpty: { map: [...DOOR_MAP.slice(0, 15), 'frrrrrrrrrrrrrrf'], colors: DOOR_COLORS },
+  doorFeet2: { map: [...DOOR_MAP.slice(0, 15), 'frxxrrrrrrxxrrrf'], colors: DOOR_COLORS },
+  doorFeet1: { map: [...DOOR_MAP.slice(0, 15), 'frrrrrrxxrrrrrrf'], colors: DOOR_COLORS },
+  doorFeet3: { map: [...DOOR_MAP.slice(0, 15), 'frxxrrrxxrrrxxrf'], colors: DOOR_COLORS },
   dawn: {
     map: ['', '', '', '', '', '', '', '', '', '', '................', 'tt..tt...tt..ttt', 'tttttttttttttttt', 'wwwwwwwwwwwwwwww', 'wwwwwwwwwwwwwwww', 'wwwwwwwwwwwwwwww'],
     colors: { t: '#2a2e40', w: '#dfe2ea' },
@@ -3659,6 +3937,11 @@ const ICONS = {
     map: ['......ww', '..rrrRww', '.rRrfrrr', 'rrfrRrfr', 'rRrrfrrr', 'rrfRrrRr', '.rrrfrr.', '..rrrr..'],
     colors: { r: '#7e1c18', R: '#a8322a', f: '#d8a090', w: '#d8ccb0' },
   },
+  fur: {
+    title: 'fur: for a coat or insulation, and worth 3 points each at dawn',
+    map: ['........', '..f..f..', '.ffFfff.', 'fFfffFff', 'ffFffffF', '.fffFff.', '..f..f..', '........'],
+    colors: { f: '#6a5240', F: '#8a6e56' },
+  },
   salt: {
     title: 'salt',
     map: ['........', '..wwww..', '.wsssswn', '.wswssw.', '.wsssww.', '.wwssww.', '..wwww..', '........'],
@@ -3670,7 +3953,7 @@ const ICONS = {
     colors: { g: '#7a8290', b: '#6a0a0a', R: '#b02020', k: '#8a6a4a' },
   },
 };
-const RES_VALUE = { wood: () => `${S.wood}/${PILE_CAP}`, cured: () => curedCount(), cooked: () => S.cooked - curedCount(), raw: () => S.meat, blood: () => S.blood, salt: () => S.salt };
+const RES_VALUE = { wood: () => `${S.wood}/${PILE_CAP}${wetInPile() ? ` · ${wetInPile()} wet` : ''}`, cured: () => curedCount(), cooked: () => S.cooked - curedCount(), raw: () => S.meat, blood: () => S.blood, salt: () => S.salt, fur: () => S.fur };
 const resCounts = {};
 
 function buildResBar() {
@@ -3681,6 +3964,7 @@ function buildResBar() {
     item.title = icon.title;
     if (key === 'salt') item.classList.add('salt-item');
     if (key === 'cured') item.classList.add('cured-item');
+    if (key === 'fur') item.classList.add('fur-item');
     const c = document.createElement('canvas');
     c.width = 8; c.height = 8;
     const g = c.getContext('2d');
@@ -3705,8 +3989,9 @@ function hungerLabel() {
 
 function syncUI() {
   for (const key in resCounts) resCounts[key].textContent = RES_VALUE[key]();
-  ui.res.classList.toggle('has-salt', S.salt > 0 || S.nightNo === 2);
+  ui.res.classList.toggle('has-salt', S.salt > 0 || S.nightNo >= 2);
   ui.res.classList.toggle('has-cured', curedCount() > 0);
+  ui.res.classList.toggle('has-fur', S.fur > 0);
   resCounts.wood.parentElement.classList.toggle('full', S.wood >= PILE_CAP - 2);
   resCounts.raw.parentElement.classList.toggle('spoiling', spoilingSoon(S.rawLife));
   resCounts.cooked.parentElement.classList.toggle('spoiling', spoilingSoon(S.cookedLife.filter((l) => l < CURED / 2)));
@@ -3715,10 +4000,13 @@ function syncUI() {
   const blazing = S.blaze > 0 && mode === 'playing' && !S.away && !dialog;
   ui.douse.classList.toggle('hidden', !blazing);
   if (blazing) ui.douse.style.setProperty('--cd', `${(S.blaze / 9) * 100}%`);
-  ui.clock.textContent = S.won ? '6:00 am · dawn' : S.lit ? `${S.nightNo === 2 ? 'night 2 · ' : ''}${clockText(S.night)} · dawn at 6` : '';
+  ui.clock.textContent = S.won ? '6:00 am · dawn' : S.lit ? `${S.nightNo > 1 ? `night ${S.nightNo} · ` : ''}${clockText(S.night)} · dawn at 6` : '';
   const [hl, hc] = hungerLabel();
   ui.hunger.textContent = S.lit ? hl + (S.sick > 0 ? ' · sick' : '') : '';
   ui.hunger.className = hc;
+  const cold = blizzard() && S.lit;
+  $('cold').textContent = cold ? (S.cold >= 85 ? 'freezing' : S.cold >= 60 ? 'cold' : S.cold >= 30 ? 'chilled' : 'warm') : '';
+  $('cold').className = S.cold >= 85 ? 'bad' : S.cold >= 60 ? 'warn' : '';
 
   const present = canAct();
   ui.stoke.querySelector('.label').textContent = S.fire === 0 ? (S.lit ? 'relight fire' : 'light fire') : 'stoke fire';
@@ -3730,7 +4018,7 @@ function syncUI() {
   ui.eat.style.setProperty('--cd', `${(S.cd.eat / EAT_CD) * 100}%`);
   ui.cook.disabled = !present || !!S.cooking || S.meat < 1 || S.fire < 1;
   ui.cook.querySelector('.label').textContent = S.cooking ? 'cooking' : 'cook';
-  ui.cook.style.setProperty('--cd', `${S.cooking ? (1 - S.cooking.t / COOK_TIME) * 100 : 0}%`);
+  ui.cook.style.setProperty('--cd', `${S.cooking ? (1 - S.cooking.t / (S.cooking.total || COOK_TIME)) * 100 : 0}%`);
   ui.wood.disabled = !present;
   ui.build.disabled = !present;
 
@@ -3801,13 +4089,15 @@ function showTitle(panel = 'menu') {
   ui.titleMenu.classList.toggle('hidden', panel !== 'menu');
   ui.howPanel.classList.toggle('hidden', panel !== 'how');
   ui.boardPanel.classList.toggle('hidden', panel !== 'board');
+  ui.devPanel.classList.toggle('hidden', panel !== 'dev');
+  $('devBtn').classList.toggle('hidden', !devMode);
   if (panel === 'board') { renderBoard(ui.boardList); ui.boardTally.textContent = tallyText(loadStats()); }
   ui.cont.classList.toggle('hidden', !(S.lit && !S.ended));
-  ui.cont.textContent = S.phase === 'day' ? 'continue the day' : S.nightNo === 2 ? 'continue the second night' : 'continue the night';
+  ui.cont.textContent = S.phase === 'day' ? 'continue the day' : S.nightNo > 1 ? `continue night ${S.nightNo}` : 'continue the night';
   ui.day.classList.add('hidden');
   toggleJournal(false);
   toggleBuild(false);
-  const sel = panel === 'menu' ? '#titleMenu' : panel === 'how' ? '#howPanel' : '#boardPanel';
+  const sel = panel === 'menu' ? '#titleMenu' : panel === 'how' ? '#howPanel' : panel === 'dev' ? '#devPanel' : '#boardPanel';
   ui.title.querySelector(`${sel} button:not(.hidden)`)?.focus({ preventScroll: true });
 }
 
@@ -3832,7 +4122,7 @@ function continueNight() {
 }
 
 function nightScore() {
-  return computeScore({ wood: S.wood + S.shedWood, raw: S.meat, cooked: S.cooked - curedCount(), cured: curedCount(), blood: S.blood, salt: S.salt, fire: S.fire, shed: S.shed, companion: S.stranger === 'inside' && !S.strangerFalse, trusted: S.trusted, burned: S.rec.burned });
+  return computeScore({ wood: S.wood + S.shedWood, raw: S.meat, cooked: S.cooked - curedCount(), cured: curedCount(), blood: S.blood, salt: S.salt, fur: S.fur, fire: S.fire, shed: S.shed, blizzard: blizzard(), companion: S.stranger === 'inside' && !S.strangerFalse, trusted: S.trusted, burned: S.rec.burned });
 }
 
 function showEnding(won) {
@@ -3883,14 +4173,14 @@ function showEnding(won) {
   if (!won) {
     const d = DEATHS[S.cause] || DEATHS.dark;
     ui.endTitle.textContent = 'you died.';
-    ui.endText.textContent = `${d.text} You lasted until ${clockText(S.night)}${S.nightNo === 2 ? ' on the second night' : ''}.`;
+    ui.endText.textContent = `${typeof d.text === 'function' ? d.text() : d.text} You lasted until ${clockText(S.night)}${S.nightNo > 1 ? ` on night ${S.nightNo}` : ''}.`;
     ui.endHint.textContent = typeof d.hint === 'function' ? d.hint() : d.hint;
     ui.endHint.classList.remove('hidden');
-    if (S.nightNo === 2) {
-      // the first night still counts
+    if (S.nightNo > 1) {
+      // the nights you survived still count
       S.final = S.carry;
-      S.runNights = 1;
-      scoreRow('first night', '', S.carry);
+      S.runNights = S.nightNo - 1;
+      scoreRow(S.nightNo === 2 ? 'the first night' : `the first ${S.nightNo - 1} nights`, '', S.carry);
       scoreRow('score', '', S.carry, 'total');
       offerBoard();
     } else {
@@ -3904,27 +4194,29 @@ function showEnding(won) {
 
   ui.endHint.classList.add('hidden');
   const result = nightScore();
-  if (S.nightNo === 2) {
-    ui.endTitle.textContent = 'the second dawn.';
-    ui.endText.textContent = 'You survived two nights.' + (S.stranger === 'inside' && !S.strangerFalse ? ' She is still with you.' : '');
-    for (const [label, n, pts, items] of result.lines) scoreRow(label, n, pts, '', items);
-    scoreRow('first night', '', S.carry);
-    scoreRow('second dawn', '', 100);
-    S.final = result.total + S.carry + 100;
-    S.runNights = 2;
-    scoreRow('score', '', S.final, 'total');
-    offerBoard();
-  } else {
-    ui.endTitle.textContent = 'dawn.';
-    ui.endText.textContent = (S.stranger === 'inside' ? 'You made it through the night, and you were not alone.' : 'You made it through the night.') + ' Rest through the day and face a second night, or end here.';
-    for (const [label, n, pts, items] of result.lines) scoreRow(label, n, pts, '', items);
-    S.final = result.total;
-    S.runNights = 1;
-    scoreRow('score', '', S.final, 'total');
+  const n = S.nightNo;
+  const ORD = ['', 'first', 'second', 'third', 'fourth'];
+  ui.endTitle.textContent = n === 1 ? 'dawn.' : `the ${ORD[n]} dawn.`;
+  const company = S.stranger === 'inside' && !S.strangerFalse;
+  ui.endText.textContent = n === 1
+    ? (company ? 'You made it through the night, and you were not alone.' : 'You made it through the night.') + ' Rest through the day and face a second night, or end here.'
+    : `You survived ${n} nights${n >= 3 ? ', and the blizzard' : ''}.` + (company ? ' She is still with you.' : '') + (n < LAST_NIGHT ? ' Rest through the day and face another, or end here.' : '');
+  for (const [label, k, pts, items] of result.lines) scoreRow(label, k, pts, '', items);
+  S.final = result.total;
+  if (n > 1) {
+    scoreRow(n === 2 ? 'the first night' : `the first ${n - 1} nights`, '', S.carry);
+    scoreRow(`the ${ORD[n]} dawn`, '', 100);
+    S.final += S.carry + 100;
+  }
+  S.runNights = n;
+  scoreRow('score', '', S.final, 'total');
+  if (n < LAST_NIGHT) {
     renderBoard(ui.endBoard);
     ui.dayBtn.classList.remove('hidden');
     ui.endRunBtn.classList.remove('hidden');
     ui.dayBtn.focus({ preventScroll: true });
+  } else {
+    offerBoard();
   }
   ui.ending.classList.remove('hidden');
   save();
@@ -3932,7 +4224,7 @@ function showEnding(won) {
 
 // Put the run's score up for the board, if it earns a place.
 function offerBoard() {
-  const earns = !S.scored && qualifies(loadBoard(), S.final);
+  const earns = !S.scored && !S.dev && qualifies(loadBoard(), S.final);
   ui.initials.classList.toggle('hidden', !earns);
   renderBoard(ui.endBoard);
   if (!earns) S.scored = true;
@@ -3940,7 +4232,7 @@ function offerBoard() {
   else ui.retry.focus({ preventScroll: true });
 }
 
-// End after the first night and bank the score.
+// End after a night and bank the score.
 function endRun() {
   ui.dayBtn.classList.add('hidden');
   ui.endRunBtn.classList.add('hidden');
@@ -3986,7 +4278,7 @@ ui.slam.addEventListener('click', slamHatch);
 ui.douse.addEventListener('click', douse);
 ui.dayBtn.addEventListener('click', startDay);
 ui.endRunBtn.addEventListener('click', () => endRun());
-ui.dayNight.addEventListener('click', startNight2);
+ui.dayNight.addEventListener('click', startNextNight);
 $('runBack').addEventListener('click', runBack);
 $('buildClose').addEventListener('click', () => toggleBuild(false));
 $('journalBtn').addEventListener('click', () => toggleJournal());
@@ -4016,12 +4308,49 @@ function musicLevel() {
   if (mode === 'day') return 0.45;
   return 0;   // dawn, a death and the screens after are quiet
 }
-const musicTension = () => (mode === 'playing' && S.lit ? hour() / 8 + S.dread / 250 + (S.nightNo === 2 ? 0.15 : 0) : 0);
+const musicTension = () => (mode === 'playing' && S.lit ? hour() / 8 + S.dread / 250 + (S.nightNo - 1) * 0.12 : 0);
 $('newBtn').addEventListener('click', () => newNight());
 ui.cont.addEventListener('click', continueNight);
 $('boardBtn').addEventListener('click', () => showTitle('board'));
 $('howBtn').addEventListener('click', () => showTitle('how'));
 document.querySelectorAll('.backBtn').forEach((b) => b.addEventListener('click', () => showTitle('menu')));
+
+/* ---------------------------------------------------------------- playtest */
+
+// Open the game once with ?dev in the address and the title menu gets a playtest button (remembered after).
+let devMode = false;
+try {
+  if (new URLSearchParams(location.search).has('dev')) localStorage.setItem('firelight-dev', 'on');
+  devMode = localStorage.getItem('firelight-dev') === 'on';
+} catch (e) { devMode = new URLSearchParams(location.search).has('dev'); }
+
+// A basic kit for starting partway through: what a decent player might have by then.
+function devKit(night) {
+  Object.assign(S, {
+    dev: true, lit: true, fire: 3, wood: 18, blood: 6, salt: 3, hunger: 20,
+    boardsBuilt: true, boards: 3, glassBroken: true, lantern: true, lanternLit: true, lanternT: 60,
+    stranger: 'inside', strangerFalse: false, sHunger: 20, firstVisit: false, hint: HINTS.length,
+    carry: night === 2 ? 250 : 600, final: night === 2 ? 250 : 600, met: { woodcutter: true },
+  });
+  S.rawLife = [RAW_LIFE]; S.cookedLife = [COOKED_LIFE, COOKED_LIFE, CURED]; syncMeat();
+  S.trapUses = [makeTrap(), makeTrap()]; syncTraps();
+  if (night >= 3) Object.assign(S, { shed: true, shedBuilt: PILE_CAP, shedWood: 20, traps: 3, fur: 2, rack: true });
+  if (night >= 3) { S.trapUses.push(makeTrap()); syncTraps(); }
+}
+
+function devStart(which) {
+  const night = which.endsWith('3') ? 3 : 2;
+  newNight(true);
+  S.nightNo = night - 1;
+  S.won = true;
+  startDay();
+  devKit(night);   // after the day starts, so the kit's meat doesn't spoil over it
+  if (which.startsWith('night')) startNextNight();
+  else renderDay();
+}
+$('devBtn').addEventListener('click', () => showTitle('dev'));
+document.querySelectorAll('[data-dev]').forEach((b) => b.addEventListener('click', () => devStart(b.dataset.dev)));
+$('version').textContent = `v${VERSION}`;
 ui.retry.addEventListener('click', () => newNight(true));
 $('endTitleBtn').addEventListener('click', backToTitle);
 window.addEventListener('pointerdown', () => sfx.initAudio());
@@ -4125,10 +4454,11 @@ window.__firelight = {
   get dialog() { return dialog; },
   get pending() { return pendingVisit; },
   get eyes() { return eyes.length; },
-  day: { start: startDay, do: doDay, night: startNight2 },
+  day: { start: startDay, do: doDay, night: startNextNight },
   act: { douse, slam: slamHatch, stoke, eat, cook, wood: () => startTrip('wood'), strike: strikeHand, runBack, build },
   visit: (who, as, fake) => queueVisit(who, as, fake),
   die: (cause) => die(cause),
+  dev: (which) => devStart(which),
   get lossT() { return lossT; },
   choose,
   newNight: () => newNight(true),

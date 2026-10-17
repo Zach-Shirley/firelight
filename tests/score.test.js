@@ -20,6 +20,14 @@ test('people let in, burns and company each add up; keeping mimics out does not'
   assert.ok(!r.lines.some((l) => l[0].includes('mimic')));
 });
 
+test('fur counts, and a blizzard night multiplies what you held on to', () => {
+  const calm = computeScore({ wood: 10, fur: 2 });
+  assert.equal(calm.lines.at(-1)[2], 10 + 6);
+  const storm = computeScore({ wood: 10, fur: 2, blizzard: true });
+  assert.equal(storm.lines.at(-1)[2], 20);
+  assert.equal(storm.lines.at(-1)[3].at(-1)[0], 'through the blizzard');
+});
+
 test('missing values still give the dawn bonus', () => {
   assert.equal(computeScore({}).total, 100);
 });

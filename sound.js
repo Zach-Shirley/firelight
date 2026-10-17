@@ -743,3 +743,11 @@ export function setMusicEnabled(on) {
   musicOn = on;
   lastLevel = -1;
 }
+
+// Wet wood on the fire: a long hiss and a few low, damp pops.
+export function sputter() {
+  if (!ctx || !enabled) return;
+  noiseShape('highpass', [[0, 2600], [1.4, 1800]], [[0.05, 0.12], [0.8, 0.09], [1.5, 0.0001]], 1.6);
+  const t = ctx.currentTime;
+  for (let i = 0; i < 4; i++) thud(t + 0.15 + i * (0.18 + Math.random() * 0.2), 0.12);
+}

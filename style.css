@@ -542,3 +542,10 @@ body.touch #dayList button { min-height: calc(14px * var(--s)); }
 #endScore tr.sub td { color: var(--ink-dim); font-size: calc(5.5px * var(--s)); }
 #endScore tr.sub td:first-child { padding-left: calc(8px * var(--s)); }
 #endScore tr.hidden { display: none; }
+#version { position: absolute; right: calc(3px * var(--s)); bottom: calc(2px * var(--s)); font-size: calc(4.5px * var(--s)); color: rgba(200, 180, 150, 0.35); pointer-events: none; z-index: 50; }
+.dev-note { font-size: calc(5.5px * var(--s)); color: var(--ink-dim); max-width: 60ch; margin: 0 auto calc(4px * var(--s)); }
+#res .fur-item { display: none; }
+#res.has-fur .fur-item { display: inline-flex; }
+#cold { font-size: calc(6px * var(--s)); color: #8aa0b8; }
+#cold.warn { color: #a8c8e8; }
+#cold.bad { color: #e0f0ff; text-shadow: 0 0 calc(2px * var(--s)) #6aa0e0; animation: flicker 0.8s infinite; }

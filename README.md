@@ -2,7 +2,7 @@
 
 **Survive one night in a dark room. Keep the fire alive, eat, and be careful what you let in.**
 
-A short horror-survival game in chunky pixel art. One night lasts about seven minutes and gets worse every hour. Most first nights end in death; each death screen tells you what killed you and gives a hint. Only a night survived to dawn scores, mostly for how you got through it.
+A short horror-survival game in chunky pixel art. One night lasts about seven minutes and gets worse every hour; a run is up to three nights, the third in a blizzard. Most first nights end in death; each death screen tells you what killed you and gives a hint. Only a night survived to dawn scores, mostly for how you got through it.
 
 **Play:** https://firelight-topaz.vercel.app (desktop browser with keyboard or mouse, or a phone held sideways)
 
@@ -18,10 +18,10 @@ A short horror-survival game in chunky pixel art. One night lasts about seven mi
 | N | Music on or off |
 | C | Cook up to 3 raw meat. It finishes on its own in about 6 s, as long as the fire is lit |
 | G | Go out for wood (short trip) |
-| F / Space | Burn her claws (1 wood, needs a fire), or slam the cellar hatch on night 2 |
+| F / Space | Burn her claws (1 wood, needs a fire), or slam the cellar hatch from night 2 |
 | R | Run back from a trip |
 | B | Build |
-| 1–4 | Dialogue choices |
+| 1–9 | Dialogue choices |
 | J | Journal (everything you've heard tonight) |
 | M | Sound (also on the title screen; the game goes silent while the tab is in the background) |
 | Esc | Menu, which pauses |
@@ -38,21 +38,22 @@ Every threat has a tell and a counter. Threats arrive as the night goes on.
 | midnight | **The mimic** | Real visitors' **footsteps crunch through the snow before they knock**. The mimic just knocks, word for word in the voice of someone you'd open for. There is only one stranger | Keep the door shut when nothing walked up | You opened the door. It was not a person |
 | 1 am | **Her, at the window** | She rises into the window from below the sill: a gaunt black figure backlit in red, with one huge pale eye, an empty socket, a hanging jaw and wet hair. On her first visit the glass always explodes inward, boarded or not, and from then on wind and snow blow in; through a bare frame the fire burns down faster | Board the window beforehand. Her eye watches through a gap while her hand hooks a board and pulls, to a rhythm of thuds. Burn the hand and she snatches it back, smoking. If she outlasts you, she tears the board off, reaches a long jointed arm all the way to your wood pile and drags logs out | Bare window: she climbs in on long spider-jointed arms, even while you're out. You can still nail boards up in the last seconds |
 | any time | **The fire itself** | The wood pile leans toward the fire when it's over 25 logs | Keep the pile at or under 25, or build a woodshed. If it topples, logs crash into the fire and it roars toward the roof: **douse it with 2 blood** in time | The cabin burns down |
-| 3 am | **The walkers** | Some mimics have learned to fake footsteps. Nothing in the text or sound gives them away | A lit **blood lantern** shows a shadow of feet under the door, or nothing | You opened the door |
+| 3 am | **The walkers** | Some mimics have learned to fake footsteps. Nothing in the text or sound gives them away | A lit **blood lantern** shows the shadows of feet under the door. **People stand on two feet. A mimic gets it wrong: one foot, or three.** The words are the same either way, so count | You opened the door |
+| night 3 | **The cold** | The blizzard. A cold meter beside hunger (warm, chilled, cold, freezing); at "freezing" a white-blue frost border closes in | Outside you chill fast: one trip costs about half the meter, two in a row can kill you. A strong fire warms you back up (a roaring fire about 4 points a second; a smoldering one barely holds you). A broken, bare window lets the cold in | You freeze |
 
 **The door never opens by itself.** Every knock asks you: open it, or keep it shut. Opening for the right people matters:
 - **The stranger** knocks first. Let her in and she teaches you the rules. She hasn't eaten in days, so she needs cooked meat once: she begs three times, and **the third plea is the one that counts**. Feed her earlier and she'll be starving again before dawn. Feed her raw meat and it kills her. If she starves, something starts moving under her skin. Drag her body out into the snow, which is a risky trip, and the smell keeps the hunter close for the rest of the night. Or leave her, and it gets up. Turn her away at the start and none of this happens. You can always tell her to leave when she asks for food.
 - **Some nights she isn't the stranger** (about 1 in 8 of the nights you let her in). The tells: her eyes catch the firelight red; she sits too still and never shivers; she never warns you of anything; and she doesn't ask, she demands ("Feed me."). She eats raw meat and smiles. Feeding her holds her off, but the demands come faster and angrier toward dawn. Refuse her twice and she kills you. Keep her until first light and she stops pretending. The only way out is to tell her to leave.
-- **A hungry kid** asks for meat and comes back later with meat and blood.
-- **A woodcutter** trades meat for wood.
-- **A lost traveler** leaves a few logs.
-- **A fleeing man** (from midnight) pounds on the door. Let him in and he leaves you meat and blood. Leave him out and you hear him die; then whatever caught him sniffs at your door, dread jumps, and she comes for the window sooner.
+- **The woodcutter** (from 11 pm, up to three times a night) trades: meat for 7 wood, or wood for cooked meat. On the blizzard night his wood is dry.
+- **The trader** comes some nights, once, from midnight (see below).
 
-Each real person you let in is worth 10 points at dawn.
+That's everyone. Knocks are rare, and nobody but the stranger stays: most knocks late in the night are mimics. Each real person you let in is worth 10 points at dawn.
+
+**Familiar voices.** The mimic copies whoever you'd open for, word for word, even how they greet you once you've let them in before ("It's me. The woodcutter."). From night 2 it knows the trader's voice too.
 
 **Knocks while you're out** wait at the door. You can't hear footsteps from the trees, so when you come back the snow tells you: fresh footprints leading up to the door, or none.
 
-The mimic can wear any of their voices. Keep the door shut on a real visitor and you hear their footsteps leave. Keep it shut on the mimic and the knocking stops, but no footsteps leave.
+Keep the door shut on a real visitor and you hear their footsteps leave. Keep it shut on the mimic and the knocking stops, but no footsteps leave.
 
 | | |
 | --- | --- |
@@ -61,22 +62,24 @@ The mimic can wear any of their voices. Keep the door shut on a real visitor and
 | ![The stranger, starving](docs/plea.jpg) | ![The grin beneath its eyes, while you're out](docs/away.jpg) |
 | ![The false stranger, demanding food](docs/false-stranger.jpg) | |
 
-## Day 2: the second night
+## The day, and nights 2 and 3
 
-Make it to dawn and you choose: **end here** and bank your score, or **rest through the day** and face a second night. Two-night runs score far more, and the leaderboard marks them with ☀☀.
+Make it to dawn and you choose: **end here** and bank your score, or **rest through the day** and face the next night. A run is up to three nights. Longer runs score far more, and the leaderboard marks them with one ☀ per night.
 
-**The day** is a planning screen over the daylit room. You have 8 hours of daylight, and every choice costs some:
+**The day** is a planning screen over the daylit room. It runs from 6 am to 10 pm: 16 hours, and every choice costs some. Each button shows what time it'll be when you're done.
 
 | Action | Hours | What it gives |
 | --- | --- | --- |
 | Chop wood | 2 | 9–12 wood |
 | Hunt in daylight | 2 | Safe meat, sometimes blood |
-| Check the traps | 1 | Two catches per trap |
+| Check the traps | 1 | Two catches per trap (from night 2, sometimes fur) |
 | Scavenge the empty village | 3 | **Salt**, sometimes blood, sometimes a jar of **nails** (each board holds through one extra pull). The village tells its own story: barred doors, torn boards, tally marks that stop at two |
 | Repair or board the window | 2 | Back to three boards. The glass is gone for good, so the wind is in from the start |
 | Bury her | 2 | Only if you dragged the stranger's body out; it stops drawing the hunter |
 | Sit with the stranger | 1 | Only if she's alive; she gives you salt and warns you about the floor |
-| Sleep | 3 | Skip it and you start night 2 **tired**: slower hands, slower trips, and now and then your eyes close and the screen goes black for a moment |
+| Sleep | 6 | Skip it and you start the night **tired**: slower hands, slower trips, and now and then your eyes close and the screen goes black for a moment |
+
+The day also dries every wet log and spoils any meat that isn't cured. The day screen warns you what the next night brings.
 
 **Night 2** keeps what you have and what is broken: resources, traps, the lantern, the boards, the broken window, and the stranger alive, gone or buried. Everything that hunts you behaves as if it were **two hours later**: the thing in the trees and the knocking start as soon as it's dark, she comes to the window from 11 pm, the walkers from 1 am, the fire burns faster and the mimic knocks more often. The day screen and the start of night 2 both warn you.
 
@@ -84,6 +87,17 @@ Make it to dawn and you choose: **end here** and bank your score, or **rest thro
 | --- | --- |
 | **Salt** | *Salt the doorway* (2 salt): the next thing you open the door to that isn't a person can't cross; the line breaks instead of you. *Salt the sill* (2 salt): the next time she would get through the window, she recoils |
 | **The thing under the floor** | There is a cellar hatch in the room. The floorboards creak and dust puffs up, then the lid lifts and pale fingers curl out, with eyes in the gap. **Slam the hatch** (F/Space), or weigh it down with 6 logs, which holds it twice before they tumble off. Miss it and it drags all your meat down; the third time, it comes up. While you're out, nobody is there to slam it |
+| **Fur** | From night 2, traps now and then catch a pelt. Fur makes a coat or insulation, or keep it: 3 points each at dawn |
+
+**Night 3 is the blizzard.** Everything still comes two hours early, and:
+
+| | |
+| --- | --- |
+| **The cold** | See *What can kill you*. You can't chain trips any more: go out, come back, warm up by a big fire, then go again |
+| **Trips take half again as long** | Wood runs, building the shed, everything outside. The four-second grin doesn't change, so you're exposed longer. Now and then (about 1 trip in 25) you **lose the path for a moment** in the white: a gust, a thump, and a couple of extra seconds out there |
+| **Wet wood** | Everything you bring in is wet (the woodcutter's isn't). Wet logs show dark and frosted on top of the pile, and the count reads e.g. "18/25 · 6 wet". They dry in about 40 seconds in the house. Stoking uses dry wood first; with only wet logs left the fire takes it but burns half as long, hisses and pops, and smoke collects under the roof and drifts over the top of the window. The smoke is only for show |
+| **She is quicker in the cold** | Her pull on a board is about 30% faster, so there's less time to burn her back |
+| **The stranger** | She knows this weather. (Her story comes in a later version) |
 
 ![The day](docs/day.jpg)
 ![Something under the floor](docs/hatch.jpg)
@@ -99,12 +113,15 @@ Everything you build costs something you could have kept.
 | Blood lantern | 8 wood + 4 blood | Red light under the door shows whether anything is actually standing there. That's the only way to catch the walkers after 3 am. It burns a jar of blood every minute, and goes dark when you run out |
 | **Woodshed** | 25 logs, 1 s outside each | A shed against the outside wall that holds 100 more logs. **You build it a bit at a time**: each trip carries out the wood you have and builds it in log by log, and you can run back any time without losing what's built. That's also how you spend a pile that's getting too tall. Once it stands, a little shed with an open door appears on the right of the screen, and wood moves on its own: extra logs go into the shed, and the pile restocks from it whenever it runs low |
 | Cure meat | 1 salt | Rubs salt into 2 cooked meat so it never goes bad |
+| **Drying rack** | 12 wood | Beside the fire. Dries wet wood three times faster (eight logs at a time), and **smokes cooked meat** so it never goes bad, one piece every 20 seconds while the fire burns. Smoked meat counts as cured. It keeps your salt free for the salt lines |
+| Fur coat | 4 fur | You get cold outside a third more slowly |
+| Insulate the walls | 6 fur | The house loses heat more slowly and the fire warms you a little faster. (Six fur is also 18 points at dawn; whether insulation is worth it is up to you) |
 | Salt the doorway / the sill | 2 salt each | One use each; see night 2 |
 | Weigh down the hatch (night 2) | 6 wood | Holds the hatch shut through two pushes |
 
 ## The trader
 
-Once a night, from midnight, slow footsteps and a clink: a tall man in a long gray coat and a wide hat. Let him in and **he opens the coat**. His goods hang on hooks in the lining, more than should fit.
+Some nights (about 3 in 5), once, from midnight: slow footsteps and a clink, and a tall man in a long gray coat and a wide hat. Let him in and **he opens the coat**. His goods hang on hooks in the lining, more than should fit.
 
 | Item | Price | What it does |
 | --- | --- | --- |
@@ -112,6 +129,8 @@ Once a night, from midnight, slow footsteps and a clink: a tall man in a long gr
 | Snowshoes | 2 blood + 2 cooked meat | Every trip is 30% faster |
 | Bone spear | 3 blood | If the thing in the trees catches you, you get away. Once |
 | Salt | 1 blood | 3 salt, for curing meat (and salt lines on night 2) |
+| **Iron stove** (from night 2) | 5 blood + 2 cooked meat | Your fire in an iron box with a pipe through the roof. Cooks in 4 s instead of 6, warms you 30% more and burns 25% longer, **but throws less light**, so the eyes come closer sooner. Replaces the grate |
+| **Bone charm** | 3 blood + 2 cooked meat | For the rest of the night the grin takes **seven seconds** instead of four: enough to finish a normal wood trip after it gets close, not a blizzard trip. It crumbles at dawn |
 
 ![The trader](docs/trader.jpg)
 
@@ -125,7 +144,8 @@ Only a night survived to dawn scores: for making it, how you lived through it, a
 | Each real person you let in | 10 |
 | Each time you burned her back | 5 |
 | The stranger still with you | 25 |
-| What you held on to | 1 per log (pile and shed), 1 per raw meat, 3 per cooked meat, **5 per cured meat**, **4 per blood**, 2 per salt, 5 per level of fire, and **40 for a woodshed** |
+| What you held on to | 1 per log (pile and shed), 1 per raw meat, 3 per cooked meat, **5 per cured or smoked meat**, **4 per blood**, 2 per salt, 3 per fur, 5 per level of fire, and **40 for a woodshed**. After a blizzard night, **×1.25** |
+| Each dawn after the first | +100, on top of the nights before |
 
 The resource bar uses small pixel icons: a log end (with the pile's 25-log limit), then the meat in three counts, **cured** (dark and salt-flecked, which never goes bad; shown once you have some), **cooked** (which goes bad in a few minutes and over the day) and **raw**, then salt and a vial of blood. Hover an icon for its name. The room shows what you're keeping too: elk haunches hang from a meat rack (raw dark red and marbled, cooked seared brown, cured dark and salt-flecked, gray-green when about to turn), and below it a shelf holds corked vials of blood and a crock of salt.
 
@@ -142,6 +162,7 @@ Every death has its own few seconds before the red screen:
 | The stranger, risen | Her body gets up in jerks, sitting, then standing, then taller than she was, and walks toward you |
 | The thing under the floor | The hatch is thrown open, pale arms come up out of it and across the floor, and you're pulled down into the hole |
 | The false stranger | In the dawn light her shadow climbs the wall, far too tall, red-eyed, its arms spreading across the ceiling, and bends down over you as the light goes out |
+| The cold | A white glaze creeps in from the edges and frost ferns grow over it, your breath shows slower and fainter each time, and the fire seems to shrink away |
 
 Every ending, death or dawn, shows a **recap of your night**: people let in, mimics kept out, times you burned her back, trips, meat cooked, how hungry you got and your **closest call**: the nearest you came to any of the threats you survived, such as the grin 92% full, burning her back with 0.4 s to spare, the dark 88% of the way in, slamming the hatch at the last moment or putting out the blaze with a second left. Whatever actually killed you doesn't count as a close call. It also shows an **all-time tally**, for example "14 nights · 2 dawns · killed by: the mimic 6, her, at the window 3, hunger 2". The tally also appears under best nights on the title screen. The simulation's automated nights don't count toward it.
 
@@ -292,12 +313,20 @@ Checked on 2026-10-16:
 
 The background music is generated in the browser like the rest of the sound: a low, slowly breathing drone under a warped music box picking out a minor-key lullaby one note at a time, never quite in tune. As the night goes on, and as the dark closes in, a sour note creeps into the drone and the music box plays faster, with notes that clash. It's quieter during the day, and silent at dawn and when you die. **N** or the music button turns it off (remembered per browser).
 
+## Playtesting
+
+Open the game once with `?dev` on the address (https://firelight-topaz.vercel.app/?dev) and the title menu gets a **playtest** button, remembered in that browser. It starts you at the day before night 2 or 3, or straight into night 2 or 3, with a basic kit: boarded window, two traps (three on night 3), the lantern, the stranger, some food and wood, and on night 3 a woodshed and the drying rack. Playtest runs don't count toward the stats or the leaderboard.
+
+The version is in the bottom-right corner (v0.22 is the 22nd commit), so you can tell a refresh picked up the latest build.
+
 ## Future ideas
 
-A possible longer run, noted for later and very much subject to change:
-- **Nights 1 and 2:** as they are.
-- **Nights 3 and 4:** a blizzard, which is where the cold mechanic would come back.
+Noted for later and very much subject to change:
+- **Night 4:** the blizzard again, with a new monster (concepts in `docs/spec-next-pass.md`), mimics that stand on two feet, and a slot in the door to see a visitor's face. A smoker for the stove.
 - **Night 5:** a blood moon.
+- **The stranger's story** and its endings.
+- **The day overhaul:** trips that make sense in hours, a village worth exploring.
+- **Achievements.**
 
 ## Known limits
 
