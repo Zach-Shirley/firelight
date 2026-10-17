@@ -6,7 +6,7 @@ import * as sfx from './sound.js';
 import { ACHIEVEMENTS, createStore } from './achievements.js';
 import { computeScore, qualifies, insertScore, cleanInitials, sanitizeBoard } from './score.js';
 
-const VERSION = '0.33';   // one step per commit to the repository
+const VERSION = '0.34';   // one step per commit to the repository
 const W = 320, H = 180;
 const FIRE = { x: 160, y: 136 };          // base of the flames
 const LIGHT_Y = 130;                       // centre of the light pool
@@ -2101,7 +2101,8 @@ function toggleBuild(force) {
 // build something there right now; click it for a card with what it is, what it does and what it costs.
 const SPOTS = [
   { id: 'window', x: 61, y: 29, builds: ['boards', 'saltWin'] },
-  { id: 'door', x: 274, y: 44, builds: ['saltDoor', 'trap', 'saltTrap'] },
+  { id: 'door', x: 274, y: 44, builds: ['saltDoor'] },
+  { id: 'traps', x: 244, y: 100, builds: ['trap', 'saltTrap'] },   // on the traps by the door
   { id: 'lantern', x: 240, y: 52, builds: ['lantern'] },
   { id: 'hatch', x: 220, y: 109, builds: ['bar', 'saltHatch'] },
   { id: 'fire', x: 136, y: 94, builds: ['rack'] },
