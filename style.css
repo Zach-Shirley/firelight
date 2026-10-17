@@ -602,3 +602,31 @@ body.touch #dayList button { min-height: calc(14px * var(--s)); }
 #stage.dlg #message { opacity: 0; }
 #day .day-panel { width: calc(236px * var(--s)); }
 #day .day-warn { font-size: calc(5.5px * var(--s)); line-height: 1.05; }
+
+/* ---- building in place: an ember over each spot you could build at, and a card for it */
+#spots { position: absolute; inset: 0; pointer-events: none; }
+#stage:not([data-mode="playing"]) #spots, #stage:not([data-mode="playing"]) #spotCard { display: none; }
+.spot {
+  position: absolute; pointer-events: auto;
+  width: calc(5px * var(--s)); height: calc(5px * var(--s)); margin: calc(-2.5px * var(--s)) 0 0 calc(-2.5px * var(--s));
+  padding: 0; border: none; border-radius: 50%;
+  background: radial-gradient(circle, #ffd890 0 30%, #ff9a2e 45%, rgba(232, 85, 28, 0.35) 70%, rgba(232, 85, 28, 0) 100%);
+  box-shadow: 0 0 calc(3px * var(--s)) rgba(255, 140, 40, 0.55);
+  animation: ember 1.8s ease-in-out infinite;
+}
+.spot::after { content: ''; position: absolute; inset: calc(-4px * var(--s)); }   /* a bigger target to tap */
+.spot:hover { box-shadow: 0 0 calc(5px * var(--s)) rgba(255, 170, 60, 0.9); }
+@keyframes ember { 0%, 100% { opacity: 0.55; transform: scale(0.85); } 50% { opacity: 1; transform: scale(1); } }
+#spotCard {
+  position: absolute; z-index: 40; width: calc(110px * var(--s));
+  max-height: calc(120px * var(--s)); overflow-y: auto; scrollbar-width: thin; scrollbar-color: #5a3a22 transparent;
+  padding: calc(3px * var(--s)) calc(4px * var(--s));
+  background: var(--panel-solid); border: calc(1px * var(--s)) solid var(--edge); border-radius: calc(2px * var(--s));
+  box-shadow: 0 0 calc(8px * var(--s)) rgba(0, 0, 0, 0.8);
+}
+#spotCard .opt + .opt { border-top: calc(0.5px * var(--s)) solid #2e1f14; margin-top: calc(2px * var(--s)); padding-top: calc(2px * var(--s)); }
+#spotCard .row { display: flex; justify-content: space-between; align-items: center; gap: calc(3px * var(--s)); }
+#spotCard .name { font-size: calc(6.5px * var(--s)); color: #ffcf6a; }
+#spotCard button { font-size: calc(6px * var(--s)); padding: 0 calc(4px * var(--s)); }
+#spotCard .desc { font-size: calc(5px * var(--s)); color: var(--ink-dim); line-height: 1.05; margin-top: calc(1px * var(--s)); }
+#spotCard .cost { font-size: calc(5.5px * var(--s)); color: var(--ember); }

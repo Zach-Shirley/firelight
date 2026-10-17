@@ -6,7 +6,7 @@ import * as sfx from './sound.js';
 import { ACHIEVEMENTS, createStore } from './achievements.js';
 import { computeScore, qualifies, insertScore, cleanInitials, sanitizeBoard } from './score.js';
 
-const VERSION = '0.26';   // one step per commit to the repository
+const VERSION = '0.27';   // one step per commit to the repository
 const W = 320, H = 180;
 const FIRE = { x: 160, y: 136 };          // base of the flames
 const LIGHT_Y = 130;                       // centre of the light pool
@@ -50,7 +50,7 @@ const ui = {
   journal: $('journal'), journalList: $('journalList'),
   buildPanel: $('build'), buildList: $('buildList'),
   sound: $('soundBtn'),
-  toast: $('toast'), achPanel: $('achPanel'), achList: $('achList'), achCount: $('achCount'),
+  toast: $('toast'), spots: $('spots'), spotCard: $('spotCard'), achPanel: $('achPanel'), achList: $('achList'), achCount: $('achCount'),
   title: $('title'), titleMenu: $('titleMenu'), howPanel: $('howPanel'), boardPanel: $('boardPanel'), devPanel: $('devPanel'), dayWarn: $('dayWarn'),
   boardList: $('boardList'), cont: $('contBtn'),
   ending: $('ending'), endTitle: $('endTitle'), endText: $('endText'), endHint: $('endHint'), endScore: $('endScore'),
@@ -1895,9 +1895,79 @@ function renderBuild() {
 
 function toggleBuild(force) {
   if (force !== false && (!S.lit || mode !== 'playing' || S.away)) return;
+  if (force !== false) closeSpot();
   const open = force ?? ui.buildPanel.classList.contains('hidden');
   ui.buildPanel.classList.toggle('hidden', !open);
   if (open) { ui.journal.classList.add('hidden'); renderBuild(); }
+}
+
+/* ------------------------------------------------------- building in place */
+
+// Each spot in the room where something can be built. A small amber ember shows over it whenever you could
+// build something there right now; click it for a card with what it is, what it does and what it costs.
+const SPOTS = [
+  { id: 'window', x: 61, y: 29, builds: ['boards', 'saltWin'] },
+  { id: 'door', x: 274, y: 44, builds: ['saltDoor', 'trap'] },
+  { id: 'lantern', x: 240, y: 52, builds: ['lantern'] },
+  { id: 'hatch', x: 220, y: 109, builds: ['bar'] },
+  { id: 'fire', x: 136, y: 94, builds: ['rack'] },
+  { id: 'meat', x: 207, y: 34, builds: ['cure'] },
+  { id: 'shed', x: 307, y: 72, builds: ['shed'] },
+  { id: 'bedroll', x: 252, y: 121, builds: ['coat'] },
+  { id: 'walls', x: 22, y: 64, builds: ['insulate'] },
+];
+const buildable = (b) => b.show() && canAfford(b.cost()) && (!b.ok || b.ok());
+const spotBuilds = (spot) => spot.builds.map((id) => BUILDS.find((b) => b.id === id)).filter((b) => b && b.show());
+let openSpot = null;
+let spotKey = '';
+
+function syncSpots() {
+  const live = mode === 'playing' && S.lit && !S.away && !dialog;
+  const on = live ? SPOTS.filter((sp) => spotBuilds(sp).some(buildable)).map((sp) => sp.id) : [];
+  const key = on.join(',');
+  if (key !== spotKey) {
+    spotKey = key;
+    for (const b of ui.spots.children) b.classList.toggle('hidden', !on.includes(b.dataset.spot));
+  }
+  if (openSpot && (!live || !on.includes(openSpot))) closeSpot();
+}
+
+function openSpotCard(id) {
+  const spot = SPOTS.find((sp) => sp.id === id);
+  if (!spot || !canAct()) return;
+  openSpot = id;
+  toggleBuild(false);
+  toggleJournal(false);
+  renderSpotCard();
+  // beside the spot, kept inside the stage
+  const left = clamp(spot.x - 55, 4, W - 114), above = spot.y > 90;
+  ui.spotCard.style.left = `${(left / W) * 100}%`;
+  ui.spotCard.style.top = above ? '' : `${((spot.y + 6) / H) * 100}%`;
+  ui.spotCard.style.bottom = above ? `${((H - spot.y + 6) / H) * 100}%` : '';
+  ui.spotCard.classList.remove('hidden');
+}
+
+function renderSpotCard() {
+  const spot = SPOTS.find((sp) => sp.id === openSpot);
+  ui.spotCard.innerHTML = '';
+  for (const b of spotBuilds(spot)) {
+    const cost = b.cost();
+    const div = document.createElement('div');
+    div.className = 'opt';
+    div.innerHTML = '<div class="row"><span class="name"></span><button>build</button></div><div class="desc"></div><div class="cost"></div>';
+    div.querySelector('.name').textContent = typeof b.name === 'function' ? b.name() : b.name;
+    div.querySelector('.desc').textContent = typeof b.desc === 'function' ? b.desc() : b.desc;
+    div.querySelector('.cost').textContent = b.costText || costText(cost);
+    const btn = div.querySelector('button');
+    btn.disabled = !buildable(b);
+    btn.addEventListener('click', () => { build(b.id); closeSpot(); });
+    ui.spotCard.appendChild(div);
+  }
+}
+
+function closeSpot() {
+  openSpot = null;
+  ui.spotCard.classList.add('hidden');
 }
 
 /* --------------------------------------------------------------- dialogue */
@@ -4269,6 +4339,7 @@ function syncUI() {
   $('cold').className = S.cold >= 85 ? 'bad' : S.cold >= 60 ? 'warn' : '';
 
   stage.classList.toggle('dlg', !!dialog);   // the log line hides behind an open dialogue
+  syncSpots();
   const present = canAct();
   ui.stoke.querySelector('.label').textContent = S.fire === 0 ? (S.lit ? 'relight fire' : 'light fire') : 'stoke fire';
   ui.stoke.disabled = !present || S.cd.stoke > 0 || S.wood < 1;
@@ -4626,6 +4697,17 @@ light.addEventListener('pointerdown', (e) => {
 $('achBtn').addEventListener('click', () => showTitle('ach'));
 document.querySelectorAll('[data-dev]').forEach((b) => b.addEventListener('click', () => devStart(b.dataset.dev)));
 $('version').textContent = `v${VERSION}`;
+for (const sp of SPOTS) {
+  const b = document.createElement('button');
+  b.className = 'spot hidden';
+  b.dataset.spot = sp.id;
+  b.title = 'build';
+  b.style.left = `${(sp.x / W) * 100}%`;
+  b.style.top = `${(sp.y / H) * 100}%`;
+  b.addEventListener('click', (e) => { e.stopPropagation(); if (openSpot === sp.id) closeSpot(); else openSpotCard(sp.id); });
+  ui.spots.appendChild(b);
+}
+document.addEventListener('pointerdown', (e) => { if (openSpot && !ui.spotCard.contains(e.target) && !e.target.classList.contains('spot')) closeSpot(); });
 ui.retry.addEventListener('click', () => newNight(true));
 $('endTitleBtn').addEventListener('click', backToTitle);
 window.addEventListener('pointerdown', () => sfx.initAudio());
@@ -4644,7 +4726,8 @@ window.addEventListener('keydown', (e) => {
   if (mode === 'day') return;
   if (mode !== 'playing') { if (dialog && k === '1') choose(0); return; }
   const panelOpen = !ui.journal.classList.contains('hidden') || !ui.buildPanel.classList.contains('hidden');
-  if (k === 'escape' && panelOpen) { toggleJournal(false); toggleBuild(false); }
+  if (k === 'escape' && openSpot) closeSpot();
+  else if (k === 'escape' && panelOpen) { toggleJournal(false); toggleBuild(false); }
   else if (k === 'escape' || k === 'p') { save(); showTitle('menu'); }
   else if (k === 'j') toggleJournal();
   else if (k === 'm') ui.sound.click();

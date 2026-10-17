@@ -104,7 +104,18 @@ The day also dries every wet log and spoils any meat that isn't cured. The day s
 
 ## Building
 
-Everything you build costs something you could have kept.
+Everything you build costs something you could have kept. **Build in the room itself:** a small amber ember glows over each spot where you could build something right now:
+- the window: boards, salt the sill;
+- the door: salt the doorway, traps;
+- the lantern hook;
+- the hatch;
+- beside the fire: the drying rack;
+- the meat rack: cure;
+- the right wall: the woodshed;
+- the bedroll: the fur coat;
+- the walls: insulation.
+
+Click an ember for a card with what it does and what it costs. The **build** button (B) still lists everything.
 
 | Build | Cost | What it does |
 | --- | --- | --- |
@@ -337,7 +348,7 @@ They're stored in this browser for now (`achievements.js`). Each unlock keeps it
 
 Open the game once with `?dev` on the address (https://firelight-topaz.vercel.app/?dev) and the title menu gets a **playtest** button, remembered in that browser. It starts you at the day before night 2 or 3, or straight into night 2 or 3, with a basic kit: boarded window, two traps (three on night 3), the lantern, the stranger, some food and wood, and on night 3 a woodshed and the drying rack. Playtest runs don't count toward the stats or the leaderboard.
 
-The version is in the bottom-right corner (v0.26 is the 26th commit), so you can tell a refresh picked up the latest build.
+The version is in the bottom-right corner (v0.27 is the 27th commit), so you can tell a refresh picked up the latest build.
 
 ## Future ideas
 
