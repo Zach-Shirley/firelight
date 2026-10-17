@@ -109,7 +109,7 @@ Everything you build costs something you could have kept.
 | Build | Cost | What it does |
 | --- | --- | --- |
 | Window boards | 8 wood | Three boards. Without them, her first visit at 1 am kills you. Repair one for 3 wood |
-| Trap (up to 3) | 6 wood each | The only way to get meat at night (there's no hunting after dark). Raw meat and blood, collected on every trip. **Each wears out** after a few catches, and sometimes something tears one apart: an iron snap and a rattle of chain, and you drag the mangled trap back inside the door. The smell keeps the thing in the trees close for longer |
+| Trap (up to 3) | 6 wood each | The only way to get meat at night (there's no hunting after dark). Raw meat and blood, collected on every trip. **Each wears out** after a few catches, and sometimes something tears one apart: a heavy iron clank and the chain dragging, and you bring the mangled bear trap back inside the door. The smell keeps the thing in the trees close for longer |
 | Blood lantern | 8 wood + 4 blood | Red light under the door shows whether anything is actually standing there. That's the only way to catch the walkers after 3 am. It burns a jar of blood every minute, and goes dark when you run out |
 | **Woodshed** | 25 logs, 1 s outside each | A shed against the outside wall that holds 100 more logs. **You build it a bit at a time**: each trip carries out the wood you have and builds it in log by log, and you can run back any time without losing what's built. That's also how you spend a pile that's getting too tall. Once it stands, a little shed with an open door appears on the right of the screen, and wood moves on its own: extra logs go into the shed, and the pile restocks from it whenever it runs low |
 | Cure meat | 1 salt | Rubs salt into 2 cooked meat so it never goes bad |
@@ -337,7 +337,7 @@ They're stored in this browser for now (`achievements.js`). Each unlock keeps it
 
 Open the game once with `?dev` on the address (https://firelight-topaz.vercel.app/?dev) and the title menu gets a **playtest** button, remembered in that browser. It starts you at the day before night 2 or 3, or straight into night 2 or 3, with a basic kit: boarded window, two traps (three on night 3), the lantern, the stranger, some food and wood, and on night 3 a woodshed and the drying rack. Playtest runs don't count toward the stats or the leaderboard.
 
-The version is in the bottom-right corner (v0.23 is the 23rd commit), so you can tell a refresh picked up the latest build.
+The version is in the bottom-right corner (v0.24 is the 24th commit), so you can tell a refresh picked up the latest build.
 
 ## Future ideas
 

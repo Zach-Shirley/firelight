@@ -555,32 +555,34 @@ export function creak() {
 export function trapSnap() {
   if (!ctx || !enabled) return;
   const t = ctx.currentTime + 0.05;
-  thud(t, 0.7);   // the jaws slamming shut on nothing
-  [620, 930, 470, 1240].forEach((f, i) => {   // then iron ringing as it breaks apart
+  // a bear trap tearing apart: a heavy iron clank, a dull ring that dies fast, then the chain dragging
+  thud(t, 0.9);
+  noiseShape('bandpass', [[0, 1700], [0.25, 900]], [[0.004, 0.55], [0.12, 0.08], [0.3, 0.0001]], 0.35, 4);
+  [[180, 0.07], [413, 0.05], [727, 0.035]].forEach(([f, v]) => {   // inharmonic partials: struck iron, not a bell
     const o = ctx.createOscillator();
     const g = ctx.createGain();
-    o.type = 'square';
-    o.frequency.value = f * (0.97 + Math.random() * 0.06);
-    const at = t + 0.02 + i * 0.07;
-    g.gain.setValueAtTime(0.0001, at);
-    g.gain.exponentialRampToValueAtTime(0.09, at + 0.004);
-    g.gain.exponentialRampToValueAtTime(0.0001, at + 0.35);
+    o.type = 'triangle';
+    o.frequency.value = f * (0.96 + Math.random() * 0.08);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(v, t + 0.005);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.25);
     o.connect(g).connect(master);
-    o.start(at);
-    o.stop(at + 0.4);
+    o.start(t);
+    o.stop(t + 0.3);
   });
-  const src = ctx.createBufferSource();   // and a rattle of chain
+  thud(t + 0.16, 0.4);   // the broken jaw hitting the ground
+  const src = ctx.createBufferSource();
   src.buffer = noiseBuf;
   const bp = ctx.createBiquadFilter();
   bp.type = 'bandpass';
-  bp.frequency.value = 2400;
-  bp.Q.value = 3;
+  bp.frequency.value = 1300;
+  bp.Q.value = 2;
   const g = ctx.createGain();
-  g.gain.setValueAtTime(0.0001, t);
-  for (let i = 0; i < 6; i++) { g.gain.linearRampToValueAtTime(0.25, t + 0.1 + i * 0.07); g.gain.linearRampToValueAtTime(0.02, t + 0.13 + i * 0.07); }
-  g.gain.linearRampToValueAtTime(0.0001, t + 0.6);
+  g.gain.setValueAtTime(0.0001, t + 0.25);
+  for (let i = 0; i < 5; i++) { g.gain.linearRampToValueAtTime(0.14, t + 0.3 + i * 0.09); g.gain.linearRampToValueAtTime(0.02, t + 0.34 + i * 0.09); }
+  g.gain.linearRampToValueAtTime(0.0001, t + 0.85);
   src.connect(bp).connect(g).connect(master);
-  src.start(t, 0, 0.7);
+  src.start(t + 0.25, 0, 0.7);
 }
 
 // Filtered noise with a gain envelope: shared by the death sounds below.

@@ -6,7 +6,7 @@ import * as sfx from './sound.js';
 import { ACHIEVEMENTS, createStore } from './achievements.js';
 import { computeScore, qualifies, insertScore, cleanInitials, sanitizeBoard } from './score.js';
 
-const VERSION = '0.23';   // one step per commit to the repository
+const VERSION = '0.24';   // one step per commit to the repository
 const W = 320, H = 180;
 const FIRE = { x: 160, y: 136 };          // base of the flames
 const LIGHT_Y = 130;                       // centre of the light pool
@@ -2425,18 +2425,24 @@ function drawMeat() {
 
 let trapWreck = 0;   // seconds left showing a broken trap you dragged back in
 
+// Bear traps: iron jaws with teeth around a pan, a flat spring each side, a chain. The broken one is
+// tossed down inside the door with a jaw torn back and blood on the pan.
+const TRAP_COLORS = { d: '#262422', i: '#56524e', h: '#8a8682', t: '#b4b0a8', r: '#6a140c', c: '#46423e' };
+const BEAR_TRAP = ['.t.t.t.t.', 'hiiiiiiih', 'ddiiiiidd'];
+const BROKEN_TRAP = [
+  '..........t.t..',
+  '..t.t.t...hiih.',
+  '.hiiiiih....ih.',
+  'dhiirriihddddhd',
+  'ddiiiiiiiddddd.',
+  '..d.....d..c.c.',
+  '..........c.c.c',
+];
+
 function drawTraps() {
-  if (trapWreck > 0) {
-    // the mangled trap, tossed down inside the door: bent jaws, a torn chain, blood on it
-    px.fillStyle = '#4a4440'; px.fillRect(236, 119, 7, 1); px.fillRect(237, 117, 1, 3); px.fillRect(242, 116, 1, 3); px.fillRect(239, 118, 2, 1);
-    px.fillStyle = '#8a8480'; px.fillRect(237, 116, 1, 1); px.fillRect(239, 117, 1, 1); px.fillRect(241, 116, 1, 1); px.fillRect(243, 115, 1, 1);
-    px.fillStyle = '#5a5450'; px.fillRect(243, 120, 1, 1); px.fillRect(245, 120, 1, 1); px.fillRect(247, 119, 1, 1);
-    px.fillStyle = '#6a0a0a'; px.fillRect(238, 120, 4, 1); px.fillRect(240, 119, 1, 1);
-  }
-  // spare trap frames leaning by the door until they're set outside
-  for (let i = 0; i < S.traps; i++) {
-    px.fillStyle = '#4a4440'; px.fillRect(246 + i * 3, 104 - i, 2, 7);
-  }
+  if (trapWreck > 0) drawMap(BROKEN_TRAP, 230, 127, TRAP_COLORS);
+  // spare traps lying by the door until they're set outside
+  for (let i = 0; i < S.traps; i++) drawMap(BEAR_TRAP, 243 - (i % 2) * 10, 106 - Math.floor(i / 2) * 3 + (i % 2), TRAP_COLORS);
 }
 
 const SPR_COLORS = { h: '#4b4650', H: '#5d5763', f: '#120d0b', e: '#c9b48a', c: '#38333e', C: '#2a2630', b: '#1d1815', s: '#7a6a5a' };
