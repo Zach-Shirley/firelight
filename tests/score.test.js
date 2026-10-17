@@ -2,10 +2,16 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { computeScore, qualifies, insertScore, cleanInitials, sanitizeBoard } from '../score.js';
 
-test('dawn is worth 100, and what you lived through counts more than what you hoarded', () => {
+test('dawn is worth 100, and what you held on to adds up item by item', () => {
   const r = computeScore({ wood: 21, cooked: 2, blood: 1, salt: 1, fire: 3 });
-  assert.equal(r.total, 100 + (10 + 2 + 2 + 1 + 15));
+  assert.equal(r.total, 100 + (21 + 6 + 4 + 2 + 15));
   assert.deepEqual(r.lines.map((l) => l[0]), ['made it to dawn', 'what you held on to']);
+  assert.deepEqual(r.lines[1][3].map((i) => i[0]), ['logs', 'cooked meat', 'blood', 'salt', 'the fire still burning']);
+});
+
+test('a well-stocked cabin is worth more than the night itself', () => {
+  const r = computeScore({ wood: 25, cured: 15, blood: 15, shed: true });
+  assert.equal(r.lines.at(-1)[2], 25 + 75 + 60 + 40);
 });
 
 test('people let in, burns and company each add up; keeping mimics out does not', () => {

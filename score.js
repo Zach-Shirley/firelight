@@ -2,16 +2,30 @@
 
 export const BOARD_SIZE = 10;
 
-// Only a night survived to dawn scores, and mostly for how you lived through it: making it, the people you
-// let in and the times you burned her back. (Keeping a mimic out earns nothing: letting one in kills you.) What you held on to counts for less.
-// end: { wood, cooked, blood, salt, fire (0..4), companion, trusted, burned }
-export function computeScore({ wood = 0, cooked = 0, blood = 0, salt = 0, fire = 0, companion = false, trusted = 0, burned = 0 }) {
-  const held = Math.floor(wood / 2) + cooked + blood * 2 + salt + fire * 5;
+// Only a night survived to dawn scores: for making it, the people you let in and the times you burned her
+// back, and a good deal for what you held on to. (Keeping a mimic out earns nothing: letting one in kills you.)
+// end: { wood, raw, cooked, cured, blood, salt, fire (0..4), shed, companion, trusted, burned }
+// `cooked` is cooked meat that isn't cured; cured meat counts separately and for more.
+export const HELD_VALUE = { wood: 1, raw: 1, cooked: 3, cured: 5, blood: 4, salt: 2, fire: 5 };
+export const SHED_POINTS = 40;
+
+export function computeScore({ wood = 0, raw = 0, cooked = 0, cured = 0, blood = 0, salt = 0, fire = 0, shed = false, companion = false, trusted = 0, burned = 0 }) {
+  const items = [
+    ['logs', wood, wood * HELD_VALUE.wood],
+    ['raw meat', raw, raw * HELD_VALUE.raw],
+    ['cooked meat', cooked, cooked * HELD_VALUE.cooked],
+    ['cured meat', cured, cured * HELD_VALUE.cured],
+    ['blood', blood, blood * HELD_VALUE.blood],
+    ['salt', salt, salt * HELD_VALUE.salt],
+    ['the fire still burning', fire ? `${fire}/4` : 0, fire * HELD_VALUE.fire],
+    ['the woodshed', shed ? 'built' : 0, shed ? SHED_POINTS : 0],
+  ].filter(([, n]) => n);
+  const held = items.reduce((sum, [, , pts]) => sum + pts, 0);
   const lines = [['made it to dawn', '', 100]];
   if (trusted > 0) lines.push(['people you let in', trusted, trusted * 10]);
   if (burned > 0) lines.push(['burned her back', burned, burned * 5]);
   if (companion) lines.push(['not alone', '', 25]);
-  lines.push(['what you held on to', '', held]);
+  lines.push(['what you held on to', '', held, items]);
   const total = lines.reduce((sum, [, , pts]) => sum + pts, 0);
   return { lines, total };
 }

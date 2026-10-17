@@ -46,7 +46,8 @@ function beginner(f, S, mem, picky = false) {
   if (S.meat >= 2) f.act.cook();
   if (S.hunger >= 75 && (picky ? S.cooked > 0 : food(S) > 0)) f.act.eat();
   if (!S.boardsBuilt && S.wood >= 14) f.act.build('boards');
-  if (food(S) === 0 && S.hunger > 50) return f.act.hunt();
+  if (food(S) === 0 && S.hunger > 50 && S.traps < 1 && S.wood >= 6) f.act.build('trap');   // the build menu says traps are the only meat
+  if (food(S) === 0 && S.hunger > 50) return f.act.wood();
   if (S.wood < 4) return f.act.wood();
 }
 
@@ -75,10 +76,10 @@ function learner(f, S, mem) {
       if (!S.boardsBuilt && S.wood < 8 && !S.hunter.near) return f.act.wood();
     }
     if (S.hint >= 4 && !S.lantern && S.blood >= 4 && S.wood >= 10) f.act.build('lantern');
-    // told the lantern matters: save wood and hunt for blood
+    // told the lantern matters: save wood, and blood from the traps
     if (S.hint >= 4 && !S.lantern && !S.hunter.near && S.stalk < 10) {
       if (S.wood < 12) return f.act.wood();
-      if (S.blood < 4) return f.act.hunt();
+      if (S.blood < 4) { if (S.traps < 2 && S.wood >= 6) f.act.build('trap'); return f.act.wood(); }
     }
   }
   if (!d && S.away && ((S.hint >= 3 && S.hunter.near) || S.stalk > 45)) return f.act.runBack();
@@ -131,19 +132,19 @@ function skilled(f, S, mem, human = false, hoard = false) {
   if (!S.shed && S.wood >= 25 && !S.hunter.near && S.hand.phase === 'idle' && S.hour !== 0) f.act.build('shed');
   if (!S.boardsBuilt && S.wood >= 9 && S.night > 50) f.act.build('boards');
   if (S.boardsBuilt && S.boards < 2 && S.wood >= 8) f.act.build('repair');
-  if (S.traps < 2 && S.wood >= 9 && S.boardsBuilt) f.act.build('trap');
+  if (S.traps < 2 && S.wood >= 6) f.act.build('trap');
+  if (S.traps < 3 && S.wood >= 12 && S.boardsBuilt) f.act.build('trap');
   if (!S.lantern && S.blood >= 4 && S.wood >= 10) f.act.build('lantern');
   if (S.hunter.near) return;
   if (hoard) {
     // the hoarder's plan: three traps at once, wood until midnight, then as few trips as possible
-    if (S.traps < 3 && S.wood >= 5) f.act.build('trap');
+    if (S.traps < 3 && S.wood >= 6) f.act.build('trap');
     if (S.night < 2 * 52.5 && S.wood < 25) return f.act.wood();
-    if (food(S) === 0 && S.hunger > 40) return f.act.hunt();
+    if (food(S) === 0 && S.hunger > 40) return f.act.wood();
     if (S.wood < 6) return f.act.wood();
     return;
   }
-  if (food(S) < 2) return f.act.hunt();
-  if (S.lantern === false && S.blood < 4 && S.night > 150 && S.wood >= 8) return f.act.hunt();
+  if (food(S) < 2 && S.traps) return f.act.wood();   // meat only comes from the traps, checked on each trip
   if (S.wood < 12 || (S.shed && S.wood + S.shedWood < 40)) return f.act.wood();
 }
 

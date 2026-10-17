@@ -23,7 +23,6 @@ const COOK_TIME = 6;          // about one wood trip
 const SHED_LOG_TIME = 1;        // seconds outside for each log you build into the woodshed
 const TRIPS = {
   wood: { time: 6, label: 'gathering wood in the dark' },
-  hunt: { time: 11, label: 'hunting in the trees' },
   drag: { time: 4, label: 'dragging her body into the snow' },
   shed: { time: SHED_LOG_TIME, label: 'building the woodshed' },   // per log carried out
 };
@@ -42,7 +41,7 @@ pix.width = W; pix.height = H;
 
 const ui = {
   res: $('res'), clock: $('clock'), hunger: $('hunger'), message: $('message'),
-  stoke: $('stoke'), eat: $('eat'), cook: $('cook'), wood: $('woodTrip'), hunt: $('huntTrip'), build: $('buildBtn'), strike: $('strike'),
+  stoke: $('stoke'), eat: $('eat'), cook: $('cook'), wood: $('woodTrip'), build: $('buildBtn'), strike: $('strike'),
   away: $('away'), awayText: $('awayText'), awayBar: $('awayBar'),
   dialogue: $('dialogue'), dlgText: $('dlgText'), dlgChoices: $('dlgChoices'), portrait: $('portrait'),
   journal: $('journal'), journalList: $('journalList'),
@@ -586,14 +585,14 @@ function douse() {
 }
 
 // Traps wear out: each catches a few times, and sometimes something tears one apart.
-function makeTrap() { return 3 + Math.floor(Math.random() * 3); }
+function makeTrap() { return 3 + Math.floor(Math.random() * 2); }
 function syncTraps() { S.traps = S.trapUses.length; }
 
 function checkTraps(rolls = 1) {
   let m = 0, b = 0, broke = 0;
   for (let r = 0; r < rolls; r++) {
     S.trapUses = S.trapUses.map((u) => {
-      const caughtMeat = Math.random() < 0.38, caughtBlood = Math.random() < 0.32;
+      const caughtMeat = Math.random() < 0.26, caughtBlood = Math.random() < 0.3;
       if (caughtMeat) m += 1;
       if (caughtBlood) b += 1;
       return u - (caughtMeat || caughtBlood ? 1 : 0) - (Math.random() < 0.08 ? 99 : 0);
@@ -665,8 +664,7 @@ function startTrip(kind) {
   if (kind !== 'drag') S.rec.trips += 1;
   toggleBuild(false);
   say(kind === 'wood' ? 'you slip out into the trees for wood.'
-    : kind === 'hunt' ? 'you go out to hunt.'
-      : kind === 'shed' ? `you carry ${logs} log${logs === 1 ? '' : 's'} out to the woodshed. run back whenever you need to; what you build stays built.`
+    : kind === 'shed' ? `you carry ${logs} log${logs === 1 ? '' : 's'} out to the woodshed. run back whenever you need to; what you build stays built.`
         : 'you drag her body out through the door, into the snow.');
   save();
 }
@@ -739,27 +737,15 @@ function finishTrip(kind) {
     return;
   }
   const parts = [];
-  if (kind === 'wood') {
-    const n = pick([3, 4, 4, 4, 5]);   // the same forest all night
-    addWood(n);
-    parts.push(`+${n} wood`);
-  } else {
-    if (Math.random() < 0.6) {
-      const n = Math.random() < 0.3 ? 2 : 1;
-      addRaw(n);
-      parts.push(`+${n} raw meat`);
-    }
-    if (Math.random() < 0.45) { S.blood += 1; parts.push('+1 blood'); }
-    if (Math.random() < 0.5) { addWood(1); parts.push('+1 wood'); }
-  }
+  const n = pick([3, 4, 4, 4, 5]);   // the same forest all night
+  addWood(n);
+  parts.push(`+${n} wood`);
   // traps are checked on the way back
   const caught = checkTraps();
   if (caught.m) parts.push(`+${caught.m} raw meat from the traps`);
   if (caught.b) parts.push(`+${caught.b} blood from the traps`);
   if (caught.broke) parts.push(caught.broke === 1 ? 'one trap is torn apart. you drag what is left of it inside' : `${caught.broke} traps are torn apart`);
-  const lead = kind === 'wood'
-    ? pick(['you come back with an armful of branches.', 'snapped limbs, half buried in snow.', 'you drag a fallen branch back inside.'])
-    : (parts.some((p) => p.includes('meat')) ? 'the hunt goes well enough.' : 'nothing moved out there. nothing you could catch.');
+  const lead = pick(['you come back with an armful of branches.', 'snapped limbs, half buried in snow.', 'you drag a fallen branch back inside.']);
   say(`${lead} ${parts.join(', ')}`.trim());
   save();
 }
@@ -1264,7 +1250,7 @@ function strangerDies(text = 'The stranger slumps against the wall and stops bre
 
 const DEATHS = {
   dark: { text: 'The fire went out, and stayed out. The dark came in.', hint: 'keep the fire above smoldering. the dark gets hungrier every hour.' },
-  starve: { text: 'You starved.', hint: 'you have to keep eating all night, and meat goes bad. cook it, eat it, and keep hunting.' },
+  starve: { text: 'You starved.', hint: 'you have to keep eating all night, and meat goes bad. set traps early: they are the only meat at night. cook it and eat it.' },
   burn: { text: 'The cabin burned down around you.', hint: 'a wood pile taller than the room can hold will topple into the fire. keep it lower, build a woodshed, or keep two jars of blood to douse it.' },
   cellar: { text: 'Something came up through the floor.', hint: 'on the second night, when the floor creaks, slam the hatch, or weigh it down with logs. it feeds twice; the third time it comes up.' },
   cellarAway: { text: 'You came back to an open hatch.', hint: 'the thing under the floor comes up when no one is there to slam the hatch. weigh it down before you go out.' },
@@ -1633,8 +1619,8 @@ const BUILDS = [
   { id: 'repair', name: 'repair a board', desc: () => `the window has ${S.boards} of 3 boards left.`,
     show: () => S.boardsBuilt && S.boards < 3, cost: () => ({ wood: 3 }),
     done: () => { S.boards += 1; say('you nail a new board over the gap.'); } },
-  { id: 'trap', name: 'trap', desc: () => `catches meat and blood, checked on every trip. wears out after a few catches. the smell keeps the thing in the trees close. (${S.traps}/3)`,
-    show: () => S.traps < 3, cost: () => ({ wood: 5 }),
+  { id: 'trap', name: 'trap', desc: () => `the only way to get meat at night. catches meat and blood, checked on every trip. wears out after a few catches. the smell keeps the thing in the trees close. (${S.traps}/3)`,
+    show: () => S.traps < 3, cost: () => ({ wood: 6 }),
     done: () => { S.trapUses.push(makeTrap()); syncTraps(); say('you set a trap out in the snow. it will only last so long.'); } },
   { id: 'lantern', name: 'blood lantern', desc: 'hangs by the door. its red light shows what is really standing outside. burns a jar of blood every so often.',
     show: () => !S.lantern, cost: () => ({ wood: 8, blood: 4 }),
@@ -3658,13 +3644,18 @@ const ICONS = {
     map: ['........', '..bbbb..', '.beeeeb.', 'beeRReeb', 'beeRReeb', '.beeeeb.', '..bbbb..', '........'],
     colors: { b: '#5a3a22', e: '#a07a4e', R: '#6b4a2c' },
   },
+  cured: {
+    title: 'salt-cured meat: keeps forever',
+    map: ['......ww', '..cccCww', '.cCscccc', 'cckcfcsC', 'csccckcf', 'cCfccscc', '.cscckc.', '..cccc..'],
+    colors: { c: '#4a1a14', C: '#6a2a1e', k: '#2a0e0a', f: '#7a3a2a', s: '#ece8e0', w: '#d8ccb0' },
+  },
   cooked: {
-    title: 'cooked meat',
+    title: 'cooked meat: goes bad in a few minutes, and over the day',
     map: ['......ww', '..cccCww', '.cCccccc', 'cckcfccC', 'cccckcfc', 'cCfccccc', '.cccckc.', '..cccc..'],
     colors: { c: '#5a2e1c', C: '#94522e', k: '#2a140a', f: '#c08a58', w: '#d8ccb0' },
   },
   raw: {
-    title: 'raw meat',
+    title: 'raw meat: cook it first. goes bad fast',
     map: ['......ww', '..rrrRww', '.rRrfrrr', 'rrfrRrfr', 'rRrrfrrr', 'rrfRrrRr', '.rrrfrr.', '..rrrr..'],
     colors: { r: '#7e1c18', R: '#a8322a', f: '#d8a090', w: '#d8ccb0' },
   },
@@ -3679,7 +3670,7 @@ const ICONS = {
     colors: { g: '#7a8290', b: '#6a0a0a', R: '#b02020', k: '#8a6a4a' },
   },
 };
-const RES_VALUE = { wood: () => `${S.wood}/${PILE_CAP}`, cooked: () => S.cooked, raw: () => S.meat, blood: () => S.blood, salt: () => S.salt };
+const RES_VALUE = { wood: () => `${S.wood}/${PILE_CAP}`, cured: () => curedCount(), cooked: () => S.cooked - curedCount(), raw: () => S.meat, blood: () => S.blood, salt: () => S.salt };
 const resCounts = {};
 
 function buildResBar() {
@@ -3689,6 +3680,7 @@ function buildResBar() {
     item.className = 'item';
     item.title = icon.title;
     if (key === 'salt') item.classList.add('salt-item');
+    if (key === 'cured') item.classList.add('cured-item');
     const c = document.createElement('canvas');
     c.width = 8; c.height = 8;
     const g = c.getContext('2d');
@@ -3714,9 +3706,10 @@ function hungerLabel() {
 function syncUI() {
   for (const key in resCounts) resCounts[key].textContent = RES_VALUE[key]();
   ui.res.classList.toggle('has-salt', S.salt > 0 || S.nightNo === 2);
+  ui.res.classList.toggle('has-cured', curedCount() > 0);
   resCounts.wood.parentElement.classList.toggle('full', S.wood >= PILE_CAP - 2);
   resCounts.raw.parentElement.classList.toggle('spoiling', spoilingSoon(S.rawLife));
-  resCounts.cooked.parentElement.classList.toggle('spoiling', spoilingSoon(S.cookedLife));
+  resCounts.cooked.parentElement.classList.toggle('spoiling', spoilingSoon(S.cookedLife.filter((l) => l < CURED / 2)));
   ui.shed.classList.toggle('hidden', !S.shed || !(mode === 'playing' || mode === 'day'));
   if (S.shed) { ui.shedCount.textContent = S.shedWood; drawShedIcon(ui.shedIcon); }
   const blazing = S.blaze > 0 && mode === 'playing' && !S.away && !dialog;
@@ -3731,7 +3724,7 @@ function syncUI() {
   ui.stoke.querySelector('.label').textContent = S.fire === 0 ? (S.lit ? 'relight fire' : 'light fire') : 'stoke fire';
   ui.stoke.disabled = !present || S.cd.stoke > 0 || S.wood < 1;
   ui.stoke.style.setProperty('--cd', `${clamp(S.cd.stoke / (STOKE_CD * (S.hunger >= 90 ? 2 : 1) * (S.sick > 0 ? 1.3 : 1)), 0, 1) * 100}%`);
-  for (const b of [ui.eat, ui.cook, ui.wood, ui.hunt, ui.build]) b.classList.toggle('hidden', !S.lit);
+  for (const b of [ui.eat, ui.cook, ui.wood, ui.build]) b.classList.toggle('hidden', !S.lit);
   ui.eat.disabled = !present || S.cd.eat > 0 || S.meat + S.cooked < 1 || S.hunger < 5;
   ui.eat.querySelector('.label').textContent = S.cooked > 0 || S.meat < 1 ? 'eat' : 'eat raw';
   ui.eat.style.setProperty('--cd', `${(S.cd.eat / EAT_CD) * 100}%`);
@@ -3739,7 +3732,6 @@ function syncUI() {
   ui.cook.querySelector('.label').textContent = S.cooking ? 'cooking' : 'cook';
   ui.cook.style.setProperty('--cd', `${S.cooking ? (1 - S.cooking.t / COOK_TIME) * 100 : 0}%`);
   ui.wood.disabled = !present;
-  ui.hunt.disabled = !present;
   ui.build.disabled = !present;
 
   const lifting = S.hatch.phase === 'lift' && mode === 'playing' && !S.away && !dialog;
@@ -3840,7 +3832,7 @@ function continueNight() {
 }
 
 function nightScore() {
-  return computeScore({ wood: S.wood + S.shedWood, cooked: S.cooked, blood: S.blood, salt: S.salt, fire: S.fire, companion: S.stranger === 'inside' && !S.strangerFalse, trusted: S.trusted, burned: S.rec.burned });
+  return computeScore({ wood: S.wood + S.shedWood, raw: S.meat, cooked: S.cooked - curedCount(), cured: curedCount(), blood: S.blood, salt: S.salt, fire: S.fire, shed: S.shed, companion: S.stranger === 'inside' && !S.strangerFalse, trusted: S.trusted, burned: S.rec.burned });
 }
 
 function showEnding(won) {
@@ -3857,11 +3849,35 @@ function showEnding(won) {
   ui.endRunBtn.classList.add('hidden');
   renderRecap();
   ui.endTally.textContent = tallyText(recordNight(won));
-  const scoreRow = (label, n, pts, cls = '') => {
+  const scoreRow = (label, n, pts, cls = '', items = null) => {
     const tr = document.createElement('tr');
     if (cls) tr.className = cls;
-    tr.innerHTML = `<td>${label}</td><td class="n">${n}</td><td class="pts">${pts}</td>`;
+    tr.innerHTML = `<td></td><td class="n"></td><td class="pts">${pts}</td>`;
+    tr.firstChild.textContent = label;
+    tr.children[1].textContent = n;
     ui.endScore.appendChild(tr);
+    if (!items || !items.length) return;
+    // what you held on to opens up into each thing you kept and what it was worth
+    tr.classList.add('fold');
+    tr.tabIndex = 0;
+    tr.firstChild.textContent = `▸ ${label}`;
+    const subs = items.map(([l, k, p]) => {
+      const sub = document.createElement('tr');
+      sub.className = 'sub hidden';
+      sub.innerHTML = '<td></td><td class="n"></td><td class="pts"></td>';
+      sub.firstChild.textContent = l;
+      sub.children[1].textContent = k;
+      sub.children[2].textContent = p;
+      ui.endScore.appendChild(sub);
+      return sub;
+    });
+    const toggle = () => {
+      const open = subs[0].classList.contains('hidden');
+      for (const r of subs) r.classList.toggle('hidden', !open);
+      tr.firstChild.textContent = `${open ? '▾' : '▸'} ${label}`;
+    };
+    tr.addEventListener('click', toggle);
+    tr.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } });
   };
 
   if (!won) {
@@ -3891,7 +3907,7 @@ function showEnding(won) {
   if (S.nightNo === 2) {
     ui.endTitle.textContent = 'the second dawn.';
     ui.endText.textContent = 'You survived two nights.' + (S.stranger === 'inside' && !S.strangerFalse ? ' She is still with you.' : '');
-    for (const [label, n, pts] of result.lines) scoreRow(label, n, pts);
+    for (const [label, n, pts, items] of result.lines) scoreRow(label, n, pts, '', items);
     scoreRow('first night', '', S.carry);
     scoreRow('second dawn', '', 100);
     S.final = result.total + S.carry + 100;
@@ -3901,7 +3917,7 @@ function showEnding(won) {
   } else {
     ui.endTitle.textContent = 'dawn.';
     ui.endText.textContent = (S.stranger === 'inside' ? 'You made it through the night, and you were not alone.' : 'You made it through the night.') + ' Rest through the day and face a second night, or end here.';
-    for (const [label, n, pts] of result.lines) scoreRow(label, n, pts);
+    for (const [label, n, pts, items] of result.lines) scoreRow(label, n, pts, '', items);
     S.final = result.total;
     S.runNights = 1;
     scoreRow('score', '', S.final, 'total');
@@ -3964,7 +3980,6 @@ ui.stoke.addEventListener('click', stoke);
 ui.eat.addEventListener('click', eat);
 ui.cook.addEventListener('click', cook);
 ui.wood.addEventListener('click', () => startTrip('wood'));
-ui.hunt.addEventListener('click', () => startTrip('hunt'));
 ui.build.addEventListener('click', () => toggleBuild());
 ui.strike.addEventListener('click', strikeHand);
 ui.slam.addEventListener('click', slamHatch);
@@ -4040,7 +4055,6 @@ window.addEventListener('keydown', (e) => {
   else if (k === 'e') eat();
   else if (k === 'c') cook();
   else if (k === 'g') startTrip('wood');
-  else if (k === 'h') startTrip('hunt');
 });
 
 document.addEventListener('visibilitychange', () => {
@@ -4112,7 +4126,7 @@ window.__firelight = {
   get pending() { return pendingVisit; },
   get eyes() { return eyes.length; },
   day: { start: startDay, do: doDay, night: startNight2 },
-  act: { douse, slam: slamHatch, stoke, eat, cook, wood: () => startTrip('wood'), hunt: () => startTrip('hunt'), strike: strikeHand, runBack, build },
+  act: { douse, slam: slamHatch, stoke, eat, cook, wood: () => startTrip('wood'), strike: strikeHand, runBack, build },
   visit: (who, as, fake) => queueVisit(who, as, fake),
   die: (cause) => die(cause),
   get lossT() { return lossT; },

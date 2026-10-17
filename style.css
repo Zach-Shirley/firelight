@@ -483,6 +483,8 @@ body.touch #howPanel .keys { display: none; }
 #slam::after { content: ''; position: absolute; left: 0; bottom: 0; height: calc(1px * var(--s)); width: var(--cd, 100%); background: #b4c878; }
 #res .salt-item { display: none; }
 #res.has-salt .salt-item { display: inline-flex; }
+#res .cured-item { display: none; }
+#res.has-cured .cured-item { display: inline-flex; }
 #day { background: radial-gradient(ellipse at 30% 30%, rgba(200, 200, 220, 0.08), rgba(10, 8, 8, 0.55)); }
 .day-panel h2 { color: #e8e4d8; }
 .day-text { margin: 0; font-size: calc(6px * var(--s)); color: var(--ink-dim); }
@@ -535,3 +537,8 @@ body.touch #dayList button { min-height: calc(14px * var(--s)); }
 #res .item.full .n { color: #ffb040; }
 #res .item.spoiling .n { color: #9ab060; animation: flicker 0.9s infinite; }
 .day-warn { margin-top: calc(3px * var(--s)); color: #c87a5a; }
+#endScore tr.fold { cursor: pointer; }
+#endScore tr.fold:hover td:first-child, #endScore tr.fold:focus td:first-child { color: #ffcf6a; }
+#endScore tr.sub td { color: var(--ink-dim); font-size: calc(5.5px * var(--s)); }
+#endScore tr.sub td:first-child { padding-left: calc(8px * var(--s)); }
+#endScore tr.hidden { display: none; }

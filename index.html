@@ -36,7 +36,6 @@
       <button id="eat" class="act hidden" title="eat 1 meat (E)"><span class="label">eat</span></button>
       <button id="cook" class="act hidden" title="cook up to 3 raw meat; it finishes on its own (C)"><span class="label">cook</span></button>
       <button id="woodTrip" class="act hidden" title="a short trip out for wood (G)"><span class="label">gather wood</span></button>
-      <button id="huntTrip" class="act hidden" title="a longer trip out for meat (H)"><span class="label">hunt</span></button>
       <button id="buildBtn" class="act hidden" title="(B)"><span class="label">build</span></button>
     </div>
 
@@ -97,13 +96,13 @@
             <li><b>Stoke the fire</b> (S). If it stays out, the dark comes in.</li>
             <li><b>Eat</b> (E) all night or you starve. <b>Cook</b> (C) raw meat first; raw makes you sick. Meat goes bad: raw in two minutes, cooked in four.</li>
             <li>The room holds 25 logs in one pile. Stack more and it topples into the fire.</li>
-            <li>Go out to <b>gather wood</b> (G) or <b>hunt</b> (H). While you're out, no one is minding the room, and something hunts the trees.</li>
+            <li>Go out to <b>gather wood</b> (G). <b>Traps</b> are the only way to get meat at night, and you check them on every trip. While you're out, no one is minding the room, and something hunts the trees.</li>
             <li>People knock. Not everything that knocks is a person. The door only opens if you open it.</li>
-            <li>Your score is what you still have at dawn. Everything you build or burn costs you.</li>
+            <li>Only a night survived to dawn scores: for making it, the people you let in, and what you still have.</li>
             <li>Survive to dawn and you can <b>rest through the day</b> and face a <b>second night</b>, which is worse.</li>
             <li class="touch-only">On a phone, play sideways and tap the buttons.</li>
           </ul>
-          <p class="keys">S stoke · E eat · C cook · G wood · H hunt · F burn/slam · X douse · R run back · B build · J journal · M sound · N music · Esc menu</p>
+          <p class="keys">S stoke · E eat · C cook · G wood · F burn/slam · X douse · R run back · B build · J journal · M sound · N music · Esc menu</p>
           <button class="backBtn">back</button>
         </div>
 
@@ -135,9 +134,9 @@
         <p id="endHint" class="hidden"></p>
         <ul id="endRecap" class="recap"></ul>
         <table id="endScore"></table>
-        <form id="initials" class="hidden">
+        <form id="initials" class="hidden" autocomplete="off" data-form-type="other">
           <label for="initialsInput">a best night! your initials:</label>
-          <input id="initialsInput" maxlength="3" autocomplete="off" spellcheck="false">
+          <input id="initialsInput" type="text" name="arcade-initials" maxlength="3" autocomplete="off" autocapitalize="characters" spellcheck="false" inputmode="text" aria-label="your initials" data-1p-ignore data-lpignore="true" data-bwignore="true" data-form-type="other">
           <button type="submit">save</button>
         </form>
         <ol id="endBoard" class="board"></ol>
