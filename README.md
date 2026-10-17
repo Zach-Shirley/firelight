@@ -64,7 +64,7 @@ Keep the door shut on a real visitor and you hear their footsteps leave. Keep it
 
 ## The day, and nights 2 and 3
 
-Make it to dawn and you choose: **end here** and bank your score, or **rest through the day** and face the next night. A run is up to four nights (night 4 is a placeholder for now: the blizzard again). Longer runs score far more, and the leaderboard marks them with one ☀ per night.
+Make it to dawn and you choose: **end here** and bank your score, or **rest through the day** and face the next night. A run is up to four nights (night 4 is the blizzard again, with the goblins). Longer runs score far more, and the leaderboard marks them with one ☀ per night.
 
 **The day** is a planning screen over the daylit room. It runs from 6 am to 10 pm: 16 hours, and every choice costs some. Each button shows what time it'll be when you're done.
 
@@ -88,6 +88,16 @@ The day also dries every wet log and spoils any meat that isn't cured. The day s
 | **Salt** | *Salt the doorway* (2 salt): the next thing you open the door to that isn't a person can't cross; the line breaks instead of you. *Salt the sill* (2 salt): the next time she would get through the window, she recoils |
 | **The thing under the floor** | There is a cellar hatch in the room. The floorboards creak and dust puffs up, then the lid lifts and pale fingers curl out, with eyes in the gap. It sits right under the meat rack. **Slam the hatch** (F/Space). **Bar it** with a beam (4 wood): slam it in time and the beam stays whole; miss, and the beam breaks instead of it getting out. With no beam, a long pale arm comes up the wall and strips **half your meat** off the rack, then stays down a long while. No meat, and it takes **the stranger**: one sharp breath and she's gone. No stranger, and it takes you. While you're out, nobody is there to slam it |
 | **Fur** | From night 2, traps now and then catch a pelt. Fur makes a coat or insulation, or keep it: 3 points each at dawn |
+
+**Night 4: the goblins.** The blizzard again, and now things follow you in.
+
+- **Getting in.** Each time you come back from a trip there's about a 1 in 10 chance (more if you ran back in a hurry) that a small hunchbacked goblin slips in at your heels. Its shadow crumbles through the door, it scuttles, and "something brushed past your legs as you came in."
+- **A salted doorway** stops one at the threshold; the salt goes.
+- **In the house.** It settles in a dark corner, one to a corner, where all you see is two small, dim eyes. While the fire is low or you're out, it climbs the wall to the meat rack or the shelf and takes one thing: cured meat first, then cooked, raw, then blood. Never salt. After two hours it gets bolder and steals faster.
+- **Getting rid of one.** Throw salt into its corner (1 salt, from the ember there) and it bolts out the door. Or light its corner with a torch and it moves to another dark one. With every corner lit it can't settle: it skitters along the walls in plain view, steals nothing, and leaves the next time the door opens.
+- **How they kill you.** Let the fire die with one settled in and it comes for you. Let **four** in at once, one in every corner, and they all do.
+
+**The woodcutter's axe.** He'll sell his spare for 3 meat, once. Every wood trip then brings back 5–7 logs instead of 3–5.
 
 **No sleep.** Each day in a row you skip sleep makes the next night worse:
 
@@ -362,7 +372,7 @@ They're stored in this browser for now (`achievements.js`). Each unlock keeps it
 
 Open the game once with `?dev` on the address (https://firelight-topaz.vercel.app/?dev) and the title menu gets a **playtest** button, remembered in that browser. It starts you at the day before night 2 or 3, or straight into night 2 or 3, with a basic kit: boarded window, two traps (three on night 3), the lantern, the stranger, some food and wood, and on night 3 a woodshed and the drying rack. Playtest runs don't count toward the stats or the leaderboard.
 
-The version is in the bottom-right corner (v0.36 is the 36th commit; the number counts every commit, docs included), so you can tell a refresh picked up the latest build.
+The version is in the bottom-right corner (v0.37 is the 37th commit; the number counts every commit, docs included), so you can tell a refresh picked up the latest build.
 
 ## Future ideas
 

@@ -7,7 +7,7 @@ const memory = () => { const m = {}; return { getItem: (k) => m[k] ?? null, setI
 test('ids are unique, and every death in the game has an achievement', () => {
   const ids = ACHIEVEMENTS.map((a) => a.id);
   assert.equal(new Set(ids).size, ids.length);
-  for (const cause of ['dark', 'starve', 'burn', 'mimic', 'hand', 'handAway', 'hunter', 'risen', 'cellar', 'cellarAway', 'falseStranger', 'freeze', 'lost']) {
+  for (const cause of ['dark', 'starve', 'burn', 'mimic', 'hand', 'handAway', 'hunter', 'risen', 'cellar', 'cellarAway', 'falseStranger', 'freeze', 'lost', 'guest', 'goblins']) {
     assert.ok(ids.includes(`die_${cause}`), cause);
   }
 });

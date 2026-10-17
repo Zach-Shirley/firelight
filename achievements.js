@@ -16,6 +16,8 @@ export const ACHIEVEMENTS = [
   { id: 'die_cellarAway', group: 'deaths', name: 'Open Hatch', desc: 'Come back to an open hatch.' },
   { id: 'die_falseStranger', group: 'deaths', name: 'It Waited for the Light', desc: 'Let the false stranger have her way.' },
   { id: 'die_freeze', group: 'deaths', name: 'Frostbite', desc: 'Freeze to death in the blizzard.' },
+  { id: 'die_guest', group: 'deaths', name: 'Company', desc: 'Let the fire die with a goblin in the corner.' },
+  { id: 'die_goblins', group: 'deaths', name: 'Full House', desc: 'Let four goblins in at once.' },
   { id: 'die_sleep', group: 'deaths', name: 'Eyes Closed', desc: 'Go a fourth day without sleep.', later: true },
   { id: 'die_lost', group: 'deaths', name: 'Into the White', desc: 'Lose the path in the blizzard for good. About one blizzard night in a hundred.', hidden: true, hint: 'something very unlucky.' },
 
@@ -41,6 +43,8 @@ export const ACHIEVEMENTS = [
   { id: 'well_stocked', group: 'feats', name: 'Well Stocked', desc: "Hold on to 200 points' worth at a single dawn." },
   { id: 'salt_flare', group: 'feats', name: 'Salt on the Embers', desc: 'Throw salt on a dying fire and drive the dark back.', hidden: true, hint: 'something nobody told you you could do.' },
   { id: 'awake_3', group: 'feats', name: 'Three Days Awake', desc: 'Survive a night after three days without sleep.' },
+  { id: 'not_tonight', group: 'feats', name: 'Not Tonight', desc: 'Stop a goblin at the salted doorway.' },
+  { id: 'nowhere_to_hide', group: 'feats', name: 'Nowhere to Hide', desc: 'Let a goblin in with every corner lit.' },
   { id: 'four_figures', group: 'feats', name: 'Four Figures', desc: 'Score 1,000 or more in one run.' },
 ];
 

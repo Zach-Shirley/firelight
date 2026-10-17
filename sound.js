@@ -851,3 +851,25 @@ export function squeak() {
     o.stop(t + d + 0.12);
   });
 }
+
+// Something small scuttling across the floor: a run of dry, quick claw-clicks.
+export function scuttle() {
+  if (!ctx || !enabled) return;
+  const t = ctx.currentTime + 0.02;
+  const n = 7 + Math.floor(Math.random() * 5);
+  for (let i = 0; i < n; i++) {
+    const at = t + i * (0.035 + Math.random() * 0.03);
+    const src = ctx.createBufferSource();
+    src.buffer = noiseBuf;
+    const bp = ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = 2600 + Math.random() * 1400;
+    bp.Q.value = 6;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.exponentialRampToValueAtTime(0.16, at + 0.003);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + 0.03);
+    src.connect(bp).connect(g).connect(master);
+    src.start(at, Math.random(), 0.05);
+  }
+}

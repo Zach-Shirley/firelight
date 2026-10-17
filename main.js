@@ -6,7 +6,7 @@ import * as sfx from './sound.js';
 import { ACHIEVEMENTS, createStore } from './achievements.js';
 import { computeScore, qualifies, insertScore, cleanInitials, sanitizeBoard } from './score.js';
 
-const VERSION = '0.36';   // one step per commit to the repository
+const VERSION = '0.37';   // one step per commit to the repository
 const W = 320, H = 180;
 const FIRE = { x: 160, y: 136 };          // base of the flames
 const LIGHT_Y = 130;                       // centre of the light pool
@@ -154,6 +154,8 @@ function freshState() {
     hatchFed: 0,
     hatchBar: false,                             // a beam nailed across the cellar hatch
     torches: {},                                 // which corners have a torch: { bl, br, fl, fr }
+    goblins: [],                                 // night 4: the things that came in at your heels
+    axe: false,                                  // the woodcutter's spare axe: more wood per trip
     saltHatch: false,                            // a ring of salt around it (one use)
     buried: false,
     n2HintT: -1,
@@ -211,7 +213,7 @@ function save() {
 const CAUSE_NAMES = {
   dark: 'the dark', starve: 'hunger', burn: 'the fire', mimic: 'the mimic', hand: 'her, at the window', handAway: 'her, at the window',
   hunter: 'the thing in the trees', risen: "the stranger's body", falseStranger: 'the false stranger',
-  cellar: 'the thing under the floor', cellarAway: 'the thing under the floor', freeze: 'the cold', lost: 'the white', sleep: 'no sleep',
+  cellar: 'the thing under the floor', cellarAway: 'the thing under the floor', freeze: 'the cold', lost: 'the white', sleep: 'no sleep', guest: 'a goblin', goblins: 'the goblins',
 };
 
 function loadStats() {
@@ -337,7 +339,7 @@ function resetTransients() {
 const clockHour = () => Math.min(NIGHT_HOURS - 1, Math.floor(S.night / HOUR));
 // from the second night everything that hunts you behaves as if it were two hours later
 const hour = () => Math.min(NIGHT_HOURS - 1, clockHour() + (S.nightNo >= 2 ? 2 : 0));
-const LAST_NIGHT = 4;   // night 4 is a placeholder for now: the blizzard again, nothing new yet
+const LAST_NIGHT = 4;   // night 4: the blizzard again, and the goblins
 const blizzard = () => S.nightNo >= 3;   // nights 3 (and later 4): the blizzard
 
 function clockText(night) {
@@ -504,6 +506,8 @@ function updateNight(dt) {
   if (mode !== 'playing') return;
   updateHatch(dt);
   if (mode !== 'playing') return;
+  updateGoblins(dt);
+  if (mode !== 'playing') return;
   updateDoor(dt);
   updateAwake(dt);
   // the stranger warns you about the floor, once, early on the second night
@@ -521,6 +525,158 @@ function updateNight(dt) {
     }
   }
   updateStranger(dt);
+}
+
+/* --------------------------------------------------------- night 4: the goblins */
+
+// The guests who never knock. From night 4, each time you come back in from a trip, one of them may slip in at
+// your heels: a small hunchbacked thing that settles in a dark corner (one to a corner) and climbs the wall to steal
+// meat and blood while the fire is low or you're out. A salted doorway stops one at the threshold (the salt goes).
+// Light its corner and it moves; with every corner lit it can't settle and leaves when the door next opens. Throw
+// salt at one and it bolts. Let the fire die with one settled in, and it comes for you. Let four in, and they all do.
+const GOB_CORNERS = { bl: { x: 12, y: 54 }, br: { x: 291, y: 56 }, fl: { x: 16, y: 160 }, fr: { x: 304, y: 160 } };
+const GOB_STEAL = () => rand(20, 30);
+const goblinNight = () => S.nightNo >= 4;
+const cornerLit = (id) => (S.torches && S.torches[id]) || (id === 'br' && S.shed);
+const freeCorners = () => Object.keys(GOB_CORNERS).filter((id) => !cornerLit(id) && !S.goblins.some((g) => g.corner === id));
+const settled = () => S.goblins.filter((g) => g.corner);
+
+// rolled once each time you come back in
+function goblinEntry(panicked) {
+  if (!goblinNight() || mode !== 'playing') return;
+  if (Math.random() >= 0.1 + (panicked ? 0.05 : 0)) return;
+  if (S.saltDoor) {
+    S.saltDoor = false;
+    sfx.scream();
+    achieve('not_tonight');
+    say('something small stops dead at the salt line behind you, and shrieks. the salt is scattered.');
+    return;
+  }
+  const free = freeCorners();
+  const g = { corner: free.length ? pick(free) : null, t: GOB_STEAL(), since: 0, act: null };
+  S.goblins.push(g);
+  fx.push({ kind: 'gobIn', x: 274, y: 104, life: 0, max: 0.45 });
+  sfx.scuttle();
+  if (!g.corner) achieve('nowhere_to_hide');
+  say(g.corner ? 'something brushed past your legs as you came in.' : 'something brushed past your legs as you came in. it scuttles from corner to lit corner and finds nowhere to hide.');
+  if (S.goblins.length >= 4) die('goblins');
+}
+
+// unsettled ones slip out whenever the door opens
+function goblinsLeave() {
+  const n = S.goblins.filter((g) => !g.corner).length;
+  if (!n) return;
+  S.goblins = S.goblins.filter((g) => g.corner);
+  sfx.scuttle();
+  say(n === 1 ? 'something small darts out through the open door.' : `${n} small things dart out through the open door.`);
+}
+
+const STEAL_ORDER = [
+  ['cured meat', () => curedCount() > 0, () => { const i = S.cookedLife.findIndex((l) => l >= CURED / 2); S.cookedLife.splice(i, 1); syncMeat(); }, 'meat'],
+  ['cooked meat', () => S.cooked - curedCount() > 0, () => { const i = S.cookedLife.findIndex((l) => l < CURED / 2); S.cookedLife.splice(i, 1); syncMeat(); }, 'meat'],
+  ['raw meat', () => S.meat > 0, () => takeRaw(1), 'meat'],
+  ['blood', () => S.blood > 0, () => { S.blood -= 1; }, 'blood'],
+];
+
+function updateGoblins(dt) {
+  if (!S.goblins || !S.goblins.length) return;
+  for (const g of S.goblins) {
+    g.since += dt;
+    if (g.act) { g.act.t += dt; if (g.act.t >= 2.2) g.act = null; }
+    // its corner got lit: it moves to another, or has nowhere left
+    if (g.corner && cornerLit(g.corner)) {
+      const free = freeCorners();
+      g.corner = free.length ? pick(free) : null;
+      sfx.scuttle();
+      if (!g.corner) achieve('nowhere_to_hide');
+      say(g.corner ? 'something scuttles along the wall, out of the light, into another corner.' : 'something scuttles from corner to lit corner. there is nowhere left for it to hide.');
+    }
+    if (!g.corner) continue;
+    const bold = g.since > 2 * HOUR;
+    if (bold || S.fire <= 2 || S.away) g.t -= dt;
+    if (g.t <= 0) {
+      g.t = bold ? rand(10, 15) : GOB_STEAL();
+      const what = STEAL_ORDER.find(([, has]) => has());
+      if (!what) continue;
+      what[2]();
+      g.act = { t: 0, to: what[3] };
+      sfx.scratch();
+      if (!S.away) say(`something climbs the wall to the ${what[3] === 'blood' ? 'shelf' : 'meat rack'} and back down. -1 ${what[0]}`);
+      else S.gobTook = (S.gobTook || 0) + 1;
+    }
+  }
+  // the fire is out and one is settled in: it doesn't wait for the dark
+  if (S.fire === 0 && S.lit && settled().length && !S.away) die('guest');
+}
+
+// throwing salt at one: the ember over its corner
+function saltGoblin(id) {
+  const i = S.goblins.findIndex((g) => g.corner === id);
+  if (i < 0 || S.salt < 1) return;
+  S.salt -= 1;
+  S.goblins.splice(i, 1);
+  sfx.scream();
+  sfx.scuttle();
+  fx.push({ kind: 'gobOut', from: GOB_CORNERS[id], life: 0, max: 0.6 });
+  say('you throw a fistful of salt into the corner. it shrieks and bolts for the door, and out into the snow.');
+}
+
+// A hunched little thing: a humped back, a head hung low and forward, pointed ears, long arms with the knuckles
+// on the floor, bent little legs, two small pale eyes. Drawn cell by cell, facing right (face -1 flips it).
+const GOBLIN = [
+  '..........e...e.',
+  '..........ee.ee.',
+  '....bbb....hhhh.',
+  '..bbbbbbb.hhhhhh',
+  '.bbbbbbbbbhHhhHh',
+  '.bbbbbbbbbbhhhh.',
+  'bbbbbbbbbbb.hh..',
+  'bbbbbbbbbbaa....',
+  '.bbbbbbbb..a....',
+  '..bbbbbb...a....',
+  '..bb..bb...aa...',
+  '.bb....bb...a...',
+  'bb......bb..aa..',
+];
+function drawGoblin(s, x, y, sc = 1, face = 1, alpha = 1, eyes = true) {
+  const W2 = GOBLIN[0].length, H2 = GOBLIN.length, u = 0.75 * sc;
+  for (let r = 0; r < H2; r++) {
+    for (let c = 0; c < W2; c++) {
+      const k = GOBLIN[r][c];
+      if (k === '.') continue;
+      const edge = r === 0 || GOBLIN[r - 1][c] === '.';
+      lx.fillStyle = k === 'H' && eyes ? `rgba(220, 230, 170, ${alpha})`
+        : edge ? `rgba(66, 54, 42, ${0.85 * alpha})` : `rgba(14, 12, 10, ${alpha})`;
+      const cx = face > 0 ? c : W2 - 1 - c;
+      lpx(s, x + (cx - W2 / 2) * u, y + (r - H2) * u, u + 0.05, u + 0.05);
+    }
+  }
+}
+
+function drawGoblins(s, t) {
+  if (!S.goblins || !S.goblins.length) return;
+  for (const g of S.goblins) {
+    if (!g.corner) {
+      // in plain view, skittering along the walls between the lit corners
+      const k = (t * 0.35 + S.goblins.indexOf(g) * 0.37) % 1;
+      const x = 20 + 280 * (k < 0.5 ? k * 2 : 2 - k * 2), y = 112;
+      drawGoblin(s, x, y, 1, k < 0.5 ? 1 : -1, 0.95);
+      continue;
+    }
+    const c = GOB_CORNERS[g.corner];
+    if (g.act) {
+      // up the wall to the rack or the shelf, and back to its corner
+      const tx = g.act.to === 'blood' ? 192 : 205, ty = g.act.to === 'blood' ? 64 : 52;
+      const k = g.act.t / 2.2, e = k < 0.5 ? ease(k * 2) : ease(2 - k * 2);
+      drawGoblin(s, lerp(c.x, tx, e), lerp(c.y + 6, ty, e), 0.9, tx > c.x ? 1 : -1, 0.95);
+      continue;
+    }
+    // in its corner only its eyes show, small and dim and low, blinking out of rhythm
+    const blink = Math.sin(t * 1.3 + c.x) > 0.93 ? 0 : 1;
+    lx.fillStyle = `rgba(200, 210, 160, ${0.55 * blink})`;
+    lpx(s, c.x - 1.5, c.y, 0.8, 0.6);
+    lpx(s, c.x + 0.7, c.y, 0.8, 0.6);
+  }
 }
 
 /* --------------------------------------------------------- no sleep */
@@ -899,6 +1055,7 @@ function startTrip(kind) {
 
 // out and back in: the door swings open for a moment and shuts behind you (it doesn't change the trip time)
 function swingDoor() {
+  goblinsLeave();
   if (pendingVisit || dialog) return;
   doorTarget = 0.8;
   doorCloseIn = 0.5;
@@ -913,11 +1070,13 @@ function runBack() {
     const back = S.away.logs - S.away.placed;   // logs only leave the pile as they go into the walls
     S.away = null;
     say(`you run back in${back ? ` with the ${back} log${back === 1 ? '' : 's'} you hadn't used` : ''}. the woodshed is ${S.shedBuilt} of ${PILE_CAP} logs built.`);
+    goblinEntry(true);
     announceWaiting();
     return;
   }
   S.away = null;
   say('you run back inside empty-handed and bar the door.');
+  goblinEntry(true);   // in a hurry, you don't look behind you
   announceWaiting();
 }
 
@@ -974,6 +1133,9 @@ function updateTrip(dt) {
 function finishTrip(kind) {
   S.away = null;
   swingDoor();
+  if (S.gobTook) { say(`while you were out, something took ${S.gobTook} thing${S.gobTook === 1 ? '' : 's'} off the rack and the shelf.`); S.gobTook = 0; }
+  goblinEntry(false);
+  if (mode !== 'playing') return;
   if (kind === 'shed') {
     if (S.shedBuilt >= PILE_CAP) {
       S.shed = true;
@@ -992,7 +1154,7 @@ function finishTrip(kind) {
     return;
   }
   const parts = [];
-  const n = pick([3, 4, 4, 4, 5]);   // the same forest all night
+  const n = S.axe ? pick([5, 6, 6, 6, 7]) : pick([3, 4, 4, 4, 5]);   // the same forest all night; more with a real axe
   addWood(n);
   if (blizzard()) addWet(n);
   parts.push(blizzard() ? `+${n} wet wood` : `+${n} wood`);
@@ -1291,6 +1453,7 @@ const anyMeat = () => S.meat + S.cooked;
 
 function openDoorFor(v) {
   doorTarget = 1;
+  goblinsLeave();
   if (v.who === 'phantom') {
     doorCloseIn = 1.4;
     say('there is no one there. no footprints in the snow. there never were.');
@@ -1333,6 +1496,8 @@ function openDoorFor(v) {
         choices: [
           { key: 'meatForWood', label: 'give 1 meat for 7 wood', can: () => anyMeat() >= 1, act: () => { takeMeat(); addWood(7); say(blizzard() ? 'he stacks seven logs by the door, dry from under his oilcloth. +7 dry wood' : 'he stacks seven logs by the door. +7 wood'); } },
           { key: 'meat2ForWood', label: 'give 2 meat for 15 wood', can: () => anyMeat() >= 2, act: () => { takeMeat(); takeMeat(); addWood(15); say(blizzard() ? 'he unloads half his sled, dry from under the oilcloth. +15 dry wood' : 'he unloads half his sled by the door. +15 wood'); } },
+          ...(S.axe ? [] : [{ key: 'axe', label: 'give 3 meat for his spare axe', desc: 'a real axe: every wood trip brings back half again as much.', can: () => anyMeat() >= 3,
+            act: () => { takeMeat(); takeMeat(); takeMeat(); S.axe = true; sfx.chime(); say('he hands you his spare axe, the handle worn smooth. "keep it sharp." your wood trips will bring back more now.'); } }]),
           { key: 'woodForMeat', label: 'give 6 wood for 1 cooked meat', can: () => S.wood >= 6, act: () => { S.wood -= 6; addCooked(1); say('he hands over a strip of smoked meat. +1 cooked meat'); } },
           { key: 'no', label: 'no trade', act: () => say('the woodcutter drags his sled back into the dark.') },
         ],
@@ -1517,6 +1682,8 @@ const DEATHS = {
     : 'real visitors walk up through the snow. listen for footsteps before the knock. and there is only one stranger.') },
   hand: { text: 'She climbed in through the broken window.', hint: 'board the window before one in the morning. glass will not stop her, and fire will.' },
   handAway: { text: 'You came back to a broken window. She was already inside.', hint: 'board the window before one in the morning. a bare window lets her in, whether you are home or not.' },
+  guest: { text: 'The fire went out, and the thing in the corner came for you.', hint: 'something got in behind you when you came back from a trip. salt the doorway to keep them out, throw salt at one to drive it off, or light its corner. and never let the fire die with one inside.' },
+  goblins: { text: 'Four of them, one in every corner. They were bold enough.', hint: 'each time you come back in, one may follow you. salt the doorway, and drive them out before there are four.' },
   sleep: { text: 'You lay down by the fire at dusk, just for a moment, and never got up.', hint: 'four days without sleep is more than anyone can take. sleep during the day.' },
   lost: { text: 'You lost the path in the white, and never found it again.',
     hint: "nothing you could have done. about one blizzard night in a hundred ends like this. you were very, very unlucky." },
@@ -1895,7 +2062,7 @@ const dayClock = (hoursLeft) => clockText(((22 - hoursLeft - START_HOUR + 24) % 
 // what the next night brings, told during the day
 const NIGHT_WARNINGS = {
   2: 'Tonight will be worse. Everything comes two hours sooner: the thing in the trees and the knocking from the moment it gets dark, her at the window from eleven, and the walkers from one in the morning.',
-  4: 'The blizzard will not stop. Tonight is the same as last night: the cold, the wet wood, the long trips, and everything two hours sooner.',
+  4: 'The blizzard will not stop. And there are tracks in the snow by the woodshed, small ones, like a child walking on its knuckles. Tonight, things may follow you in when you come back from a trip. Salt keeps them out of a doorway. They hate the light.',
   3: 'A blizzard is coming tonight. Everything still comes two hours sooner. Out in it, everything takes half again as long, and the cold can kill you: one trip chills you badly, two in a row could freeze you. The wood you bring in will be wet, and wet wood barely burns until it dries.',
 };
 
@@ -1905,6 +2072,7 @@ function startDay() {
   S.phase = 'day';
   const spoiled = spoilOverDay();
   S.wet = [];   // a day by the coals dries every log
+  S.goblins = [];   // they go with the dark
   S.smoke = 0;
   S.cold = 0;
   S.charm = false;
@@ -1968,7 +2136,7 @@ function doDay(id) {
 const NIGHT_START = {
   2: ['the sun is down. the second night begins. dawn is eight hours away.', 'they are already awake. tonight everything comes two hours sooner.'],
   3: ['the sun is down, and the blizzard comes with it. the third night begins.', 'out there everything takes longer, the cold bites, and the wood comes in wet.'],
-  4: ['the sun goes down on a fourth night. the blizzard has not let up.', 'the same as last night: the cold, the wet wood, the long trips. hold on.'],
+  4: ['the sun goes down on a fourth night. the blizzard has not let up.', 'something small has been at the woodshed. when you come back in, close the door behind you fast.'],
 };
 
 function startNextNight() {
@@ -2037,6 +2205,12 @@ const BUILDS = [
   { id: 'saltWin', name: 'salt the window sill', desc: 'the next time she would get through the window, she recoils instead.',
     show: () => !S.saltWin && (S.salt > 0 || S.nightNo >= 2), cost: () => ({ salt: 2 }),
     done: () => { S.saltWin = true; say('you pour a line of salt along the window sill.'); } },
+  ...TORCHES.map((tc) => ({
+    id: `saltGob_${tc.id}`, name: `throw salt into ${tc.name}`,
+    desc: 'something is crouched in that corner. a fistful of salt and it will bolt out the door.',
+    show: () => S.goblins && S.goblins.some((g) => g.corner === tc.id), cost: () => ({ salt: 1 }),
+    done: () => { S.salt += 1; saltGoblin(tc.id); },
+  })),
   ...TORCHES.map((tc) => ({
     id: `torch_${tc.id}`, name: `a torch in ${tc.name}`,
     desc: 'an iron sconce and a torch that burns all night. a faint glow, and nothing opens its eyes inside it.',
@@ -2110,7 +2284,7 @@ const SPOTS = [
   { id: 'shed', x: 307, y: 72, builds: ['shed'] },
   { id: 'bedroll', x: 252, y: 121, builds: ['coat'] },
   { id: 'walls', x: 22, y: 64, builds: ['insulate'] },
-  ...TORCHES.map((tc) => ({ id: `torch_${tc.id}`, x: tc.x, y: tc.y - 7, builds: [`torch_${tc.id}`] })),
+  ...TORCHES.map((tc) => ({ id: `torch_${tc.id}`, x: tc.x, y: tc.y - 7, builds: [`saltGob_${tc.id}`, `torch_${tc.id}`] })),
 ];
 const buildable = (b) => b.show() && canAfford(b.cost()) && (!b.ok || b.ok());
 const spotBuilds = (spot) => spot.builds.map((id) => BUILDS.find((b) => b.id === id)).filter((b) => b && b.show());
@@ -3532,6 +3706,8 @@ function updateFx(dt) {
       }
     } else if (f.kind === 'spear') {
       // drawn from its start and target
+    } else if (f.kind === 'gobIn' || f.kind === 'gobOut') {
+      // drawn from their start and life
     } else if (f.kind === 'rat') {
       f.x += f.vx * dt; f.y += f.vy * dt;
     } else if (f.kind === 'burn' || f.kind === 'ember') {
@@ -3555,6 +3731,15 @@ function drawFx(s) {
     } else if (f.kind === 'smoke') {
       lx.fillStyle = `rgba(110, 104, 100, ${0.45 * a})`;
       lpx(s, f.x - 1, f.y - 1, 2 + f.life * 2, 2 + f.life * 2);
+    } else if (f.kind === 'gobIn') {
+      // a goblin-shaped shadow crumbling in through the door, gone in half a second
+      const k = f.life / f.max;
+      drawGoblin(s, lerp(274, 250, k), lerp(110, 124, k), 1.1, -1, 0.9 * (1 - k), false);
+      lx.fillStyle = `rgba(60, 50, 40, ${0.6 * (1 - k)})`;
+      for (let i = 0; i < 6; i++) lpx(s, lerp(274, 250, k) + hash(i) * 8 - 4, 114 + hash(i + 3) * 8 * k, 0.6, 0.6);
+    } else if (f.kind === 'gobOut') {
+      const k = f.life / f.max;
+      drawGoblin(s, lerp(f.from.x, 274, k), lerp(f.from.y + 6, 110, k), 1, f.from.x < 274 ? 1 : -1, 1 - k);
     } else if (f.kind === 'rat') {
       const dir = Math.sign(f.vx), bob = Math.sin(f.life * 40) > 0 ? 0.5 : 0;
       lx.fillStyle = 'rgba(46, 36, 32, 1)';
@@ -3859,6 +4044,7 @@ function drawLight() {
 
   drawHand(s, t);
   drawBelow(s, t);
+  drawGoblins(s, t);
   drawFx(s);
   drawGrin(s, t);
 
@@ -3919,7 +4105,7 @@ function drawLight() {
 // Every way to die has its own few seconds before the red screen. lossT runs from 0 when you die.
 const DEATH_LEN = {
   dark: 6.4, starve: 5.6, burn: 5.8, mimic: 5.4, hand: 5.2, handAway: 5.2, hunter: 5.6,
-  risen: 5.6, cellar: 5.2, cellarAway: 5.2, falseStranger: 5.6, freeze: 5.6, lost: 5.6, sleep: 5,
+  risen: 5.6, cellar: 5.2, cellarAway: 5.2, falseStranger: 5.6, freeze: 5.6, lost: 5.6, sleep: 5, guest: 5.2, goblins: 5.4,
 };
 const deathLen = () => DEATH_LEN[S.cause] || 4;
 const seg = (a, b) => clamp((lossT - a) / (b - a), 0, 1);   // progress 0..1 through one stretch of a death
@@ -3942,6 +4128,8 @@ const DEATH_CUES = {
   risen: [[0.7, () => sfx.crack()], [1.4, () => sfx.crack()], [2.1, () => sfx.breath()], [2.9, () => sfx.growl(1.1)], [3.1, () => sfx.footsteps(4)]],
   cellar: [[0, () => sfx.slam()], [1.0, () => sfx.scratch()], [2.9, () => { sfx.drag(); sfx.thump(1); shake = 0.3; }]],
   falseStranger: [[0.7, () => sfx.crack()], [1.8, () => sfx.breath()], [3.2, () => sfx.growl(1.3)]],
+  guest: [[0.1, () => sfx.scuttle()], [1.2, () => sfx.scuttle()], [2.4, () => sfx.growl(0.8)]],
+  goblins: [[0.1, () => sfx.scuttle()], [0.5, () => sfx.scuttle()], [1.1, () => sfx.scuttle()], [2.2, () => sfx.growl(1.3)], [2.6, () => sfx.scream()]],
   lost: [[0, () => sfx.gust()], [1.3, () => sfx.gust()], [2.6, () => sfx.gust()], [3.6, () => sfx.howl()]],
   freeze: [[0.1, () => sfx.gust()], [0.6, () => sfx.heartbeat(0.7)], [2.0, () => sfx.heartbeat(0.45)], [3.6, () => sfx.heartbeat(0.25)], [3.0, () => sfx.gust()]].sort((a, b) => a[0] - b[0]),
 };
@@ -3954,6 +4142,10 @@ let deathEyes = [];
 function startDeath(cause) {
   deathCue = 0;
   deathEyes = [];
+  if (cause === 'guest' || cause === 'goblins') {
+    // where they come from: every corner one is in
+    deathEyes = (cause === 'goblins' ? S.goblins : settled()).map((g) => GOB_CORNERS[g.corner || pick(Object.keys(GOB_CORNERS))]);
+  }
   if (cause === 'freeze') {
     // frost crystals that grow in from every edge
     for (let i = 0; i < 150; i++) {
@@ -4445,6 +4637,17 @@ function deathFreeze(s, t) {
   }
 }
 
+// The goblins: out of their corners along the floor toward you, eyes first, growing as they come, then on you.
+function deathGoblins(s) {
+  lx.fillStyle = `rgba(0, 0, 0, ${0.5 * seg(0, 2)})`;
+  lx.fillRect(0, 0, light.width, light.height);
+  const k = ease(seg(0.3, 3.6));
+  deathEyes.forEach((c, i) => {
+    const tx = 160 + (i - (deathEyes.length - 1) / 2) * 62;
+    drawGoblin(s, lerp(c.x, tx, k), lerp(c.y + 6, 178, k), lerp(1, 6, k), c.x < tx ? 1 : -1, 1);
+  });
+}
+
 // Lost in the white: the whiteout swallows the room, snow driving sideways, and a small dark figure, you,
 // walks away into it until there is nothing left to see.
 function deathLost(s, t) {
@@ -4478,7 +4681,7 @@ function deathSleep(s) {
 const DEATH_SCENES = {
   dark: deathDark, starve: deathStarve, burn: deathBurn, mimic: deathMimic, hand: deathHand, handAway: deathHand,
   hunter: deathHunter, risen: deathRisen, cellar: deathCellar, cellarAway: deathCellar, falseStranger: deathFalseStranger,
-  freeze: deathFreeze, lost: deathLost, sleep: deathSleep,
+  freeze: deathFreeze, lost: deathLost, sleep: deathSleep, guest: deathGoblins, goblins: deathGoblins,
 };
 
 function drawDeath(s, t) {
