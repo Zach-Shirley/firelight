@@ -128,7 +128,6 @@ function skilled(f, S, mem, human = false, hoard = false) {
   if (S.hunger >= 88 && S.cooked === 0 && S.meat > 0) f.act.eat();
   if (S.blaze > 0) f.act.douse();
   if (S.salt >= 1 && S.cooked >= 2) f.act.build('cure');
-  if (S.shed && S.wood < 12 && S.shedWood > 0) f.act.bringIn();
   if (!S.shed && S.wood >= 25 && !S.hunter.near && S.hand.phase === 'idle' && S.hour !== 0) f.act.build('shed');
   if (!S.boardsBuilt && S.wood >= 9 && S.night > 50) f.act.build('boards');
   if (S.boardsBuilt && S.boards < 2 && S.wood >= 8) f.act.build('repair');

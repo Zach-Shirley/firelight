@@ -606,3 +606,127 @@ export function drag() {
   pts.push([1.6, 0.0001]);
   noiseShape('bandpass', [[0, 500], [1.6, 300]], pts, 1.7, 1.5);
 }
+
+/* ------------------------------------------------------------------ music */
+
+// Background music, generated like everything else: a low, slowly breathing drone, and a warped music box
+// picking out a lullaby in a minor key one note at a time, a little out of tune. As the night wears on
+// (tension 0..1) a sour second note creeps into the drone and the music box plays faster and more wrong.
+let musicGain = null, musicBus, droneSour, musicTimer = null;
+let musicOn = true, musicLevel = 0, musicTension = 0, lastLevel = -1;
+let melodyStep = 4;
+const SCALE = [0, 2, 3, 5, 7, 8, 11, 12, 14, 15];   // natural minor with a raised seventh: a lullaby gone wrong
+
+function makeReverb(seconds = 3.2) {
+  const len = Math.floor(ctx.sampleRate * seconds);
+  const buf = ctx.createBuffer(2, len, ctx.sampleRate);
+  for (let c = 0; c < 2; c++) {
+    const d = buf.getChannelData(c);
+    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2.6);
+  }
+  const conv = ctx.createConvolver();
+  conv.buffer = buf;
+  return conv;
+}
+
+function startMusic() {
+  if (musicGain || !ctx) return;
+  musicGain = ctx.createGain();
+  musicGain.gain.value = 0;
+  musicGain.connect(master);
+  const verb = makeReverb();
+  verb.connect(musicGain);
+  musicBus = ctx.createGain();
+  musicBus.gain.value = 1;
+  musicBus.connect(verb);
+  const dry = ctx.createGain();
+  dry.gain.value = 0.35;
+  musicBus.connect(dry).connect(musicGain);
+
+  // the drone: two detuned low saws under a slowly moving filter, and a fifth above
+  const lp = ctx.createBiquadFilter();
+  lp.type = 'lowpass';
+  lp.frequency.value = 170;
+  lp.Q.value = 3;
+  const lfo = ctx.createOscillator();
+  const lfoAmt = ctx.createGain();
+  lfo.frequency.value = 0.045;
+  lfoAmt.gain.value = 70;
+  lfo.connect(lfoAmt).connect(lp.frequency);
+  lfo.start();
+  const droneGain = ctx.createGain();
+  droneGain.gain.value = 0.05;
+  lp.connect(droneGain).connect(musicGain);
+  droneGain.connect(verb);
+  for (const [f, type, g] of [[55, 'sawtooth', 0.5], [55.35, 'sawtooth', 0.5], [82.4, 'triangle', 0.6]]) {
+    const o = ctx.createOscillator();
+    const og = ctx.createGain();
+    o.type = type;
+    o.frequency.value = f;
+    og.gain.value = g;
+    o.connect(og).connect(lp);
+    o.start();
+  }
+  // the sour note a semitone above, faded in by tension
+  const sour = ctx.createOscillator();
+  sour.type = 'sawtooth';
+  sour.frequency.value = 58.27;
+  droneSour = ctx.createGain();
+  droneSour.gain.value = 0;
+  sour.connect(droneSour).connect(lp);
+  sour.start();
+
+  scheduleNote();
+}
+
+// one music-box note: a soft sine with a faint, slightly sharp overtone that beats against it
+function musicNote(freq, at, vol) {
+  for (const [mult, v, det] of [[1, 1, 0], [2, 0.25, 9], [3, 0.08, -6]]) {
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.type = 'sine';
+    o.frequency.value = freq * mult;
+    o.detune.value = det + (Math.random() - 0.5) * 18;   // never quite in tune
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.exponentialRampToValueAtTime(vol * v, at + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + 2.8);
+    o.connect(g).connect(musicBus);
+    o.start(at);
+    o.stop(at + 3);
+  }
+}
+
+function scheduleNote() {
+  const wait = (2.2 + Math.random() * 3.2) * (1 - 0.45 * musicTension);
+  musicTimer = setTimeout(scheduleNote, wait * 1000);
+  if (!ctx || !musicOn || musicLevel < 0.05 || !audible()) return;
+  const t = ctx.currentTime + 0.05;
+  // a slow random walk up and down the scale, now and then resting
+  if (Math.random() < 0.18) return;
+  melodyStep = Math.max(0, Math.min(SCALE.length - 1, melodyStep + [-2, -1, -1, 1, 1, 2][Math.floor(Math.random() * 6)]));
+  const freq = 220 * 2 ** (SCALE[melodyStep] / 12);
+  musicNote(freq, t, 0.05);
+  // later in the night: a second note right against it
+  if (Math.random() < musicTension * 0.45) musicNote(freq * 2 ** (1 / 12), t + 0.02, 0.03);
+  // and sometimes the same note again, a beat later, like the box catching
+  if (Math.random() < 0.15 + musicTension * 0.2) musicNote(freq, t + 0.42, 0.03);
+}
+
+// level 0..1: how loud the music should be right now; tension 0..1: how far the night has gone wrong
+export function setMusic(level, tension) {
+  if (!ctx) return;
+  startMusic();
+  musicLevel = level;
+  musicTension = Math.max(0, Math.min(1, tension));
+  const target = musicOn ? level : 0;
+  if (Math.abs(target - lastLevel) > 0.01) {
+    lastLevel = target;
+    musicGain.gain.setTargetAtTime(target * 0.9, ctx.currentTime, target > 0.1 ? 1.2 : 0.5);
+  }
+  droneSour.gain.setTargetAtTime(Math.max(0, musicTension - 0.3) * 0.5, ctx.currentTime, 2);
+}
+
+export function setMusicEnabled(on) {
+  musicOn = on;
+  lastLevel = -1;
+}

@@ -20,12 +20,12 @@ const START_HOUR = 22;
 const STOKE_CD = 2.5;
 const EAT_CD = 1.5;
 const COOK_TIME = 6;          // about one wood trip
-const SHED_BUILD_TIME = 15;
+const SHED_LOG_TIME = 1;        // seconds outside for each log you build into the woodshed
 const TRIPS = {
   wood: { time: 6, label: 'gathering wood in the dark' },
   hunt: { time: 11, label: 'hunting in the trees' },
   drag: { time: 4, label: 'dragging her body into the snow' },
-  shed: { time: SHED_BUILD_TIME, label: 'building the woodshed' },
+  shed: { time: SHED_LOG_TIME, label: 'building the woodshed' },   // per log carried out
 };
 
 const SAVE_KEY = 'firelight-save-v8';
@@ -100,6 +100,7 @@ function freshState() {
     trapUses: [],                                // catches left in each trap
     shed: false,
     shedWood: 0,
+    shedBuilt: 0,                                // logs built into the woodshed so far (it needs PILE_CAP)
     blaze: 0,
     grate: false,
     shoes: false,
@@ -329,9 +330,9 @@ const HOUR_LINES = {
 };
 
 const HOUR_LINES_2 = {
-  1: "eleven o'clock. the wind is already in the room.",
+  1: "eleven o'clock. she can find the window already.",
   2: 'midnight. something shifts under the floor.',
-  3: 'one in the morning. the second night is worse than the first.',
+  3: 'one in the morning. some of them have learned to walk. only the lantern tells.',
   4: 'two in the morning. the forest is picked clean.',
   5: 'three in the morning. you can hear them breathing.',
   6: 'four in the morning. everything is awake now.',
@@ -377,6 +378,7 @@ function updateNight(dt) {
   if (S.hunger > 82) nearMiss('hunger', (S.hunger - 70) / 30, `hunger at ${Math.round(S.hunger)}%`);
 
   spoilMeat(dt);
+  restockPile();
   updatePile(dt);
   updateBlaze(dt);
   if (mode !== 'playing') return;
@@ -487,7 +489,6 @@ function updateHunter(dt) {
 const RAW_LIFE = 120, COOKED_LIFE = 240, CURED = 1e9;
 const PILE_CAP = 25;         // logs the room can hold in one pile
 const SHED_CAP = 100;        // logs the woodshed outside can hold
-const SHED_BUILD = 15;       // seconds outside to build it: longer than a hunt
 
 function syncMeat() { S.meat = S.rawLife.length; S.cooked = S.cookedLife.length; }
 function addRaw(n = 1) { for (let i = 0; i < n; i++) S.rawLife.push(RAW_LIFE); syncMeat(); }
@@ -528,14 +529,12 @@ function addWood(n) {
   }
 }
 
-function bringInWood() {
-  if (!S.shed || mode !== 'playing' || S.away || dialog) return;
+// With a woodshed, the pile restocks itself from the shed whenever it runs low.
+function restockPile() {
+  if (!S.shed || S.shedWood <= 0 || S.wood >= PILE_CAP) return;
   const n = Math.min(S.shedWood, PILE_CAP - S.wood);
-  if (n <= 0) { say(S.shedWood ? 'the pile is already as high as it can go.' : 'the woodshed is empty.'); return; }
   S.shedWood -= n;
   S.wood += n;
-  sfx.thump(0.5);
-  say(`you bring ${n} logs in from the woodshed.`);
 }
 
 let pileLean = -1;           // seconds until an overfull pile topples
@@ -656,15 +655,18 @@ function openShop(first) {
 function startTrip(kind) {
   if (!canAct() || S.away || !S.lit) return;
   const slow = (S.hunger >= 90 ? 1.3 : 1) * (S.sick > 0 ? 1.3 : 1) * (S.tired && S.nightNo === 2 ? 1.2 : 1) * (S.shoes && kind !== 'shed' ? 0.7 : 1);
-  const total = TRIPS[kind].time * slow;
+  // the woodshed: you take out what wood you have (up to what it still needs) and build log by log
+  const logs = kind === 'shed' ? Math.min(S.wood, PILE_CAP - S.shedBuilt) : 0;
+  if (kind === 'shed' && logs < 1) { say('you need wood to build with.'); return; }
+  const total = TRIPS[kind].time * slow * (kind === 'shed' ? logs : 1);
   // if it is already out there when you leave, there is no head start
-  S.away = { kind, t: total, total, startedNear: S.hunter.near };
+  S.away = { kind, t: total, total, startedNear: S.hunter.near, logs, placed: 0 };
   S.stalk = 0;   // the four seconds always start from the moment you step out
   if (kind !== 'drag') S.rec.trips += 1;
   toggleBuild(false);
   say(kind === 'wood' ? 'you slip out into the trees for wood.'
     : kind === 'hunt' ? 'you go out to hunt.'
-      : kind === 'shed' ? 'you go out to build the woodshed against the wall. it will take a while.'
+      : kind === 'shed' ? `you carry ${logs} log${logs === 1 ? '' : 's'} out to the woodshed. run back whenever you need to; what you build stays built.`
         : 'you drag her body out through the door, into the snow.');
   save();
 }
@@ -672,7 +674,13 @@ function startTrip(kind) {
 function runBack() {
   if (!S.away || mode !== 'playing') return;
   if (S.away.kind === 'drag') { say("you can't leave her here. you keep dragging."); return; }
-  if (S.away.kind === 'shed') { addWood(PILE_CAP); say('you abandon the half-built shed and run in with the wood.'); }
+  if (S.away.kind === 'shed') {
+    const back = S.away.logs - S.away.placed;   // logs only leave the pile as they go into the walls
+    S.away = null;
+    say(`you run back in${back ? ` with the ${back} log${back === 1 ? '' : 's'} you hadn't used` : ''}. the woodshed is ${S.shedBuilt} of ${PILE_CAP} logs built.`);
+    announceWaiting();
+    return;
+  }
   S.away = null;
   say('you run back inside empty-handed and bar the door.');
   announceWaiting();
@@ -682,6 +690,11 @@ function updateTrip(dt) {
   const a = S.away;
   if (!a) return;
   a.t -= dt;
+  if (a.kind === 'shed') {
+    // a log goes into the walls every SHED_LOG_TIME seconds of the trip
+    const due = Math.min(a.logs, Math.floor(((a.total - a.t) / a.total) * a.logs + 1e-6));
+    while (a.placed < due) { a.placed += 1; S.wood -= 1; S.shedBuilt += 1; }
+  }
   // the thing in the trees: once it is close, its grin fills in four seconds, every time.
   // a howl while you're already out gives you a moment to run first; leaving while it's close does not.
   if (hour() >= 1) {
@@ -709,9 +722,13 @@ function updateTrip(dt) {
 function finishTrip(kind) {
   S.away = null;
   if (kind === 'shed') {
-    S.shed = true;
-    sfx.chime();
-    say('the woodshed stands against the outside wall. extra wood goes in it now.');
+    if (S.shedBuilt >= PILE_CAP) {
+      S.shed = true;
+      sfx.chime();
+      say('the woodshed stands against the outside wall. extra wood goes in it now, and comes back in when the pile runs low.');
+    } else {
+      say(`you come back in. the woodshed is ${S.shedBuilt} of ${PILE_CAP} logs built.`);
+    }
     save();
     return;
   }
@@ -1116,7 +1133,8 @@ const HINTS = [
 // She has to eat once tonight. She asks three times; the third time is the one that matters.
 // Feed her early and she will be starving again before dawn.
 const PLEAS = [
-  { at: 45, text: 'The stranger rubs her stomach. "I haven\'t eaten in two days. Do you have anything?"' },
+  { at: 45, text: 'The stranger rubs her stomach. "I haven\'t eaten in two days. Do you have anything?"',
+    again: 'The stranger rubs her stomach. "I\'m hungry again. Is there anything to eat?"' },
   { at: 70, text: 'The stranger, quietly: "Please. Just a little meat. I\'m so hungry."' },
   { at: 90, text: 'The stranger is shaking, curled up by the fire. "I won\'t last the night without something to eat."', last: true },
 ];
@@ -1145,8 +1163,11 @@ function updateStranger(dt) {
   const plea = PLEAS[S.sPlea];
   if (plea && S.sHunger >= plea.at) {
     S.sPlea += 1;
+    // she has only gone two days without food the first time she asks
+    const text = plea.again && S.sAsked ? plea.again : plea.text;
+    S.sAsked = true;
     openDialogue({
-      id: 'plea', last: !!plea.last, portrait: 'stranger', text: plea.text,
+      id: 'plea', last: !!plea.last, portrait: 'stranger', text,
       choices: [
         { key: 'cooked', label: 'give her cooked meat', can: () => S.cooked >= 1, act: () => feedStranger('cooked') },
         { key: 'raw', label: 'give her raw meat', can: () => S.meat >= 1, act: () => feedStranger('raw') },
@@ -1598,6 +1619,7 @@ function startNight2() {
   resetTransients();
   setMode('playing');
   say('the sun is down. the second night begins. dawn is eight hours away.');
+  say('they are already awake. tonight everything comes two hours sooner.');
   if (S.tired) setTimeout(() => { if (S.nightNo === 2 && mode === 'playing') say("you didn't sleep. your eyes are heavy."); }, 3000);
   save();
 }
@@ -1617,8 +1639,9 @@ const BUILDS = [
   { id: 'lantern', name: 'blood lantern', desc: 'hangs by the door. its red light shows what is really standing outside. burns a jar of blood every so often.',
     show: () => !S.lantern, cost: () => ({ wood: 8, blood: 4 }),
     done: () => { S.lantern = true; S.lanternLit = true; S.lanternT = 60; say('you fill the lantern with blood and light it. the door glows red. it will need more blood to keep burning.'); } },
-  { id: 'shed', name: 'woodshed', desc: 'a shed against the outside wall that holds 100 more logs, so the pile never topples. takes a full pile of wood and a long time outside to build: longer than a hunt.',
-    show: () => !S.shed, cost: () => ({ wood: PILE_CAP }),
+  { id: 'shed', name: () => (S.shedBuilt ? `woodshed (${S.shedBuilt}/${PILE_CAP} built)` : 'woodshed'),
+    desc: () => `a shed against the outside wall that holds 100 more logs, so the pile never topples. it takes ${PILE_CAP} logs, built in a second each outside. you carry out what wood you have and build log by log; run back any time and what you built stays.`,
+    show: () => !S.shed, cost: () => ({}), ok: () => S.wood >= 1, costText: 'the wood you carry',
     done: () => { startTrip('shed'); } },
   { id: 'cure', name: 'cure meat with salt', desc: () => `rub salt into 2 cooked meat so it never goes bad. (${curedCount()} cured)`,
     show: () => S.salt > 0 && S.cooked - curedCount() >= 2, cost: () => ({ salt: 1 }),
@@ -1645,11 +1668,10 @@ function build(id) {
   const b = BUILDS.find((x) => x.id === id);
   if (!b || !b.show() || !canAct()) return;
   const cost = b.cost();
-  if (!canAfford(cost)) return;
+  if (!canAfford(cost) || (b.ok && !b.ok())) return;
   for (const k in cost) S[k] -= cost[k];
   b.done();
-  if (b.id === 'shed' && !S.away) S.wood += PILE_CAP;   // could not leave: refund
-  sfx.chime();
+  if (b.id !== 'shed') sfx.chime();
   renderBuild();
   save();
 }
@@ -1662,9 +1684,10 @@ function renderBuild() {
     const li = document.createElement('li');
     const cost = b.cost();
     const desc = typeof b.desc === 'function' ? b.desc() : b.desc;
-    li.innerHTML = `<div class="row"><span class="name">${b.name}</span>
-      <button ${!canAfford(cost) || !canAct() ? 'disabled' : ''}>build</button></div>
-      <div class="desc">${desc}</div><div class="cost">${costText(cost)}</div>`;
+    const name = typeof b.name === 'function' ? b.name() : b.name;
+    li.innerHTML = `<div class="row"><span class="name">${name}</span>
+      <button ${!canAfford(cost) || (b.ok && !b.ok()) || !canAct() ? 'disabled' : ''}>build</button></div>
+      <div class="desc">${desc}</div><div class="cost">${b.costText || costText(cost)}</div>`;
     li.querySelector('button').addEventListener('click', () => build(b.id));
     ui.buildList.appendChild(li);
   }
@@ -3936,7 +3959,6 @@ ui.build.addEventListener('click', () => toggleBuild());
 ui.strike.addEventListener('click', strikeHand);
 ui.slam.addEventListener('click', slamHatch);
 ui.douse.addEventListener('click', douse);
-$('shedDoor').addEventListener('click', bringInWood);
 ui.dayBtn.addEventListener('click', startDay);
 ui.endRunBtn.addEventListener('click', () => endRun());
 ui.dayNight.addEventListener('click', startNight2);
@@ -3950,6 +3972,26 @@ $('fullBtn').addEventListener('click', () => {
   else document.documentElement.requestFullscreen?.();
 });
 ui.sound.addEventListener('click', () => { S.sound = !S.sound; sfx.setEnabled(S.sound); save(); });
+
+const MUSIC_KEY = 'firelight-music';
+let musicOn = true;
+try { musicOn = localStorage.getItem(MUSIC_KEY) !== 'off'; } catch (e) { /* storage blocked: music stays on */ }
+sfx.setMusicEnabled(musicOn);
+function toggleMusic() {
+  musicOn = !musicOn;
+  sfx.setMusicEnabled(musicOn);
+  try { localStorage.setItem(MUSIC_KEY, musicOn ? 'on' : 'off'); } catch (e) { /* not remembered */ }
+}
+$('musicBtn').addEventListener('click', toggleMusic);
+
+// how loud the music is on each screen, and how wrong it has gone
+function musicLevel() {
+  if (mode === 'title') return 0.8;
+  if (mode === 'playing') return dialog ? 0.7 : 1;
+  if (mode === 'day') return 0.45;
+  return 0;   // dawn, a death and the screens after are quiet
+}
+const musicTension = () => (mode === 'playing' && S.lit ? hour() / 8 + S.dread / 250 + (S.nightNo === 2 ? 0.15 : 0) : 0);
 $('newBtn').addEventListener('click', () => newNight());
 ui.cont.addEventListener('click', continueNight);
 $('boardBtn').addEventListener('click', () => showTitle('board'));
@@ -3979,7 +4021,7 @@ window.addEventListener('keydown', (e) => {
   else if (k === 'm') ui.sound.click();
   else if (dialog) { if (k >= '1' && k <= '9') choose(Number(k) - 1); }
   else if (k === 'x') douse();
-  else if (k === 'w') bringInWood();
+  else if (k === 'n') toggleMusic();
   else if (k === 'f' || k === ' ') { e.preventDefault(); if (S.hatch.phase === 'lift') slamHatch(); else strikeHand(); }
   else if (k === 'r') runBack();
   else if (k === 'b') toggleBuild();
@@ -4038,6 +4080,8 @@ function frame(now) {
   drawPixels();
   drawLight();
   syncUI();
+  sfx.setMusic(musicLevel(), musicTension());
+  $('musicBtn').textContent = musicOn ? 'music on' : 'music off';
   sfx.setLevels(mode === 'lost' || mode === 'ended' ? 0 : S.fire, S.time, door, S.glassBroken && mode === 'playing' ? (S.boards > 0 ? 0.4 : 1) : 0);
   const cam = deathCamera();
   for (const c of [pix, light]) {
@@ -4058,7 +4102,7 @@ window.__firelight = {
   get pending() { return pendingVisit; },
   get eyes() { return eyes.length; },
   day: { start: startDay, do: doDay, night: startNight2 },
-  act: { douse, bringIn: bringInWood, slam: slamHatch, stoke, eat, cook, wood: () => startTrip('wood'), hunt: () => startTrip('hunt'), strike: strikeHand, runBack, build },
+  act: { douse, slam: slamHatch, stoke, eat, cook, wood: () => startTrip('wood'), hunt: () => startTrip('hunt'), strike: strikeHand, runBack, build },
   visit: (who, as, fake) => queueVisit(who, as, fake),
   die: (cause) => die(cause),
   get lossT() { return lossT; },

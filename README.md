@@ -15,7 +15,7 @@ A short horror-survival game in chunky pixel art. One night lasts about seven mi
 | S | Stoke the fire (1 wood) |
 | E | Eat: cooked meat if you have it, raw if that's all you have (raw fills you less and makes you sick). 1.5 s cooldown |
 | X | Douse a blaze with blood (2 blood) |
-| W | Bring logs in from the woodshed |
+| N | Music on or off |
 | C | Cook up to 3 raw meat. It finishes on its own in about 6 s, as long as the fire is lit |
 | G | Go out for wood (short trip) |
 | H | Go out to hunt (longer trip: meat, sometimes blood) |
@@ -79,7 +79,7 @@ Make it to dawn and you choose: **end here** and bank your score, or **rest thro
 | Sit with the stranger | 1 | Only if she's alive; she gives you salt and warns you about the floor |
 | Sleep | 3 | Skip it and you start night 2 **tired**: slower hands, slower trips, and now and then your eyes close and the screen goes black for a moment |
 
-**Night 2** keeps what you have and what is broken: resources, traps, the lantern, the boards, the broken window, and the stranger alive, gone or buried. Everything that hunts you behaves as if it were **two hours later**: walkers and the window come earlier, the fire burns faster and the mimic knocks more often.
+**Night 2** keeps what you have and what is broken: resources, traps, the lantern, the boards, the broken window, and the stranger alive, gone or buried. Everything that hunts you behaves as if it were **two hours later**: the thing in the trees and the knocking start as soon as it's dark, she comes to the window from 11 pm, the walkers from 1 am, the fire burns faster and the mimic knocks more often. The day screen and the start of night 2 both warn you.
 
 | New on night 2 | |
 | --- | --- |
@@ -98,7 +98,7 @@ Everything you build costs something you could have kept.
 | Window boards | 8 wood | Three boards. Without them, her first visit at 1 am kills you. Repair one for 3 wood |
 | Trap (up to 3) | 5 wood each | Raw meat and blood, collected on every trip. **Each wears out** after a few catches, and sometimes something tears one apart (you hear it snap). The smell keeps the thing in the trees close for longer |
 | Blood lantern | 8 wood + 4 blood | Red light under the door shows whether anything is actually standing there. That's the only way to catch the walkers after 3 am. It burns a jar of blood every minute, and goes dark when you run out |
-| **Woodshed** | 25 wood (a full pile) + 15 s outside | A shed against the outside wall that holds 100 more logs. Extra wood goes into it instead of toppling the pile, and a little shed with an open door appears on the right of the screen; **bring in** moves logs back to the pile. You build it outside for longer than a hunt, so pick a moment when the thing in the trees and she are both quiet |
+| **Woodshed** | 25 logs, 1 s outside each | A shed against the outside wall that holds 100 more logs. **You build it a bit at a time**: each trip carries out the wood you have and builds it in log by log, and you can run back any time without losing what's built. That's also how you spend a pile that's getting too tall. Once it stands, a little shed with an open door appears on the right of the screen, and wood moves on its own: extra logs go into the shed, and the pile restocks from it whenever it runs low |
 | Cure meat | 1 salt | Rubs salt into 2 cooked meat so it never goes bad |
 | Salt the doorway / the sill | 2 salt each | One use each; see night 2 |
 | Weigh down the hatch (night 2) | 6 wood | Holds the hatch shut through two pushes |
@@ -288,6 +288,10 @@ Checked on 2026-10-16:
   - dawn, the score screen and initials.
 - **9 unit tests pass,** with no console errors.
 - **Screenshots** were staged with the test hook, so their numbers aren't from real play.
+
+## Music
+
+The background music is generated in the browser like the rest of the sound: a low, slowly breathing drone under a warped music box picking out a minor-key lullaby one note at a time, never quite in tune. As the night goes on, and as the dark closes in, a sour note creeps into the drone and the music box plays faster, with notes that clash. It's quieter during the day, and silent at dawn and when you die. **N** or the music button turns it off (remembered per browser).
 
 ## Future ideas
 
