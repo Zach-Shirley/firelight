@@ -134,7 +134,7 @@ function freshState() {
     fDemandT: 45,
     fRefused: 0,
     recorded: false,
-    rec: { letIn: 0, turnedAway: 0, mimicsKept: 0, fed: 0, burned: 0, boardsLost: 0, trips: 0, cooked: 0, raw: 0, closest: 0, coldest: 0 },
+    rec: { letIn: 0, turnedAway: 0, mimicsKept: 0, fed: 0, burned: 0, boardsLost: 0, trips: 0, cooked: 0, raw: 0, closest: 0, close: {} },
     sPlea: 0,
     riseT: -1,
     carcass: false,
@@ -213,6 +213,25 @@ function tallyText(st) {
   return `${st.nights} night${st.nights === 1 ? '' : 's'} · ${st.dawns} dawn${st.dawns === 1 ? '' : 's'}${top ? ` · killed by: ${top}` : ''}`;
 }
 
+// Close calls: for each threat, the nearest you came to it. The recap shows the nearest one overall,
+// leaving out whatever actually killed you.
+const CLOSE_KILLERS = { grin: ['hunter'], dark: ['dark'], hunger: ['starve'], her: ['hand', 'handAway'], hatch: ['cellar', 'cellarAway'], blaze: ['burn'] };
+
+function nearMiss(kind, d, text) {
+  S.rec.close ||= {};
+  const cur = S.rec.close[kind];
+  if (!cur || d > cur.d) S.rec.close[kind] = { d: clamp(d, 0, 0.99), text };
+}
+
+function closestCall() {
+  let best = null;
+  for (const [kind, c] of Object.entries(S.rec.close || {})) {
+    if (!S.won && CLOSE_KILLERS[kind]?.includes(S.cause)) continue;
+    if (c.d >= 0.4 && (!best || c.d > best.d)) best = c;
+  }
+  return best && best.text;
+}
+
 function renderRecap() {
   const r = S.rec;
   const rows = [
@@ -220,7 +239,8 @@ function renderRecap() {
     ['fed the stranger', r.fed], ['burned her back', r.burned], ['boards lost', r.boardsLost],
     ['trips into the trees', r.trips], ['meat cooked', r.cooked], ['raw meat eaten', r.raw],
   ].filter(([, n]) => n > 0);
-  if (r.closest > 5) rows.push(['closest call', `the grin ${Math.round(r.closest)}% full`]);
+  const call = closestCall();
+  if (call) rows.push(['closest call', call]);
   rows.push(['hungriest', (r.hungriest || 0) >= 90 ? 'starving' : (r.hungriest || 0) >= 70 ? 'hungry' : 'never hungry']);
   ui.endRecap.innerHTML = '';
   for (const [label, v] of rows) {
@@ -352,6 +372,9 @@ function updateNight(dt) {
   if (S.hunger >= 100) { die('starve'); return; }
   S.rec.hungriest = Math.max(S.rec.hungriest || 0, S.hunger);
   S.rec.closest = Math.max(S.rec.closest, S.stalk);
+  if (S.stalk > 40) nearMiss('grin', S.stalk / 100, `the grin ${Math.round(S.stalk)}% full`);
+  if (S.dread > 40) nearMiss('dark', S.dread / 100, `the dark ${Math.round(S.dread)}% of the way in`);
+  if (S.hunger > 82) nearMiss('hunger', (S.hunger - 70) / 30, `hunger at ${Math.round(S.hunger)}%`);
 
   spoilMeat(dt);
   updatePile(dt);
@@ -553,6 +576,7 @@ function douse() {
   if (!(S.blaze > 0) || mode !== 'playing' || S.away || dialog) return;
   if (S.blood < 2) { say("you don't have enough blood to throw on it. two jars, at least."); return; }
   S.blood -= 2;
+  nearMiss('blaze', 1 - S.blaze / 9, `put out the blaze with ${S.blaze.toFixed(1)} s to spare`);
   S.blaze = 0;
   S.fire = 2;
   S.decay = decayTime();
@@ -806,6 +830,7 @@ function strikeHand() {
   if (hd.phase !== 'reach' || S.away || dialog || mode !== 'playing') return;
   if (S.wood < 1 || S.fire < 1) { say('you need a burning branch. there is no fire to take one from.'); return; }
   S.wood -= 1;
+  nearMiss('her', 1 - hd.t / hd.total, `burned her back with ${hd.t.toFixed(1)} s to spare`);
   hd.phase = 'retreat';
   hd.t = 0.9;
   S.rec.burned += 1;
@@ -1411,6 +1436,7 @@ function updateHatch(dt) {
 function slamHatch() {
   const hc = S.hatch;
   if (hc.phase !== 'lift' || S.away || dialog || mode !== 'playing') return;
+  nearMiss('hatch', 1 - hc.t / hc.total, `slammed the hatch with ${hc.t.toFixed(1)} s to spare`);
   hc.phase = 'slammed';
   hc.t = 0.6;
   S.rec.slammed = (S.rec.slammed || 0) + 1;
@@ -1563,7 +1589,7 @@ function startNight2() {
     away: null, doorT: 22, firstVisit: false, kidGiftT: -1, kidVisits: 0, cutterVisits: 0, riseT: -1,
     hunter: { near: false, t: 24, since: 0 }, hand: { phase: 'idle', t: 40, total: 1, p: 0, beat: 0 },
     hatch: { phase: 'idle', t: 18, total: 1, p: 0 }, hatchFed: 0, dozeT: 22,
-    rec: { letIn: 0, turnedAway: 0, mimicsKept: 0, fed: 0, burned: 0, boardsLost: 0, trips: 0, cooked: 0, raw: 0, closest: 0, coldest: 0, slammed: 0 },
+    rec: { letIn: 0, turnedAway: 0, mimicsKept: 0, fed: 0, burned: 0, boardsLost: 0, trips: 0, cooked: 0, raw: 0, closest: 0, close: {}, slammed: 0 },
   });
   S.decay = decayTime();
   if (S.stranger === 'inside') { S.sHunger = 30; S.sPlea = 0; S.n2HintT = S.strangerFalse ? -1 : 9; }
