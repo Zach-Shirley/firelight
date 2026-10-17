@@ -341,8 +341,8 @@ button:disabled { opacity: 0.4; cursor: default; }
 
 /* ---- round 4: hunger, trips, the hand, death */
 #hunger { font-size: calc(6px * var(--s)); color: #7d6d58; margin-top: calc(1px * var(--s)); }
-#hunger.warn { color: #e0a040; }
-#hunger.bad { color: #ff5a40; animation: flicker 0.8s infinite; }
+#hunger.warn { color: #a8c8e8; }
+#hunger.bad { color: #e0f0ff; text-shadow: 0 0 calc(2px * var(--s)) #6aa0e0; animation: flicker 0.8s infinite; }
 
 #strike {
   position: absolute;
@@ -451,3 +451,18 @@ body.touch #howPanel .keys { display: none; }
   0%, 25% { transform: rotate(0deg); }
   55%, 100% { transform: rotate(-90deg); }
 }
+
+/* ---- night recap and all-time tally */
+.recap {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 calc(8px * var(--s));
+  font-size: calc(5.5px * var(--s));
+  color: var(--ink-dim);
+}
+.recap li { display: flex; justify-content: space-between; gap: calc(3px * var(--s)); }
+.recap .v { color: var(--ink); }
+.tally { margin: 0; font-size: calc(5.5px * var(--s)); color: var(--ink-dim); }

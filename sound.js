@@ -495,3 +495,35 @@ export function sizzle() {
   src.connect(hp).connect(g).connect(master);
   src.start(t, Math.random() * 1.5, 0.5);
 }
+
+// Teeth chattering and a shaky breath.
+export function shiver(strength = 1) {
+  if (!ctx || !enabled) return;
+  const t = ctx.currentTime;
+  for (let i = 0; i < 9; i++) {
+    const at = t + i * 0.06 + Math.random() * 0.015;
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.type = 'square';
+    o.frequency.value = 1800 + Math.random() * 600;
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.exponentialRampToValueAtTime(0.025 * strength, at + 0.003);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + 0.025);
+    o.connect(g).connect(master);
+    o.start(at);
+    o.stop(at + 0.03);
+  }
+  const src = ctx.createBufferSource();
+  src.buffer = noiseBuf;
+  const bp = ctx.createBiquadFilter();
+  bp.type = 'bandpass';
+  bp.frequency.value = 1200;
+  bp.Q.value = 0.8;
+  const g = ctx.createGain();
+  const at = t + 0.6;
+  g.gain.setValueAtTime(0.0001, at);
+  g.gain.linearRampToValueAtTime(0.05 * strength, at + 0.25);
+  g.gain.linearRampToValueAtTime(0.0001, at + 0.9);
+  src.connect(bp).connect(g).connect(master);
+  src.start(at, Math.random(), 1);
+}

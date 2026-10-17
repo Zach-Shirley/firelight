@@ -24,6 +24,7 @@ function beginner(f, S, mem, picky = false) {
     if (d.id === 'kidAsk') return f.choose(Math.random() < 0.5 && food(S) >= 1 ? 0 : 1);
     if (d.id === 'cutter') return f.choose(2);
     if (d.id === 'plea') { const i = feedAny(d); return f.choose(i >= 0 && Math.random() < 0.6 ? i : keyed(d, 'no')); }
+    if (d.id === 'demand') { const i = feedAny(d); return f.choose(i >= 0 ? i : keyed(d, 'no')); }
     if (d.id === 'strangerDead') return f.choose(Math.random() < 0.5 ? 0 : 1);
     return f.choose(0);
   }
@@ -41,9 +42,9 @@ function beginner(f, S, mem, picky = false) {
   }
   if (!S.lit || S.fire <= 2) f.act.stoke();
   if (S.meat >= 2) f.act.cook();
-  if (S.hunger >= 75 && (picky ? S.cooked > 0 : food(S) > 0)) f.act.eat();
+  if (S.chill >= 75 && (picky ? S.cooked > 0 : food(S) > 0)) f.act.eat();
   if (!S.boardsBuilt && S.wood >= 14) f.act.build('boards');
-  if (food(S) === 0 && S.hunger > 50) return f.act.hunt();
+  if (food(S) === 0 && S.chill < 40) return f.act.hunt();
   if (S.wood < 4) return f.act.wood();
 }
 
@@ -60,8 +61,9 @@ function learner(f, S, mem) {
   if (!d && !S.away) {
     // a reader learns from the first bout of sickness: cook first, eat raw only when desperate
     if (S.meat >= 1 && S.fire >= 1) f.act.cook();
-    if (S.hunger >= 75 && S.cooked > 0) f.act.eat();
-    if (S.hunger >= 88 && S.cooked === 0) f.act.eat();
+    if (S.chill >= 60 && S.cooked > 0) f.act.eat();
+    if (S.chill >= 85 && S.cooked === 0) f.act.eat();
+    if (S.chill >= 50) { if (S.fire <= 2) f.act.stoke(); return; }   // "you are cold": warm up by the fire before going out again
     if (S.hint >= 2) {
       if (S.hand.phase === 'reach') f.act.strike();
       if (!S.boardsBuilt && S.wood >= 8) f.act.build('boards');
@@ -79,7 +81,7 @@ function learner(f, S, mem) {
   if (!d && !S.away && S.hint >= 3 && S.hunter.near) {
     if (!S.lit || S.fire <= 2) f.act.stoke();
     if (S.meat >= 1) f.act.cook();
-    if (S.hunger >= 75 && food(S) > 0) f.act.eat();
+    if (S.chill >= 75 && food(S) > 0) f.act.eat();
     return;
   }
   return beginner(f, S, mem, true);
@@ -101,6 +103,7 @@ function skilled(f, S, mem, human = false) {
     if (d.id === 'kidAsk') return f.choose(food(S) >= 3 ? 0 : 1);
     if (d.id === 'cutter') return f.choose(food(S) >= 3 && S.wood < 10 ? 0 : 2);
     if (d.id === 'plea') { const i = keyed(d, 'cooked'); return f.choose(d.last && i >= 0 ? i : keyed(d, 'no')); }
+    if (d.id === 'demand') return f.choose(keyed(d, 'leave'));
     if (d.id === 'strangerDead') return f.choose(0);
     return f.choose(0);
   }
@@ -112,14 +115,15 @@ function skilled(f, S, mem, human = false) {
   if (S.hand.phase === 'crawl' && S.wood >= 8) f.act.build(S.boardsBuilt ? 'repair' : 'boards');
   if (!S.lit || S.fire <= 2 || (S.fire === 3 && S.wood > 12)) f.act.stoke();
   if (S.meat >= 1 && S.fire >= 1) f.act.cook();
-  if (S.hunger >= 65 && S.cooked > 0) f.act.eat();
-  if (S.hunger >= 88 && S.cooked === 0 && S.meat > 0) f.act.eat();
+  if (S.chill >= 55 && S.cooked > 0) f.act.eat();
+  if (S.chill >= 85 && S.cooked === 0 && S.meat > 0) f.act.eat();
   if (!S.boardsBuilt && S.wood >= 9 && S.night > 50) f.act.build('boards');
   if (S.boardsBuilt && S.boards < 2 && S.wood >= 8) f.act.build('repair');
   if (S.traps < 2 && S.wood >= 9 && S.boardsBuilt) f.act.build('trap');
   if (!S.lantern && S.blood >= 4 && S.wood >= 10) f.act.build('lantern');
   if (S.hunter.near) return;
-  if (food(S) < 2 && S.hunger > 30) return f.act.hunt();
+  if (S.chill > 45) return;   // warm up before the next trip
+  if (food(S) < 2) return f.act.hunt();
   if (S.lantern === false && S.blood < 4 && S.night > 150 && S.wood >= 8) return f.act.hunt();
   if (S.wood < 12) return f.act.wood();
 }
@@ -131,6 +135,7 @@ export const players = { beginner, learner, strong, skilled };
 export function run(name, n) {
   const f = F();
   const out = { deaths: {}, wins: 0, scores: [], times: [] };
+  window.__simulating = true;
   for (let i = 0; i < n; i++) {
     f.newNight();
     const mem = { reacted: new Set(), handId: '0', willStrike: false, howlDelay: 1, clawDelay: 0.2 };
@@ -151,6 +156,7 @@ export function run(name, n) {
       f.step(4, false);
     }
   }
+  window.__simulating = false;
   out.scores.sort((a, b) => a - b);
   out.times.sort((a, b) => a - b);
   return out;
