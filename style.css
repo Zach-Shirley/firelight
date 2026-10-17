@@ -574,3 +574,32 @@ body.touch #dayList button { min-height: calc(14px * var(--s)); }
 .ach-list::-webkit-scrollbar { width: calc(2px * var(--s)); }
 .ach-list::-webkit-scrollbar-track { background: transparent; }
 .ach-list::-webkit-scrollbar-thumb { background: #5a3a22; border-radius: calc(1px * var(--s)); }
+
+/* ---- everything fits on the stage: panels scroll inside it, their buttons stay in view */
+.scroll-y, #dlgText, .subpanel .how, .board, .ach-list, #dayList, .end-panel {
+  scrollbar-width: thin; scrollbar-color: #5a3a22 transparent;
+}
+#dialogue { max-height: calc(166px * var(--s)); }
+#dialogue .body { display: flex; flex-direction: column; min-height: 0; }
+#dlgText { overflow-y: auto; min-height: calc(10px * var(--s)); flex: 0 1 auto; }
+#dlgChoices { flex: none; }
+#dlgChoices.list { flex-direction: column; flex-wrap: nowrap; gap: calc(1.5px * var(--s)); }
+#dlgChoices.list button { text-align: left; padding: calc(0.5px * var(--s)) calc(4px * var(--s)); }
+#dlgChoices .cdesc { display: block; font-size: calc(5px * var(--s)); color: var(--ink-dim); line-height: 1; padding-left: calc(6px * var(--s)); }
+
+/* the title: smaller while a panel is open; the panel scrolls, the back button stays */
+#title.sub h1 { font-size: calc(14px * var(--s)); }
+#title.sub .tag { display: none; }
+.title-inner .subpanel { max-height: calc(150px * var(--s)); display: flex; flex-direction: column; }
+.title-inner .subpanel > .how, .title-inner .subpanel > .board, .title-inner .subpanel > .ach-list { overflow-y: auto; min-height: 0; flex: 1 1 auto; max-height: none; }
+.title-inner .subpanel .backBtn { float: none; align-self: flex-end; margin-top: calc(2px * var(--s)); flex: none; }
+
+/* the ending: the buttons stay at the bottom of the panel while the rest scrolls */
+.end-panel .end-buttons { position: sticky; bottom: calc(-6px * var(--s)); background: var(--panel-solid); padding: calc(2px * var(--s)) 0; margin-top: auto; }
+
+/* the day: below the resource bar so you can always see what you have */
+#day { place-items: end center; padding-bottom: calc(4px * var(--s)); }
+#day .day-panel { max-height: calc(140px * var(--s)); }
+#stage.dlg #message { opacity: 0; }
+#day .day-panel { width: calc(236px * var(--s)); }
+#day .day-warn { font-size: calc(5.5px * var(--s)); line-height: 1.05; }

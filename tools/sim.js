@@ -12,7 +12,7 @@ const heardFootsteps = (v) => v.who !== 'mimic' || v.fake;
 const lanternTruth = (S, v) => (S.lantern && S.lanternLit ? v.who !== 'mimic' : null);
 const food = (S) => S.meat + S.cooked;
 // In the blizzard, how cold each player lets themselves get before going out again (a beginner doesn't notice).
-const COLD_LIMIT = { beginner: 85, learner: 55, strong: 30, skilled: 30, hoarder: 30 };
+const COLD_LIMIT = { beginner: 85, learner: 35, strong: 15, skilled: 15, hoarder: 15 };
 function goOut(f, S, mem) {
   if (S.nightNo >= 3 && S.cold > (COLD_LIMIT[mem.name] ?? 40)) { if (S.fire <= 3) f.act.stoke(); return undefined; }
   return f.act.wood();
@@ -110,7 +110,7 @@ function skilled(f, S, mem, human = false, hoard = false) {
       const open = truth ?? heardFootsteps(d.visit);
       return f.choose(open !== misread ? 0 : 1);
     }
-    if (d.id === 'cutter') { const i = food(S) >= 3 && S.wood < 10 ? keyed(d, 'meatForWood') : S.wood >= 18 && food(S) < 2 ? keyed(d, 'woodFor2') : -1; return f.choose(i >= 0 ? i : keyed(d, 'no')); }
+    if (d.id === 'cutter') { const i = food(S) >= 3 && S.wood < 10 ? keyed(d, 'meatForWood') : S.wood >= 18 && food(S) < 2 ? keyed(d, 'woodForMeat') : -1; return f.choose(i >= 0 ? i : keyed(d, 'no')); }
     if (d.id === 'shop') { for (const k of ['grate', 'spear', 'shoes']) { const i = keyed(d, k); if (i >= 0) return f.choose(i); } return f.choose(keyed(d, 'leave')); }
     if (d.id === 'plea') { const i = keyed(d, 'cooked'); return f.choose(d.last && i >= 0 ? i : keyed(d, 'no')); }
     if (d.id === 'demand') return f.choose(keyed(d, 'leave'));

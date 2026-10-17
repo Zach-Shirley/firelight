@@ -39,12 +39,12 @@ Every threat has a tell and a counter. Threats arrive as the night goes on.
 | 1 am | **Her, at the window** | She rises into the window from below the sill: a gaunt black figure backlit in red, with one huge pale eye, an empty socket, a hanging jaw and wet hair. On her first visit the glass always explodes inward, boarded or not, and from then on wind and snow blow in; through a bare frame the fire burns down faster | Board the window beforehand. Her eye watches through a gap while her hand hooks a board and pulls, to a rhythm of thuds. Burn the hand and she snatches it back, smoking. If she outlasts you, she tears the board off, reaches a long jointed arm all the way to your wood pile and drags logs out | Bare window: she climbs in on long spider-jointed arms, even while you're out. You can still nail boards up in the last seconds |
 | any time | **The fire itself** | The wood pile leans toward the fire when it's over 25 logs | Keep the pile at or under 25, or build a woodshed. If it topples, logs crash into the fire and it roars toward the roof: **douse it with 2 blood** in time | The cabin burns down |
 | 3 am | **The walkers** | Some mimics have learned to fake footsteps. Nothing in the text or sound gives them away | A lit **blood lantern** shows the shadows of feet under the door. **People stand on two feet. A mimic gets it wrong: one foot, or three.** The words are the same either way, so count | You opened the door |
-| night 3 | **The cold** | The blizzard. A cold meter beside hunger (warm, chilled, cold, freezing); at "freezing" a white-blue frost border closes in | Outside you chill fast: one trip costs about half the meter, two in a row can kill you. A strong fire warms you back up (a roaring fire about 4 points a second; a smoldering one barely holds you). A broken, bare window lets the cold in | You freeze |
+| night 3 | **The cold** | The blizzard. A cold meter beside hunger (warm, chilled, cold, freezing); at "freezing" a white-blue frost border closes in | Outside you chill fast: **one blizzard trip takes you most of the way** (two-thirds of the meter, half with a fur coat), so two in a row will kill you. Being cold costs you too: from "cold" your hands are slow (stoking takes longer), trips take longer, and from halfway you burn through food faster. A strong fire warms you back up, about 3 points a second roaring and barely at all smoldering. A broken, bare window lets the cold in | You freeze |
 
 **The door never opens by itself.** Every knock asks you: open it, or keep it shut. Opening for the right people matters:
 - **The stranger** knocks first. Let her in and she teaches you the rules. She hasn't eaten in days, so she needs cooked meat once: she begs three times, and **the third plea is the one that counts**. Feed her earlier and she'll be starving again before dawn. Feed her raw meat and it kills her. If she starves, something starts moving under her skin. Drag her body out into the snow, which is a risky trip, and the smell keeps the hunter close for the rest of the night. Or leave her, and it gets up. Turn her away at the start and none of this happens. You can always tell her to leave when she asks for food.
 - **Some nights she isn't the stranger** (about 1 in 8 of the nights you let her in). The tells: her eyes catch the firelight red; she sits too still and never shivers; she never warns you of anything; and she doesn't ask, she demands ("Feed me."). She eats raw meat and smiles. Feeding her holds her off, but the demands come faster and angrier toward dawn. Refuse her twice and she kills you. Keep her until first light and she stops pretending. The only way out is to tell her to leave.
-- **The woodcutter** (from 11 pm, up to three times a night) trades: meat for 7 wood, or wood for cooked meat. On the blizzard night his wood is dry.
+- **The woodcutter** (from 11 pm, up to three times a night) mostly sells wood: 1 meat for 7 logs or 2 meat for 15, and at a push 6 logs for 1 cooked meat. On the blizzard night his wood is dry.
 - **The trader** comes some nights, once, from midnight (see below).
 
 That's everyone. Knocks are rare, and nobody but the stranger stays: most knocks late in the night are mimics. Each real person you let in is worth 10 points at dawn.
@@ -95,7 +95,7 @@ The day also dries every wet log and spoils any meat that isn't cured. The day s
 | --- | --- |
 | **The cold** | See *What can kill you*. You can't chain trips any more: go out, come back, warm up by a big fire, then go again |
 | **Trips take half again as long** | Wood runs, building the shed, everything outside. The four-second grin doesn't change, so you're exposed longer. Now and then (about 1 trip in 25) you **lose the path for a moment** in the white: a gust, a thump, and a couple of extra seconds out there |
-| **Wet wood** | Everything you bring in is wet (the woodcutter's isn't). Wet logs show dark and frosted on top of the pile, and the count reads e.g. "18/25 · 6 wet". They dry in about 40 seconds in the house. Stoking uses dry wood first; with only wet logs left the fire takes it but burns half as long, hisses and pops, and smoke collects under the roof and drifts over the top of the window. The smoke is only for show |
+| **Wet wood** | Everything you bring in is wet (the woodcutter's isn't). Wet logs show dark and frosted on top of the pile, and the count reads e.g. "18/25 · 6 wet". They dry in about a minute by a burning fire: faster by a roaring one or the stove, much slower by a dying one. Stoking uses dry wood first; with only wet logs left the fire takes it but burns half as long, hisses and pops, and smoke collects under the roof and drifts over the top of the window. The smoke is only for show |
 | **She is quicker in the cold** | Her pull on a board is about 30% faster, so there's less time to burn her back |
 | **The stranger** | She knows this weather. (Her story comes in a later version) |
 
@@ -163,7 +163,7 @@ Every death has its own few seconds before the red screen:
 | The thing under the floor | The hatch is thrown open, pale arms come up out of it and across the floor, and you're pulled down into the hole |
 | The false stranger | In the dawn light her shadow climbs the wall, far too tall, red-eyed, its arms spreading across the ceiling, and bends down over you as the light goes out |
 | The cold | A white glaze creeps in from the edges and frost ferns grow over it, your breath shows slower and fainter each time, and the fire seems to shrink away |
-| The white (very rare) | About one blizzard trip in five hundred, you lose the path for good. The whiteout swallows the room and a small dark figure walks away into it |
+| The white (very rare) | About one blizzard night in a hundred, you lose the path for good. The whiteout swallows the room and a small dark figure walks away into it |
 
 Every ending, death or dawn, shows a **recap of your night**: people let in, mimics kept out, times you burned her back, trips, meat cooked, how hungry you got and your **closest call**: the nearest you came to any of the threats you survived, such as the grin 92% full, burning her back with 0.4 s to spare, the dark 88% of the way in, slamming the hatch at the last moment or putting out the blaze with a second left. Whatever actually killed you doesn't count as a close call. It also shows an **all-time tally**, for example "14 nights · 2 dawns · killed by: the mimic 6, her, at the window 3, hunger 2". The tally also appears under best nights on the title screen. The simulation's automated nights don't count toward it.
 
@@ -317,7 +317,7 @@ The background music is generated in the browser like the rest of the sound: a l
 ## Achievements
 
 29 achievements, under **achievements** on the title screen, with a toast and a chime when you earn one:
-- **A death for every way to die**, 13 in all, including the one-in-five-hundred trip lost in the white (shown as ??? until you get it).
+- **A death for every way to die**, 13 in all, including the very rare death lost in the white (shown as ??? until you get it).
 - **Surviving nights 1, 2 and 3.** Nights 4 and 5 are listed for a later version.
 - **Feats.** A few that mean something:
   - keeping her alive to the third dawn;
@@ -337,7 +337,7 @@ They're stored in this browser for now (`achievements.js`). Each unlock keeps it
 
 Open the game once with `?dev` on the address (https://firelight-topaz.vercel.app/?dev) and the title menu gets a **playtest** button, remembered in that browser. It starts you at the day before night 2 or 3, or straight into night 2 or 3, with a basic kit: boarded window, two traps (three on night 3), the lantern, the stranger, some food and wood, and on night 3 a woodshed and the drying rack. Playtest runs don't count toward the stats or the leaderboard.
 
-The version is in the bottom-right corner (v0.24 is the 24th commit), so you can tell a refresh picked up the latest build.
+The version is in the bottom-right corner (v0.25 is the 25th commit), so you can tell a refresh picked up the latest build.
 
 ## Future ideas
 

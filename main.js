@@ -6,7 +6,7 @@ import * as sfx from './sound.js';
 import { ACHIEVEMENTS, createStore } from './achievements.js';
 import { computeScore, qualifies, insertScore, cleanInitials, sanitizeBoard } from './score.js';
 
-const VERSION = '0.24';   // one step per commit to the repository
+const VERSION = '0.25';   // one step per commit to the repository
 const W = 320, H = 180;
 const FIRE = { x: 160, y: 136 };          // base of the flames
 const LIGHT_Y = 130;                       // centre of the light pool
@@ -390,7 +390,7 @@ function updateNight(dt) {
   else S.darkTime = Math.max(0, S.darkTime - dt * 3);
 
   // hunger: you have to keep eating all night
-  S.hunger += dt * (0.62 + h * 0.03) * (S.sick > 0 ? 1.25 : 1);
+  S.hunger += dt * (0.62 + h * 0.03) * (S.sick > 0 ? 1.25 : 1) * (S.cold > 50 ? 1.3 : 1);   // the cold burns through you
   if (S.hunger >= 70 && S.hungerSaid < 1) { S.hungerSaid = 1; sfx.growl(0.7); say('your stomach aches. you need to eat.'); }
   if (S.hunger >= 90 && S.hungerSaid < 2) { S.hungerSaid = 2; growlT = 6; sfx.growl(1); say("you're weak with hunger. your hands shake."); }
   if (S.hunger >= 90) {
@@ -523,24 +523,24 @@ function updateHunter(dt) {
 
 // Out in the blizzard you get cold fast; by the fire you warm back up, faster the bigger it is.
 // One trip chills you badly; two in a row could kill you.
-const COLD_OUT = 4.5;                       // per second outside
-const WARMING = [1, 0.3, -1.5, -3, -4];     // per second inside, by fire level (negative warms you)
-const DRY_TIME = 40;                        // seconds for a wet log to dry in the house
+const COLD_OUT = 6.5;                       // per second outside: one blizzard trip takes you most of the way
+const WARMING = [1.2, 0.4, -1.2, -2.2, -3]; // per second inside, by fire level (negative warms you)
+const DRY_TIME = 60;                        // seconds for a wet log to dry by a burning fire (faster by a big one)
 
 function updateCold(dt) {
   if (!blizzard()) { S.cold = 0; return; }
   let rate;
   if (S.away) {
-    rate = COLD_OUT * (S.coat ? 0.65 : 1);
+    rate = COLD_OUT * (S.coat ? 0.75 : 1);
   } else {
     rate = WARMING[S.fire];
-    if (rate < 0) rate *= (S.stove ? 1.3 : 1) * (S.insulated ? 1.15 : 1);
+    if (rate < 0) rate *= (S.stove ? 1.2 : 1) * (S.insulated ? 1.15 : 1);
     else rate *= S.insulated ? 0.7 : 1;
     if (S.glassBroken && S.boards === 0) rate += 0.5;
   }
   S.cold = clamp(S.cold + rate * dt, 0, 100);
   if (S.cold < 50) S.coldSaid = 0;
-  if (S.cold >= 60 && S.coldSaid < 1) { S.coldSaid = 1; sfx.shiver(0.7); say("you're shaking with cold."); }
+  if (S.cold >= 60 && S.coldSaid < 1) { S.coldSaid = 1; sfx.shiver(0.7); say("you're shaking with cold. your hands are slow and you're burning through food."); }
   if (S.cold >= 85 && S.coldSaid < 2) { S.coldSaid = 2; sfx.shiver(1); say("you can't feel your hands. get to the fire."); }
   if (S.cold >= 60 && Math.random() < dt * 0.25) sfx.shiver(0.4 + (S.cold - 60) / 80);
   if (S.cold > 70) nearMiss('cold', (S.cold - 55) / 45, `cold at ${Math.round(S.cold)}%`);
@@ -553,7 +553,8 @@ function addWet(n) { for (let i = 0; i < n; i++) S.wet.push(DRY_TIME); }
 // meat so it keeps; the smoke under the roof thins out
 function updateWet(dt) {
   if (S.wet.length > S.wood + S.shedWood) S.wet.length = S.wood + S.shedWood;   // used up first
-  S.wet = S.wet.map((t, i) => t - dt * (S.rack && i < 8 ? 3 : 1)).filter((t) => t > 0);
+  const heat = (0.3 + S.fire * 0.3) * (S.stove ? 1.3 : 1);   // out: barely dries; roaring: half again as fast
+  S.wet = S.wet.map((t, i) => t - dt * heat * (S.rack && i < 8 ? 3 : 1)).filter((t) => t > 0);
   S.smoke = Math.max(0, S.smoke - dt / 30);
   if (S.rack && S.fire >= 1) {
     S.rackT -= dt;
@@ -680,7 +681,7 @@ function checkTraps(rolls = 1) {
   let m = 0, b = 0, broke = 0, f = 0;
   for (let r = 0; r < rolls; r++) {
     S.trapUses = S.trapUses.map((u) => {
-      const caughtMeat = Math.random() < 0.26, caughtBlood = Math.random() < 0.3;
+      const caughtMeat = Math.random() < 0.3, caughtBlood = Math.random() < 0.3;
       if (caughtMeat) m += 1;
       if (caughtBlood) b += 1;
       if (S.nightNo >= 2 && Math.random() < 0.15) f += 1;   // from the second night, now and then a pelt
@@ -732,11 +733,12 @@ function openShop(first) {
     id: 'shop', portrait: 'trader', door: true,
     text: (first
       ? 'A tall man in a long gray coat fills the doorway, hat low over his eyes. He opens the coat. Things hang from hooks along the lining, more than should fit. "Take your time."'
-      : '"Anything else?" The coat stays open.') + (wares.length ? ` ${wares.map((w) => `The ${w.name}: ${w.desc}`).join(' ')}` : ''),
+      : '"Anything else?" The coat stays open.'),
     choices: [
       ...wares.map((w) => ({
         key: w.id,
         label: `${w.name}: ${priceText(w.price)}`,
+        desc: w.desc,
         can: () => canPay(w.price),
         act: () => { pay(w.price); S.rec.bought = (S.rec.bought || 0) + 1; sfx.chime(); say(w.buy()); openShop(false); },
       })),
@@ -749,7 +751,7 @@ function openShop(first) {
 
 function startTrip(kind) {
   if (!canAct() || S.away || !S.lit) return;
-  const slow = (S.hunger >= 90 ? 1.3 : 1) * (S.sick > 0 ? 1.3 : 1) * (S.tired && S.nightNo >= 2 ? 1.2 : 1) * (S.shoes && kind !== 'shed' ? 0.7 : 1);
+  const slow = (S.hunger >= 90 ? 1.3 : 1) * (S.sick > 0 ? 1.3 : 1) * (S.tired && S.nightNo >= 2 ? 1.2 : 1) * (S.shoes && kind !== 'shed' ? 0.7 : 1) * (S.cold >= 60 ? 1.15 : 1);
   // the woodshed: you take out what wood you have (up to what it still needs) and build log by log
   const logs = kind === 'shed' ? Math.min(S.wood, PILE_CAP - S.shedBuilt) : 0;
   if (kind === 'shed' && logs < 1) { say('you need wood to build with.'); return; }
@@ -757,7 +759,7 @@ function startTrip(kind) {
   // if it is already out there when you leave, there is no head start
   S.away = { kind, t: total, total, startedNear: S.hunter.near, logs, placed: 0,
     stumble: blizzard() && kind !== 'drag' && Math.random() < 0.04 ? rand(1, total * 0.7) : -1,
-    doom: blizzard() && kind !== 'drag' && Math.random() < 1 / 500 ? rand(1, total * 0.8) : -1 };   // never found
+    doom: blizzard() && kind !== 'drag' && Math.random() < 1 / 2500 ? rand(1, total * 0.8) : -1 };   // never found: about one blizzard night in a hundred
   S.stalk = 0;   // the four seconds always start from the moment you step out
   if (kind !== 'drag') S.rec.trips += 1;
   toggleBuild(false);
@@ -786,7 +788,7 @@ function updateTrip(dt) {
   const a = S.away;
   if (!a) return;
   a.t -= dt;
-  // about one blizzard trip in five hundred, you lose the path and never find it again
+  // very rarely (about one blizzard night in a hundred) you lose the path and never find it again
   if (a.doom > 0 && a.total - a.t >= a.doom) { die('lost'); return; }
   // lost in the white for a moment: a rare stumble that costs a few seconds out there
   if (a.stumble > 0 && a.total - a.t >= a.stumble) {
@@ -954,7 +956,7 @@ function strikeHand() {
   sfx.hiss();
   sfx.scream();
   const g = handGrip();
-  spawnSmoke(g.x + 3, g.y + 1);
+  spawnBurn(g.x + 3, g.y + 1);
   say('you jam a burning branch into her hand. she shrieks and snatches it back, smoking.');
 }
 
@@ -1149,8 +1151,8 @@ function openDoorFor(v) {
         text: 'A broad woodcutter leans in the doorway, a sled of split logs behind him. "Meat for wood," he says. "Or wood for meat. Your pick."',
         choices: [
           { key: 'meatForWood', label: 'give 1 meat for 7 wood', can: () => anyMeat() >= 1, act: () => { takeMeat(); addWood(7); say(blizzard() ? 'he stacks seven logs by the door, dry from under his oilcloth. +7 dry wood' : 'he stacks seven logs by the door. +7 wood'); } },
+          { key: 'meat2ForWood', label: 'give 2 meat for 15 wood', can: () => anyMeat() >= 2, act: () => { takeMeat(); takeMeat(); addWood(15); say(blizzard() ? 'he unloads half his sled, dry from under the oilcloth. +15 dry wood' : 'he unloads half his sled by the door. +15 wood'); } },
           { key: 'woodForMeat', label: 'give 6 wood for 1 cooked meat', can: () => S.wood >= 6, act: () => { S.wood -= 6; addCooked(1); say('he hands over a strip of smoked meat. +1 cooked meat'); } },
-          { key: 'woodFor2', label: 'give 10 wood for 2 cooked meat', can: () => S.wood >= 10, act: () => { S.wood -= 10; addCooked(2); say('he hands over two strips of smoked meat. +2 cooked meat'); } },
           { key: 'no', label: 'no trade', act: () => say('the woodcutter drags his sled back into the dark.') },
         ],
       });
@@ -1334,7 +1336,7 @@ const DEATHS = {
   hand: { text: 'She climbed in through the broken window.', hint: 'board the window before one in the morning. glass will not stop her, and fire will.' },
   handAway: { text: 'You came back to a broken window. She was already inside.', hint: 'board the window before one in the morning. a bare window lets her in, whether you are home or not.' },
   lost: { text: 'You lost the path in the white, and never found it again.',
-    hint: "nothing you could have done. about one blizzard trip in five hundred ends like this. you were very, very unlucky." },
+    hint: "nothing you could have done. about one blizzard night in a hundred ends like this. you were very, very unlucky." },
   freeze: { text: () => (S.away ? 'You froze in the snow, a little way from the door.' : 'You froze by a fire too small to save you.'),
     hint: 'in the blizzard, one trip outside chills you badly and two in a row can kill you. warm up by a strong fire between trips. a fur coat helps.' },
   hunter: { text: 'Something found you in the trees.', hint: 'when it howls close and its eyes shine in the treeline, stay inside.' },
@@ -1479,7 +1481,7 @@ function stoke() {
     spawnSmoke(160, 128); spawnSmoke(157, 124); spawnSmoke(163, 120);
     if (Math.random() < 0.4) say('the wet wood hisses and smokes. it will not burn for long.');
   }
-  S.cd.stoke = STOKE_CD * (S.hunger >= 90 ? 2 : 1) * (S.sick > 0 ? 1.3 : 1) * (S.tired && S.nightNo >= 2 ? 1.25 : 1);
+  S.cd.stoke = STOKE_CD * (S.hunger >= 90 ? 2 : 1) * (S.sick > 0 ? 1.3 : 1) * (S.tired && S.nightNo >= 2 ? 1.25 : 1) * (S.cold >= 60 ? 1.3 : 1);   // numb hands
   S.deadFor = 0;
   if (!S.lit) {
     S.lit = true;
@@ -1866,10 +1868,13 @@ function openDialogue(def) {
   toggleJournal(false);
   ui.dlgText.textContent = def.text;
   ui.dlgChoices.innerHTML = '';
+  ui.dlgChoices.classList.toggle('list', def.choices.some((c) => c.desc));
+  ui.dlgText.scrollTop = 0;
   def.choices.forEach((c, i) => {
     const b = document.createElement('button');
     b.innerHTML = `<span class="key">${i + 1}.</span> `;
     b.appendChild(document.createTextNode(c.label));
+    if (c.desc) { const d = document.createElement('span'); d.className = 'cdesc'; d.textContent = c.desc; b.appendChild(d); }
     b.disabled = c.can ? !c.can() : false;
     b.addEventListener('click', () => choose(i));
     ui.dlgChoices.appendChild(b);
@@ -2899,8 +2904,9 @@ function claw(s, hx, hy, dir, spread, curl, len = 5, pal = HER) {
 // her head and shoulders: a long narrow skull, one huge pale eye, an empty socket, a hanging jaw, wet hair
 function drawHerHead(s, t, cx, cy, sc, eyeOpen = 1) {
   // shoulders, hunched and too narrow
-  for (let y = 0; y < 11 * sc; y += 0.5) {
-    const half = (3 + (y / sc) * 0.84) * sc;
+  const bodyTo = Math.max(11 * sc, 72 - (cy + 7 * sc));   // at the window, down past the sill (clipped there)
+  for (let y = 0; y < bodyTo; y += 0.5) {
+    const half = (3 + (Math.min(y, 11 * sc) / sc) * 0.84) * sc;
     lx.fillStyle = HER.rim; lpx(s, cx - half - 0.5, cy + 7 * sc + y, half * 2 + 1, 0.6);
     lx.fillStyle = HER.black; lpx(s, cx - half, cy + 7 * sc + y, half * 2, 0.6);
   }
@@ -3078,6 +3084,12 @@ function spawnSmoke(x, y) {
   for (let i = 0; i < 12; i++) fx.push({ kind: 'smoke', x: x + rand(-2, 2), y: y + rand(-1, 2), vx: rand(-4, 4), vy: rand(-14, -5), life: 0, max: rand(0.8, 1.8) });
 }
 
+// a burning branch jammed into her hand: flames flare up and curl off into smoke
+function spawnBurn(x, y) {
+  for (let i = 0; i < 26; i++) fx.push({ kind: 'burn', x: x + rand(-2.5, 2.5), y: y + rand(-1, 1.5), vx: rand(-6, 6), vy: rand(-26, -10), life: 0, max: rand(0.9, 1.6) });
+  for (let i = 0; i < 10; i++) fx.push({ kind: 'ember', x: x + rand(-2, 2), y, vx: rand(-18, 18), vy: rand(-30, -8), life: 0, max: rand(0.5, 1.1) });
+}
+
 function spawnBoardFall(row) {
   fx.push({ kind: 'board', x: 61, y: row[0] + row[1] / 2, vx: rand(14, 24), vy: -12, rot: 0, vr: rand(2, 4), life: 0, max: 4, floor: rand(128, 146), h: row[1] });
 }
@@ -3097,6 +3109,9 @@ function updateFx(dt) {
         if (f.kind === 'board') f.rot += f.vr * dt;
         if (f.y >= f.floor) { f.y = f.floor; f.vx = f.vy = 0; f.vr = 0; }
       }
+    } else if (f.kind === 'burn' || f.kind === 'ember') {
+      f.x += f.vx * dt; f.y += f.vy * dt; f.vx *= 0.95;
+      if (f.kind === 'ember') f.vy += 30 * dt;
     } else if (f.kind === 'smoke' || f.kind === 'dust') {
       f.x += f.vx * dt; f.y += f.vy * dt; f.vx *= 0.98;
     } else {
@@ -3115,6 +3130,21 @@ function drawFx(s) {
     } else if (f.kind === 'smoke') {
       lx.fillStyle = `rgba(110, 104, 100, ${0.45 * a})`;
       lpx(s, f.x - 1, f.y - 1, 2 + f.life * 2, 2 + f.life * 2);
+    } else if (f.kind === 'burn') {
+      // flame first (bright, small), then gray smoke (bigger, fading)
+      const k = f.life / f.max;
+      if (k < 0.35) {
+        lx.globalCompositeOperation = 'lighter';
+        lx.fillStyle = k < 0.12 ? 'rgba(255, 240, 170, 0.9)' : k < 0.24 ? 'rgba(255, 170, 50, 0.85)' : 'rgba(230, 80, 20, 0.75)';
+        lpx(s, f.x - 0.5, f.y - 0.5, 1.2 - k, 1.4 - k);
+        lx.globalCompositeOperation = 'source-over';
+      } else {
+        lx.fillStyle = `rgba(100, 94, 90, ${0.5 * (1 - k)})`;
+        lpx(s, f.x - 1, f.y - 1, 1 + k * 3, 1 + k * 3);
+      }
+    } else if (f.kind === 'ember') {
+      lx.fillStyle = `rgba(255, 150, 60, ${a})`;
+      lpx(s, f.x, f.y, 0.5, 0.5);
     } else if (f.kind === 'dust') {
       lx.fillStyle = `rgba(170, 150, 120, ${0.5 * a})`;
       lpx(s, f.x, f.y, 0.6, 0.6);
@@ -3386,7 +3416,7 @@ function drawLight() {
 
 // Every way to die has its own few seconds before the red screen. lossT runs from 0 when you die.
 const DEATH_LEN = {
-  dark: 5.6, starve: 5.6, burn: 5.8, mimic: 5.4, hand: 5.2, handAway: 5.2, hunter: 5.6,
+  dark: 6.4, starve: 5.6, burn: 5.8, mimic: 5.4, hand: 5.2, handAway: 5.2, hunter: 5.6,
   risen: 5.6, cellar: 5.2, cellarAway: 5.2, falseStranger: 5.6, freeze: 5.6, lost: 5.6,
 };
 const deathLen = () => DEATH_LEN[S.cause] || 4;
@@ -3431,7 +3461,8 @@ function startDeath(cause) {
     }
   }
   if (cause === 'dark') {
-    // the eyes that open around you once the last coal goes out
+    // the eyes already watching you stay where they are; more open around them once the last coal goes out
+    for (const e of eyes) if (!e.out && e.alpha > 0.3) deathEyes.push({ x: e.x, y: e.y, red: e.red, sz: 1, at: -1 });
     for (let tries = 0; deathEyes.length < 15 && tries < 300; tries++) {
       const x = rand(14, 306), y = rand(14, 168);
       if (Math.hypot(x - 160, (y - 100) * 1.6) < 46) continue;
@@ -4102,7 +4133,7 @@ function syncUI() {
   const blazing = S.blaze > 0 && mode === 'playing' && !S.away && !dialog;
   ui.douse.classList.toggle('hidden', !blazing);
   if (blazing) ui.douse.style.setProperty('--cd', `${(S.blaze / 9) * 100}%`);
-  ui.clock.textContent = S.won ? '6:00 am · dawn' : S.lit ? `${S.nightNo > 1 ? `night ${S.nightNo} · ` : ''}${clockText(S.night)} · dawn at 6` : '';
+  ui.clock.textContent = mode === 'day' ? `day · ${dayClock(S.dayHours)} · dark at 10` : S.won ? '6:00 am · dawn' : S.lit ? `${S.nightNo > 1 ? `night ${S.nightNo} · ` : ''}${clockText(S.night)} · dawn at 6` : '';
   const [hl, hc] = hungerLabel();
   ui.hunger.textContent = S.lit ? hl + (S.sick > 0 ? ' · sick' : '') : '';
   ui.hunger.className = hc;
@@ -4110,6 +4141,7 @@ function syncUI() {
   $('cold').textContent = cold ? (S.cold >= 85 ? 'freezing' : S.cold >= 60 ? 'cold' : S.cold >= 30 ? 'chilled' : 'warm') : '';
   $('cold').className = S.cold >= 85 ? 'bad' : S.cold >= 60 ? 'warn' : '';
 
+  stage.classList.toggle('dlg', !!dialog);   // the log line hides behind an open dialogue
   const present = canAct();
   ui.stoke.querySelector('.label').textContent = S.fire === 0 ? (S.lit ? 'relight fire' : 'light fire') : 'stoke fire';
   ui.stoke.disabled = !present || S.cd.stoke > 0 || S.wood < 1;
@@ -4189,6 +4221,7 @@ function showTitle(panel = 'menu') {
   ui.ending.classList.add('hidden');
   ui.title.classList.remove('hidden');
   ui.titleMenu.classList.toggle('hidden', panel !== 'menu');
+  ui.title.classList.toggle('sub', panel !== 'menu');
   ui.howPanel.classList.toggle('hidden', panel !== 'how');
   ui.boardPanel.classList.toggle('hidden', panel !== 'board');
   ui.devPanel.classList.toggle('hidden', panel !== 'dev');
@@ -4390,10 +4423,13 @@ $('buildClose').addEventListener('click', () => toggleBuild(false));
 $('journalBtn').addEventListener('click', () => toggleJournal());
 $('journalClose').addEventListener('click', () => toggleJournal(false));
 $('menuBtn').addEventListener('click', () => { save(); showTitle('menu'); });
-$('fullBtn').addEventListener('click', () => {
+function toggleFullscreen() {
   if (document.fullscreenElement) document.exitFullscreen?.();
   else document.documentElement.requestFullscreen?.();
-});
+}
+$('fullBtn').addEventListener('click', toggleFullscreen);
+$('titleFullBtn').addEventListener('click', toggleFullscreen);
+document.addEventListener('fullscreenchange', () => { $('titleFullBtn').textContent = document.fullscreenElement ? 'leave fullscreen' : 'fullscreen'; });
 ui.sound.addEventListener('click', () => { S.sound = !S.sound; sfx.setEnabled(S.sound); save(); });
 
 const MUSIC_KEY = 'firelight-music';
@@ -4521,7 +4557,7 @@ window.addEventListener('orientationchange', () => setTimeout(resize, 150));
 window.visualViewport?.addEventListener('resize', resize);
 if (touch) document.body.classList.add('touch');
 // iOS has no fullscreen for pages; hide the button where it can't work
-if (!document.documentElement.requestFullscreen) $('fullBtn').classList.add('hidden');
+if (!document.documentElement.requestFullscreen) { $('fullBtn').classList.add('hidden'); $('titleFullBtn').classList.add('hidden'); }
 
 /* -------------------------------------------------------------------- run */
 

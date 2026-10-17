@@ -16,7 +16,7 @@ export const ACHIEVEMENTS = [
   { id: 'die_cellarAway', group: 'deaths', name: 'Open Hatch', desc: 'Come back to an open hatch.' },
   { id: 'die_falseStranger', group: 'deaths', name: 'It Waited for the Light', desc: 'Let the false stranger have her way.' },
   { id: 'die_freeze', group: 'deaths', name: 'Frostbite', desc: 'Freeze to death in the blizzard.' },
-  { id: 'die_lost', group: 'deaths', name: 'Into the White', desc: 'Lose the path in the blizzard for good. About one trip in five hundred.', hidden: true },
+  { id: 'die_lost', group: 'deaths', name: 'Into the White', desc: 'Lose the path in the blizzard for good. About one blizzard night in a hundred.', hidden: true },
 
   // surviving
   { id: 'night_1', group: 'nights', name: 'First Light', desc: 'Survive the first night.' },
