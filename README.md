@@ -133,7 +133,7 @@ Click an ember for a card with what it does and what it costs. The **build** but
 | Trap (up to 3) | 6 wood each | The only way to get meat at night (there's no hunting after dark). Raw meat and blood, collected on every trip. **Each wears out** after a few catches, and sometimes something tears one apart: a heavy iron clank and the chain dragging, and you bring the mangled bear trap back inside the door. The smell keeps the thing in the trees close for longer |
 | Blood lantern | 8 wood + 4 blood | Red light under the door shows whether anything is actually standing there. That's the only way to catch the walkers after 3 am. It burns a jar of blood every minute, and goes dark when you run out |
 | **Woodshed** | 25 logs, 1 s outside each | A shed against the outside wall that holds 100 more logs. **You build it a bit at a time**: each trip carries out the wood you have and builds it in log by log, and you can run back any time without losing what's built. That's also how you spend a pile that's getting too tall. Once it stands, a **small cabinet appears in the right wall** with a candle beside it: it opens straight onto the shed. Click it to look in. Wood moves on its own: extra logs go into the shed, the pile restocks from it a few logs at a time when it runs low, and the cabinet swings open while they do. The wood count shows what's in the shed |
-| Corner torches (up to 4) | 2 wood each | An iron sconce in each corner of the room, where the eyes like to sit. Burns all night with a faint warm glow, and nothing opens its eyes inside it. The first time you light a corner, now and then a rat bolts out of the shadows |
+| Corner torches (up to 4) | 2 wood each | An iron sconce in each corner of the room, where the eyes like to sit. Once you have a woodshed, its candle lights the back-right corner and that torch isn't offered (build it first and you keep both). Burns all night with a faint warm glow, and nothing opens its eyes inside it. The first time you light a corner, now and then a rat bolts out of the shadows |
 | Cure meat | 1 salt | Rubs salt into 2 cooked meat so it never goes bad |
 | **Drying rack** | 12 wood | Beside the fire. Dries wet wood three times faster (eight logs at a time), and **smokes cooked meat** so it never goes bad, one piece every 20 seconds while the fire burns. Smoked meat counts as cured. It keeps your salt free for the salt lines |
 | Fur coat | 4 fur | You get cold outside a third more slowly |
@@ -361,7 +361,7 @@ They're stored in this browser for now (`achievements.js`). Each unlock keeps it
 
 Open the game once with `?dev` on the address (https://firelight-topaz.vercel.app/?dev) and the title menu gets a **playtest** button, remembered in that browser. It starts you at the day before night 2 or 3, or straight into night 2 or 3, with a basic kit: boarded window, two traps (three on night 3), the lantern, the stranger, some food and wood, and on night 3 a woodshed and the drying rack. Playtest runs don't count toward the stats or the leaderboard.
 
-The version is in the bottom-right corner (v0.32 is the 32nd commit), so you can tell a refresh picked up the latest build.
+The version is in the bottom-right corner (v0.33 is the 33rd commit), so you can tell a refresh picked up the latest build.
 
 ## Future ideas
 

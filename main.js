@@ -6,7 +6,7 @@ import * as sfx from './sound.js';
 import { ACHIEVEMENTS, createStore } from './achievements.js';
 import { computeScore, qualifies, insertScore, cleanInitials, sanitizeBoard } from './score.js';
 
-const VERSION = '0.32';   // one step per commit to the repository
+const VERSION = '0.33';   // one step per commit to the repository
 const W = 320, H = 180;
 const FIRE = { x: 160, y: 136 };          // base of the flames
 const LIGHT_Y = 130;                       // centre of the light pool
@@ -2040,7 +2040,8 @@ const BUILDS = [
   ...TORCHES.map((tc) => ({
     id: `torch_${tc.id}`, name: `a torch in ${tc.name}`,
     desc: 'an iron sconce and a torch that burns all night. a faint glow, and nothing opens its eyes inside it.',
-    show: () => !(S.torches && S.torches[tc.id]), cost: () => ({ wood: 2 }),
+    show: () => !(S.torches && S.torches[tc.id]) && !(tc.id === 'br' && S.shed),   // the woodshed's candle already lights that corner
+    cost: () => ({ wood: 2 }),
     done: () => lightTorch(tc),
   })),
   { id: 'saltTrap', name: 'salt a trap', desc: () => `rub salt into a trap. a salted trap catches meat far more often, for as long as it lasts; when it breaks, the salt goes with it. (${saltedTraps()} of ${S.traps} salted)`,
@@ -2317,6 +2318,8 @@ const EYE_SPOTS = [
 // warm glow, and nothing opens its eyes inside it. The first time a corner is lit, now and then a rat bolts out.
 const torchLit = (tc) => S.torches && S.torches[tc.id] && !(mode === 'lost' && S.cause === 'dark');
 function nearTorch(x, y, pad) {
+  // the woodshed's candle lights the back-right corner as well as a torch would
+  if (S.shed && S.lit && !(mode === 'lost' && S.cause === 'dark') && Math.hypot(x - (CABINET.x + 10), (y - CABINET.y) / ELLIPSE) < 30 + pad) return true;
   return TORCHES.some((tc) => torchLit(tc) && Math.hypot(x - tc.x, (y - tc.y) / ELLIPSE) < TORCH_R + pad);
 }
 
