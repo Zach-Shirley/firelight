@@ -37,7 +37,7 @@ Every threat has a tell and a counter. Threats arrive as the night goes on.
 | 10 pm | **Hunger** | A stomach growl at "hungry"; at "starving" it repeats and a dull red border closes in. **Meat goes bad**: raw in two minutes, cooked in four, and its count turns green when something is about to turn | Keep eating, which means keep hunting all night. Cook raw meat first; raw makes you sick. Salt-cured meat keeps | You starve |
 | 11 pm | **The thing in the trees** | A howl, and its amber eyes shining in the treeline outside the window. While you're out and it's close, **a grin grows beneath its eyes** | One rule: once it's close, the grin fills in **four seconds**, every time. Leave while its eyes are in the treeline and you have four seconds. If it howls while you're already out, you get a moment to turn back first. Running back brings you home empty-handed | A full grin |
 | midnight | **The mimic** | Real visitors' **footsteps crunch through the snow before they knock**. The mimic just knocks, word for word in the voice of someone you'd open for. There is only one stranger | Keep the door shut when nothing walked up | You opened the door. It was not a person |
-| 1 am | **Her, at the window** | She rises into the window from below the sill: a gaunt black figure backlit in red, with one huge pale eye, an empty socket, a hanging jaw and wet hair. On her first visit the glass always explodes inward, boarded or not, and from then on wind and snow blow in, so you lose warmth faster: a little through boards, a lot through a bare frame | Board the window beforehand. Her eye watches through a gap while her hand hooks a board and pulls, to a rhythm of thuds. Burn the hand and she snatches it back, smoking. If she outlasts you, she tears the board off, reaches a long jointed arm all the way to your wood pile and drags logs out | Bare window: she climbs in on long spider-jointed arms, even while you're out. You can still nail boards up in the last seconds |
+| 1 am | **Her, at the window** | She rises into the window from below the sill: a gaunt black figure backlit in red, with one huge pale eye, an empty socket, a hanging jaw and wet hair. On her first visit the glass always explodes inward, boarded or not, and from then on wind and snow blow in; through a bare frame the fire burns down faster | Board the window beforehand. Her eye watches through a gap while her hand hooks a board and pulls, to a rhythm of thuds. Burn the hand and she snatches it back, smoking. If she outlasts you, she tears the board off, reaches a long jointed arm all the way to your wood pile and drags logs out | Bare window: she climbs in on long spider-jointed arms, even while you're out. You can still nail boards up in the last seconds |
 | any time | **The fire itself** | The wood pile leans toward the fire when it's over 25 logs | Keep the pile at or under 25, or build a woodshed. If it topples, logs crash into the fire and it roars toward the roof: **douse it with 2 blood** in time | The cabin burns down |
 | 3 am | **The walkers** | Some mimics have learned to fake footsteps. Nothing in the text or sound gives them away | A lit **blood lantern** shows a shadow of feet under the door, or nothing | You opened the door |
 
@@ -60,7 +60,7 @@ The mimic can wear any of their voices. Keep the door shut on a real visitor and
 | ![The room, with eyes in the treeline](docs/room.jpg) | ![Her claws through the boards](docs/hand.jpg) |
 | ![A bare window](docs/crawler.jpg) | ![A knock, seen by the blood lantern](docs/knock.jpg) |
 | ![The stranger, starving](docs/plea.jpg) | ![The grin beneath its eyes, while you're out](docs/away.jpg) |
-| ![The false stranger, while you freeze](docs/false-stranger.jpg) | |
+| ![The false stranger, demanding food](docs/false-stranger.jpg) | |
 
 ## Day 2: the second night
 
@@ -164,7 +164,7 @@ Night 2, among the runs that reach it (`sim.runTwo`):
 
 | Player | Reached night 2 | Survives night 2 | Main causes of death |
 | --- | --- | --- | --- |
-| Learner | 45 of 200 | 9% | mimic 47%, the cold 16%, the hatch while away 13% |
+| Learner | 45 of 200 | 9% | mimic 47%, the hatch while away 13% (measured before the economy round) |
 | Strong | 48 of 60 | 63% | the hatch while away 15%, the dark 10%, her at the window 10% |
 
 Two-night scores for the strong player now land between about 620 and 910.
@@ -198,7 +198,7 @@ Plain HTML, CSS and JavaScript modules, with no framework, no build step and no 
   - A full-resolution light layer draws the darkness. It cuts soft holes for the fire, the blood lantern, the open door and dawn.
   - The eyes, her claws, the hunter's eyes and the red under the door are drawn on that layer, so they glow out of real darkness.
 - **The night** is one state object advanced in fixed 50 ms steps. Each system is a small update function, gated by the hour:
-  - the fire, the cold and dread;
+  - the fire, hunger, spoilage and dread;
   - the hunter's cycle and trips;
   - the stranger's hunger and hints;
   - cooking and sickness;
