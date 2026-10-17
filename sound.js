@@ -831,3 +831,23 @@ export function whisper() {
     src.start(at, Math.random(), 0.25);
   }
 }
+
+// A rat bolting out of a corner: two quick, high squeaks.
+export function squeak() {
+  if (!ctx || !enabled) return;
+  const t = ctx.currentTime + 0.03;
+  [0, 0.13].forEach((d, i) => {
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(2600 + i * 400, t + d);
+    o.frequency.exponentialRampToValueAtTime(3600 + i * 300, t + d + 0.05);
+    o.frequency.exponentialRampToValueAtTime(2400, t + d + 0.09);
+    g.gain.setValueAtTime(0.0001, t + d);
+    g.gain.exponentialRampToValueAtTime(0.05, t + d + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + d + 0.1);
+    o.connect(g).connect(master);
+    o.start(t + d);
+    o.stop(t + d + 0.12);
+  });
+}

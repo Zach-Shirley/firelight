@@ -6,12 +6,20 @@ import * as sfx from './sound.js';
 import { ACHIEVEMENTS, createStore } from './achievements.js';
 import { computeScore, qualifies, insertScore, cleanInitials, sanitizeBoard } from './score.js';
 
-const VERSION = '0.31';   // one step per commit to the repository
+const VERSION = '0.32';   // one step per commit to the repository
 const W = 320, H = 180;
 const FIRE = { x: 160, y: 136 };          // base of the flames
 const LIGHT_Y = 130;                       // centre of the light pool
 const ELLIPSE = 0.8;                       // light pool is a little squashed
 const LANTERN = { x: 240, y: 70 };
+// the four corner torch sconces (see lightTorch)
+const TORCHES = [
+  { id: 'bl', name: 'the back-left corner', x: 14, y: 46, rat: [1, 0] },
+  { id: 'br', name: 'the back-right corner', x: 289, y: 46, rat: [-1, 0] },
+  { id: 'fl', name: 'the front-left corner', x: 14, y: 150, rat: [1, 0.3] },
+  { id: 'fr', name: 'the front-right corner', x: 306, y: 150, rat: [-1, 0.3] },
+];
+const TORCH_R = 34;
 
 const FIRE_NAMES = ['dead', 'smoldering', 'flickering', 'burning', 'roaring'];
 const LIGHT_R = [14, 42, 70, 102, 142];
@@ -145,6 +153,7 @@ function freshState() {
     hatch: { phase: 'idle', t: 18, total: 1, p: 0 },
     hatchFed: 0,
     hatchBar: false,                             // a beam nailed across the cellar hatch
+    torches: {},                                 // which corners have a torch: { bl, br, fl, fr }
     saltHatch: false,                            // a ring of salt around it (one use)
     buried: false,
     n2HintT: -1,
@@ -2028,6 +2037,12 @@ const BUILDS = [
   { id: 'saltWin', name: 'salt the window sill', desc: 'the next time she would get through the window, she recoils instead.',
     show: () => !S.saltWin && (S.salt > 0 || S.nightNo >= 2), cost: () => ({ salt: 2 }),
     done: () => { S.saltWin = true; say('you pour a line of salt along the window sill.'); } },
+  ...TORCHES.map((tc) => ({
+    id: `torch_${tc.id}`, name: `a torch in ${tc.name}`,
+    desc: 'an iron sconce and a torch that burns all night. a faint glow, and nothing opens its eyes inside it.',
+    show: () => !(S.torches && S.torches[tc.id]), cost: () => ({ wood: 2 }),
+    done: () => lightTorch(tc),
+  })),
   { id: 'saltTrap', name: 'salt a trap', desc: () => `rub salt into a trap. a salted trap catches meat far more often, for as long as it lasts; when it breaks, the salt goes with it. (${saltedTraps()} of ${S.traps} salted)`,
     show: () => S.traps > saltedTraps() && S.salt > 0, cost: () => ({ salt: 1 }),
     done: () => { syncTraps(); S.trapSalt[S.trapSalt.indexOf(false)] = true; say('you rub salt into the jaws of a trap. the smell will carry.'); } },
@@ -2093,6 +2108,7 @@ const SPOTS = [
   { id: 'shed', x: 307, y: 72, builds: ['shed'] },
   { id: 'bedroll', x: 252, y: 121, builds: ['coat'] },
   { id: 'walls', x: 22, y: 64, builds: ['insulate'] },
+  ...TORCHES.map((tc) => ({ id: `torch_${tc.id}`, x: tc.x, y: tc.y - 7, builds: [`torch_${tc.id}`] })),
 ];
 const buildable = (b) => b.show() && canAfford(b.cost()) && (!b.ok || b.ok());
 const spotBuilds = (spot) => spot.builds.map((id) => BUILDS.find((b) => b.id === id)).filter((b) => b && b.show());
@@ -2297,6 +2313,27 @@ const EYE_SPOTS = [
   { x: 226, y: 30, w: 24, h: 60, weight: 1 },
 ];
 
+// Torches: one sconce in each corner of the room, where the eyes like to sit. Two wood each, lit for good: a faint
+// warm glow, and nothing opens its eyes inside it. The first time a corner is lit, now and then a rat bolts out.
+const torchLit = (tc) => S.torches && S.torches[tc.id] && !(mode === 'lost' && S.cause === 'dark');
+function nearTorch(x, y, pad) {
+  return TORCHES.some((tc) => torchLit(tc) && Math.hypot(x - tc.x, (y - tc.y) / ELLIPSE) < TORCH_R + pad);
+}
+
+function lightTorch(tc) {
+  S.torches[tc.id] = true;
+  for (const e of eyes) if (Math.hypot(e.x - tc.x, (e.y - tc.y) / ELLIPSE) < TORCH_R + 6) e.out = true;
+  sfx.crackle(3);
+  if (Math.random() < 1 / 8) {
+    // something was living in that corner
+    fx.push({ kind: 'rat', x: tc.x + tc.rat[0] * 4, y: tc.y + 8, vx: tc.rat[0] * rand(70, 90), vy: tc.rat[1] * 30, life: 0, max: 1.6 });
+    sfx.squeak();
+    say(`you light a torch in ${tc.name}. a rat bolts out of the shadows and is gone.`);
+  } else {
+    say(`you light a torch in ${tc.name}.`);
+  }
+}
+
 function nearLantern(x, y, pad) {
   return lanternLit() && mode !== 'lost' && Math.hypot(x - LANTERN.x, (y - LANTERN.y) / ELLIPSE) < 28 + pad;
 }
@@ -2313,7 +2350,7 @@ function spawnEye() {
     for (const s of EYE_SPOTS) { r -= s.weight; if (r <= 0) { spot = s; break; } }
     const x = Math.round(rand(spot.x, spot.x + spot.w));
     const y = Math.round(rand(spot.y, spot.y + spot.h));
-    if (lightDist(x, y) < dispR + 14 || nearLantern(x, y, 10)) continue;
+    if (lightDist(x, y) < dispR + 14 || nearLantern(x, y, 10) || nearTorch(x, y, 10)) continue;
     if (spot.window && S.boards) continue;
     if (eyes.some((e) => Math.hypot(e.x - x, e.y - y) < 14)) continue;
     eyes.push({ x, y, alpha: 0, blink: rand(1.5, 5), blinkT: -1, out: false, red: Math.random() < (S.fire === 0 ? 0.3 : 0.1) });
@@ -2340,7 +2377,7 @@ function updateEyes(dt) {
   for (const e of eyes) {
     if (mode !== 'lost') {
       if (S.fire >= 2 || live > want + 1) e.out = true;
-      if (lightDist(e.x, e.y) < dispR + 4 || nearLantern(e.x, e.y, 0)) e.out = true;
+      if (lightDist(e.x, e.y) < dispR + 4 || nearLantern(e.x, e.y, 0) || nearTorch(e.x, e.y, 0)) e.out = true;
     }
     if (mode === 'dawn' || mode === 'ended' || mode === 'lost') e.out = true;
 
@@ -2677,6 +2714,19 @@ function drawCabinet() {
   R(Math.sin(animT * 13) > 0 ? '#ffd35a' : '#ffb347', x + 10, y - 11, 1, 2);
 }
 
+function drawTorches() {
+  for (const tc of TORCHES) {
+    if (!(S.torches && S.torches[tc.id])) continue;
+    const { x, y } = tc;
+    R('#2a2624', x - 2, y + 3, 5, 1); R('#2a2624', x, y + 3, 1, 4);         // the iron bracket
+    R('#4a3222', x, y - 3, 1, 6);                                           // the torch
+    if (torchLit(tc)) {
+      const f = Math.sin(animT * 11 + x) > 0;
+      R('#ff9a2e', x - 1, y - 5, 3, 2); R(f ? '#ffd35a' : '#fff3b0', x, y - 6 - (f ? 1 : 0), 1, 2);
+    }
+  }
+}
+
 let cabHeld = false;   // opened by hand
 function cabinetHit(px0, py0) {
   const { x, y, w, h } = CABINET;
@@ -2974,6 +3024,7 @@ function drawPixels() {
   drawSalt();
   drawWoodPile();
   drawCabinet();
+  drawTorches();
   drawPitLogs();
   drawGrate();
   drawRack();
@@ -3477,6 +3528,8 @@ function updateFx(dt) {
       }
     } else if (f.kind === 'spear') {
       // drawn from its start and target
+    } else if (f.kind === 'rat') {
+      f.x += f.vx * dt; f.y += f.vy * dt;
     } else if (f.kind === 'burn' || f.kind === 'ember') {
       f.x += f.vx * dt; f.y += f.vy * dt; f.vx *= 0.95;
       if (f.kind === 'ember') f.vy += 30 * dt;
@@ -3498,6 +3551,13 @@ function drawFx(s) {
     } else if (f.kind === 'smoke') {
       lx.fillStyle = `rgba(110, 104, 100, ${0.45 * a})`;
       lpx(s, f.x - 1, f.y - 1, 2 + f.life * 2, 2 + f.life * 2);
+    } else if (f.kind === 'rat') {
+      const dir = Math.sign(f.vx), bob = Math.sin(f.life * 40) > 0 ? 0.5 : 0;
+      lx.fillStyle = 'rgba(46, 36, 32, 1)';
+      lpx(s, f.x - 1.5, f.y - 1 - bob, 3, 1.5);
+      lpx(s, f.x + dir * 1.5, f.y - 0.5 - bob, 1, 1);                       // its head
+      lx.fillStyle = 'rgba(120, 90, 80, 0.9)';
+      lpx(s, f.x - dir * 3.5, f.y - 0.5, 2, 0.5);                           // its tail
     } else if (f.kind === 'spear') {
       const k = clamp(f.life / 0.25, 0, 1);
       const x = lerp(f.x, f.tx, k), y = lerp(f.y, f.ty, k);
@@ -3612,6 +3672,29 @@ function drawLight() {
     fg.addColorStop(1, 'rgba(0,0,0,0)');
     lx.fillStyle = fg;
     lx.fillRect(0, 0, light.width, light.height);
+    lx.restore();
+  }
+
+  // the corner torches: a faint warm pool each
+  for (const tc of TORCHES) {
+    if (!torchLit(tc)) continue;
+    const tr = (TORCH_R + Math.sin(t * 7 + tc.x) * 0.8) * s;
+    lx.save();
+    lx.translate(tc.x * s, tc.y * s);
+    lx.scale(1, ELLIPSE);
+    lx.globalCompositeOperation = 'destination-out';
+    let tg = lx.createRadialGradient(0, 0, 0, 0, 0, tr);
+    tg.addColorStop(0, 'rgba(0,0,0,0.78)');
+    tg.addColorStop(0.5, 'rgba(0,0,0,0.42)');
+    tg.addColorStop(1, 'rgba(0,0,0,0)');
+    lx.fillStyle = tg;
+    lx.fillRect(-tr, -tr, tr * 2, tr * 2);
+    lx.globalCompositeOperation = 'lighter';
+    tg = lx.createRadialGradient(0, 0, 0, 0, 0, tr * 0.8);
+    tg.addColorStop(0, 'rgba(255, 150, 60, 0.12)');
+    tg.addColorStop(1, 'rgba(0,0,0,0)');
+    lx.fillStyle = tg;
+    lx.fillRect(-tr, -tr, tr * 2, tr * 2);
     lx.restore();
   }
 
