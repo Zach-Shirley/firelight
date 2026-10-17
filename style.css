@@ -466,3 +466,37 @@ body.touch #howPanel .keys { display: none; }
 .recap li { display: flex; justify-content: space-between; gap: calc(3px * var(--s)); }
 .recap .v { color: var(--ink); }
 .tally { margin: 0; font-size: calc(5.5px * var(--s)); color: var(--ink-dim); }
+
+/* ---- day 2 */
+#slam {
+  position: absolute;
+  left: 50%;
+  top: calc(100px * var(--s));
+  transform: translateX(-50%);
+  font-size: calc(8px * var(--s));
+  padding: calc(1px * var(--s)) calc(8px * var(--s)) calc(2px * var(--s));
+  color: #f0f4e0;
+  background: rgba(40, 50, 20, 0.92);
+  border-color: #b4c878;
+  animation: flicker 0.5s infinite;
+}
+#slam::after { content: ''; position: absolute; left: 0; bottom: 0; height: calc(1px * var(--s)); width: var(--cd, 100%); background: #b4c878; }
+#res .salt-item { display: none; }
+#res.has-salt .salt-item { display: inline-flex; }
+#day { background: radial-gradient(ellipse at 30% 30%, rgba(200, 200, 220, 0.08), rgba(10, 8, 8, 0.55)); }
+.day-panel h2 { color: #e8e4d8; }
+.day-text { margin: 0; font-size: calc(6px * var(--s)); color: var(--ink-dim); }
+#dayHours { color: #ffcf6a; }
+#dayList { list-style: none; margin: 0; padding: 0; }
+#dayList li { padding: calc(1.5px * var(--s)) 0; border-bottom: calc(0.5px * var(--s)) solid #2e1f14; }
+#dayList .row { display: flex; justify-content: space-between; align-items: center; }
+#dayList .name { font-size: calc(6.5px * var(--s)); }
+#dayList .desc { font-size: calc(5px * var(--s)); color: var(--ink-dim); line-height: 1.05; }
+#dayList button { font-size: calc(6px * var(--s)); padding: 0 calc(5px * var(--s)); min-width: calc(24px * var(--s)); }
+#dayLog { list-style: none; margin: 0; padding: 0; font-size: calc(5.5px * var(--s)); color: #c8b890; max-height: calc(34px * var(--s)); overflow-y: auto; }
+#dayLog li { padding: calc(0.5px * var(--s)) 0; }
+body.touch #dayList button { min-height: calc(14px * var(--s)); }
+
+.end-buttons { flex-wrap: wrap; }
+.end-buttons button { min-width: calc(50px * var(--s)); }
+#dayBtn { border-color: var(--ember); color: #ffcf6a; }

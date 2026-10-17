@@ -19,6 +19,7 @@ const feedAny = (d) => { const i = keyed(d, 'cooked'); return i >= 0 ? i : keyed
 // reacts to the hand half the time, rarely builds, feeds the stranger whenever she asks (if it can).
 function beginner(f, S, mem, picky = false) {
   const d = f.dialog;
+  if (!d && !S.away && S.hatch.phase === 'lift') { if (mem.hatchAt !== S.hatchFed + ':' + Math.round(S.night / 5)) { mem.hatchAt = S.hatchFed + ':' + Math.round(S.night / 5); mem.willSlam = Math.random() < (picky ? 0.75 : 0.5); } if (mem.willSlam) f.act.slam(); }
   if (d) {
     if (d.id === 'knock') return f.choose(Math.random() < 0.7 ? 0 : 1);
     if (d.id === 'kidAsk') return f.choose(Math.random() < 0.5 && food(S) >= 1 ? 0 : 1);
@@ -52,6 +53,8 @@ function beginner(f, S, mem, picky = false) {
 // Hints, in order: footsteps, board the window, the hunter, the walkers and the lantern.
 function learner(f, S, mem) {
   const d = f.dialog;
+  if (!d && !S.away && S.hatch.phase === 'lift' && S.hatch.p > 0.3) f.act.slam();   // a reader slams it, a beat late
+  if (!d && !S.away && S.salt >= 2 && !S.saltDoor) f.act.build('saltDoor');   // she said salt stops one of them
   if (d && d.id === 'knock' && S.hint >= 1) {
     const truth = S.hint >= 4 ? lanternTruth(S, d.visit) : null;
     return f.choose((truth ?? heardFootsteps(d.visit)) ? 0 : 1);
@@ -111,6 +114,10 @@ function skilled(f, S, mem, human = false) {
   if (S.away) { if (S.hunter.near && noticeHowl && S.away.kind !== 'drag') f.act.runBack(); return; }
   if (!S.hunter.near) mem.howlDelay = 0.5 + Math.random() * 1.5;
   if (S.hand.phase === 'reach' && (!human || S.hand.p > mem.clawDelay)) f.act.strike();
+  if (S.hatch.phase === 'lift' && (!human || S.hatch.p > mem.clawDelay)) f.act.slam();
+  if (S.salt >= 2 && !S.saltDoor) f.act.build('saltDoor');
+  if (S.salt >= 2 && !S.saltWin) f.act.build('saltWin');
+  if (S.nightNo === 2 && !S.hatchWeighted && S.wood >= 14) f.act.build('weigh');
   if (S.hand.phase !== 'reach') mem.clawDelay = 0.1 + Math.random() * 0.35;
   if (S.hand.phase === 'crawl' && S.wood >= 8) f.act.build(S.boardsBuilt ? 'repair' : 'boards');
   if (!S.lit || S.fire <= 2 || (S.fire === 3 && S.wood > 12)) f.act.stoke();
@@ -131,6 +138,58 @@ function skilled(f, S, mem, human = false) {
 const strong = (f, S, mem) => skilled(f, S, mem, true);
 
 export const players = { beginner, learner, strong, skilled };
+
+// How each player spends the day between the nights: in priority order, while the hours last.
+const dayPlans = {
+  beginner: ['chop', 'hunt', 'sleep'],
+  learner: ['sleep', 'window', 'chop', 'hunt', 'traps'],
+  strong: ['sit', 'sleep', 'window', 'scavenge', 'chop', 'traps', 'hunt'],
+  skilled: ['sit', 'sleep', 'window', 'scavenge', 'chop', 'traps', 'hunt'],
+};
+
+function spendDay(f, name) {
+  for (const id of dayPlans[name]) f.day.do(id);
+  for (const id of dayPlans[name]) f.day.do(id);   // a second pass fills leftover hours
+  f.day.night();
+}
+
+// Play night 1, and for the survivors the day and night 2. Reports night-2 results among those who reached it.
+export function runTwo(name, n) {
+  const f = F();
+  const out = { reached: 0, deaths: {}, wins: 0, scores: [], times: [] };
+  window.__simulating = true;
+  for (let i = 0; i < n; i++) {
+    f.newNight();
+    const mem = { reacted: new Set(), handId: '0', willStrike: false, howlDelay: 1, clawDelay: 0.2 };
+    let guard = 0;
+    while (f.mode === 'playing' && guard++ < 2000) { players[name](f, f.state, mem); f.step(0.5, false); }
+    if (!f.state.won) continue;
+    f.step(5, false);
+    if (f.dialog) f.choose(0);
+    out.reached += 1;
+    f.day.start();
+    spendDay(f, name);
+    guard = 0;
+    while (f.mode === 'playing' && guard++ < 2000) { players[name](f, f.state, mem); f.step(0.5, false); }
+    const S = f.state;
+    if (S.won) {
+      out.wins += 1;
+      f.step(5, false);
+      if (f.dialog) f.choose(0);
+      out.scores.push(S.final);
+    } else {
+      out.deaths[S.cause] = (out.deaths[S.cause] || 0) + 1;
+      out.times.push(Math.round(S.night));
+      f.step(4, false);
+    }
+  }
+  window.__simulating = false;
+  out.scores.sort((a, b) => a - b);
+  out.times.sort((a, b) => a - b);
+  const r = summarize(out, Math.max(1, out.reached));
+  r.reachedNight2 = `${out.reached}/${n}`;
+  return r;
+}
 
 export function run(name, n) {
   const f = F();

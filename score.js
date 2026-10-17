@@ -45,7 +45,7 @@ export function sanitizeBoard(raw, max = BOARD_SIZE) {
   if (!Array.isArray(raw)) return [];
   return raw
     .filter((e) => e && typeof e.score === 'number' && Number.isFinite(e.score) && typeof e.name === 'string')
-    .map((e) => ({ name: cleanInitials(e.name), score: Math.max(0, Math.round(e.score)), t: Number(e.t) || 0 }))
+    .map((e) => ({ name: cleanInitials(e.name), score: Math.max(0, Math.round(e.score)), nights: e.nights === 2 ? 2 : 1, t: Number(e.t) || 0 }))
     .sort((a, b) => b.score - a.score || a.t - b.t)
     .slice(0, max);
 }

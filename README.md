@@ -17,7 +17,7 @@ A short horror-survival game in chunky pixel art. One night lasts about seven mi
 | C | Cook up to 3 raw meat. It finishes on its own in about 6 s, as long as the fire is lit |
 | G | Go out for wood (short trip) |
 | H | Go out to hunt (longer trip: meat, sometimes blood) |
-| F / Space | Burn her claws (1 wood, needs a fire) |
+| F / Space | Burn her claws (1 wood, needs a fire), or slam the cellar hatch on night 2 |
 | R | Run back from a trip |
 | B | Build |
 | 1–4 | Dialogue choices |
@@ -59,6 +59,33 @@ The mimic can wear any of their voices. Keep the door shut on a real visitor and
 | ![The stranger, starving](docs/plea.jpg) | ![The grin beneath its eyes, while you're out](docs/away.jpg) |
 | ![The false stranger, while you freeze](docs/false-stranger.jpg) | |
 
+## Day 2: the second night
+
+Make it to dawn and you choose: **end here** and bank your score, or **rest through the day** and face a second night. Two-night runs score far more, and the leaderboard marks them with ☀☀.
+
+**The day** is a planning screen over the daylit room. You have 8 hours of daylight, and every choice costs some:
+
+| Action | Hours | What it gives |
+| --- | --- | --- |
+| Chop wood | 2 | 9–12 wood |
+| Hunt in daylight | 2 | Safe meat, sometimes blood |
+| Check the traps | 1 | Two catches per trap |
+| Scavenge the empty village | 3 | **Salt**, sometimes blood, sometimes a jar of **nails** (each board holds through one extra pull). The village tells its own story: barred doors, torn boards, tally marks that stop at two |
+| Repair or board the window | 2 | Back to three boards. The glass is gone for good, so the wind is in from the start |
+| Bury her | 2 | Only if you dragged the stranger's body out; it stops drawing the hunter |
+| Sit with the stranger | 1 | Only if she's alive; she gives you salt and warns you about the floor |
+| Sleep | 3 | Skip it and you start night 2 **tired**: slower hands, slower trips, and now and then your eyes close and the screen goes black for a moment |
+
+**Night 2** keeps what you have and what is broken: resources, traps, the lantern, the boards, the broken window, and the stranger alive, gone or buried. Everything that hunts you behaves as if it were **two hours later**: walkers and the window come earlier, the fire burns faster and the mimic knocks more often.
+
+| New on night 2 | |
+| --- | --- |
+| **Salt** | *Salt the doorway* (2 salt): the next thing you open the door to that isn't a person can't cross; the line breaks instead of you. *Salt the sill* (2 salt): the next time she would get through the window, she recoils |
+| **The thing under the floor** | There is a cellar hatch in the room. The floorboards creak and dust puffs up, then the lid lifts and pale fingers curl out, with eyes in the gap. **Slam the hatch** (F/Space), or weigh it down with 6 logs, which holds it twice before they tumble off. Miss it and it drags all your meat down; the third time, it comes up. While you're out, nobody is there to slam it |
+
+![The day](docs/day.jpg)
+![Something under the floor](docs/hatch.jpg)
+
 ## Building
 
 Everything you build costs score, so building is a tradeoff.
@@ -67,6 +94,8 @@ Everything you build costs score, so building is a tradeoff.
 | --- | --- | --- |
 | Window boards | 8 wood | Three boards. Without them, her first visit at 1 am kills you. Repair one for 3 wood |
 | Trap (up to 3) | 5 wood each | Raw meat and blood, collected on every trip. The smell keeps the thing in the trees close for longer |
+| Salt the doorway / the sill | 2 salt each | One use each; see night 2 |
+| Weigh down the hatch (night 2) | 6 wood | Holds the hatch shut through two pushes |
 | Blood lantern | 8 wood + 4 blood | Red light under the door shows whether anything is actually standing there. That's the only way to catch the walkers after 3 am. It burns a jar of blood every minute, and goes dark when you run out |
 
 ## Score
@@ -112,6 +141,15 @@ Results on 2026-10-16, after the latest changes (cold instead of hunger, the fal
 | Beginner | 150 | 0% | mimic 39%, her at the window 37%, the trees 23% |
 | Learner | 150 | 21% | mimic 56%, her at the window 22% |
 | Strong | 150 | 81% | mimic 13%, her at the window 4%, the dark 2% |
+
+Night 2, among the runs that reach it (`sim.runTwo`):
+
+| Player | Reached night 2 | Survives night 2 | Main causes of death |
+| --- | --- | --- | --- |
+| Learner | 45 of 200 | 9% | mimic 47%, the cold 16%, the hatch while away 13% |
+| Strong | 48 of 60 | 63% | the hatch while away 15%, the dark 10%, her at the window 10% |
+
+Two-night scores for the strong player land between about 360 and 810, against roughly 100–280 for one night.
 
 A real first-time player lands between the beginner and the learner, so the large majority of first nights end in death. The doubled lantern cost is what brought the strong player down from about 93% to 84%: it now has to work to have the lantern lit when the walkers start.
 
@@ -267,6 +305,16 @@ Built with heavy AI assistance (Claude Code) under Zach Shirley's direction:
     - the night recap and the all-time death tally;
     - the false stranger, who demands to be fed and kills you at dawn;
     - the grin tied to the creature's eyes instead of floating free.
+  - **Day 2:**
+    - the day screen and its choices;
+    - salt;
+    - nails;
+    - tiredness;
+    - the thing under the floor;
+    - night 2's two-hour head start;
+    - two-night scoring.
+
+    Zach asked for a second day and left the design to Claude; the outline came from an earlier recommendation he had approved in principle.
   - **Her rebuild:** a scarier design with real animations for rising, grabbing, being burned, stealing and climbing in; the glass always breaking on her first visit; wind and cold through the broken window.
 - **Claude Code:**
   - the mechanics design within that direction;

@@ -39,6 +39,8 @@
       <button id="buildBtn" class="act hidden" title="(B)"><span class="label">build</span></button>
     </div>
 
+    <button id="slam" class="hidden" title="(F or space)">slam the hatch!</button>
+
     <button id="strike" class="hidden" title="(F or space)">burn the hand! <span class="dim">1 wood</span></button>
 
     <div id="away" class="hidden">
@@ -92,6 +94,7 @@
             <li>Go out to <b>gather wood</b> (G) or <b>hunt</b> (H). While you're out, no one is minding the room, and something hunts the trees.</li>
             <li>People knock. Not everything that knocks is a person. The door only opens if you open it.</li>
             <li>Your score is what you still have at dawn. Everything you build or burn costs you.</li>
+            <li>Survive to dawn and you can <b>rest through the day</b> and face a <b>second night</b>, which is worse.</li>
             <li class="touch-only">On a phone, play sideways and tap the buttons.</li>
           </ul>
           <p class="keys">S stoke · E eat · C cook · G wood · H hunt · F burn · R run back · B build · J journal · M sound · Esc menu</p>
@@ -105,6 +108,16 @@
           <p class="keys">only nights survived to dawn are scored. kept on this computer, like an arcade cabinet.</p>
           <button class="backBtn">back</button>
         </div>
+      </div>
+    </div>
+
+    <div id="day" class="screen hidden">
+      <div class="panel end-panel day-panel">
+        <h2>day</h2>
+        <p class="day-text">The sun is up and nothing hunts in daylight. You have <span id="dayHours">8 hours</span> before dark.</p>
+        <ul id="dayList"></ul>
+        <ol id="dayLog"></ol>
+        <div class="end-buttons"><button id="dayNight">wait for dark</button></div>
       </div>
     </div>
 
@@ -123,6 +136,8 @@
         <ol id="endBoard" class="board"></ol>
         <p id="endTally" class="tally"></p>
         <div class="end-buttons">
+          <button id="dayBtn" class="hidden">rest through the day</button>
+          <button id="endRunBtn" class="hidden">end here</button>
           <button id="retryBtn">try again</button>
           <button id="endTitleBtn">title</button>
         </div>

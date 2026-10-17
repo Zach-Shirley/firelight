@@ -527,3 +527,26 @@ export function shiver(strength = 1) {
   src.connect(bp).connect(g).connect(master);
   src.start(at, Math.random(), 1);
 }
+
+// Old floorboards taking weight from below.
+export function creak() {
+  if (!ctx || !enabled) return;
+  const t = ctx.currentTime;
+  const o = ctx.createOscillator();
+  const g = ctx.createGain();
+  const bp = ctx.createBiquadFilter();
+  o.type = 'sawtooth';
+  o.frequency.setValueAtTime(95, t);
+  o.frequency.linearRampToValueAtTime(140, t + 0.45);
+  o.frequency.linearRampToValueAtTime(80, t + 0.9);
+  bp.type = 'bandpass';
+  bp.frequency.value = 600;
+  bp.Q.value = 6;
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.linearRampToValueAtTime(0.12, t + 0.1);
+  g.gain.linearRampToValueAtTime(0.06, t + 0.6);
+  g.gain.linearRampToValueAtTime(0.0001, t + 0.95);
+  o.connect(bp).connect(g).connect(master);
+  o.start(t);
+  o.stop(t + 1);
+}

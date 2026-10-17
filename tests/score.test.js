@@ -59,3 +59,8 @@ test('sanitizeBoard drops malformed entries from storage', () => {
   assert.deepEqual(clean.map((e) => [e.name, e.score]), [['HI', 100], ['OK', 10]]);
   assert.deepEqual(sanitizeBoard('nope'), []);
 });
+
+test('board entries keep whether the run survived one night or two', () => {
+  const clean = sanitizeBoard([{ name: 'two', score: 300, nights: 2 }, { name: 'one', score: 90 }, { name: 'odd', score: 50, nights: 7 }]);
+  assert.deepEqual(clean.map((e) => [e.name, e.nights]), [['TWO', 2], ['ONE', 1], ['ODD', 1]]);
+});
