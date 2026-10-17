@@ -8,9 +8,10 @@ test('dawn is worth 100, and what you lived through counts more than what you ho
   assert.deepEqual(r.lines.map((l) => l[0]), ['made it to dawn', 'what you held on to']);
 });
 
-test('people let in, mimics kept out, burns and company each add up', () => {
+test('people let in, burns and company each add up; keeping mimics out does not', () => {
   const r = computeScore({ trusted: 3, mimicsKept: 2, burned: 2, companion: true });
-  assert.equal(r.total, 100 + 30 + 20 + 10 + 25);
+  assert.equal(r.total, 100 + 30 + 10 + 25);
+  assert.ok(!r.lines.some((l) => l[0].includes('mimic')));
 });
 
 test('missing values still give the dawn bonus', () => {

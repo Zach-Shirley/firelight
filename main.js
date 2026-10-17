@@ -36,7 +36,8 @@ const BOARD_KEY = 'firelight-scores-v2';
 const $ = (id) => document.getElementById(id);
 const stage = $('stage');
 const pix = $('pix'), px = pix.getContext('2d');
-const light = $('light'), lx = light.getContext('2d');
+const light = $('light');
+let lx = light.getContext('2d');   // swapped briefly for an offscreen layer by asLayer()
 pix.width = W; pix.height = H;
 
 const ui = {
@@ -1192,7 +1193,8 @@ function killAtDawn() {
   lossT = 0;
   S.cause = 'falseStranger';
   S.won = false;
-  shake = 0.9;
+  startDeath('falseStranger');
+  shake = 0.5;
   sfx.death();
   sfx.scream();
   say('she stands up as the light comes in. she is smiling.');
@@ -1241,11 +1243,12 @@ function die(cause) {
   pendingVisit = null;
   toggleBuild(false);
   toggleJournal(false);
-  if (cause === 'mimic') { doorTarget = 1; figure = 3; shake = 0.8; }
-  if (cause === 'dark') { doorTarget = 1; shake = 0.8; S.fire = 0; particles = []; }
+  if (cause === 'mimic') { doorTarget = 1; visitorAtDoor = null; shake = 0.8; }
+  if (cause === 'dark') { shake = 0.4; S.fire = 0; particles = []; }
   if (cause === 'hand' || cause === 'handAway') { shake = 0.6; S.hand.phase = 'crawl'; S.hand.p = 1; }
   if (cause === 'risen') shake = 0.6;
   if (cause === 'burn') { shake = 0.8; S.fire = 4; }
+  startDeath(cause);
   sfx.death();
   save();
 }
@@ -1718,7 +1721,7 @@ function updateAmbient(dt) {
   hunterEyes = clamp(hunterEyes + dt * (S.hunter.near && mode === 'playing' ? 0.8 : -0.8), 0, 1);
 
   dispR += (targetRadius() - dispR) * Math.min(1, dt * (mode === 'lost' ? 3 : 1.8));
-  door += (doorTarget - door) * Math.min(1, dt * (mode === 'lost' ? 10 : 4));
+  door += (doorTarget - door) * Math.min(1, dt * (mode === 'lost' ? (S.cause === 'hunter' ? 0.7 : 10) : 4));
 
   const slow = dialog && mode === 'playing' ? 0.5 : 1;
   animT += dt * slow;
@@ -1749,7 +1752,8 @@ function updateAmbient(dt) {
   }
   if (mode === 'lost') {
     lossT += dt;
-    if (lossT > (S.cause === 'starve' ? 3.2 : 3.6)) showEnding(false);
+    updateDeath(dt);
+    if (lossT > deathLen()) showEnding(false);
   }
 }
 
@@ -1806,7 +1810,7 @@ function spawnEye() {
 }
 
 function eyesWanted() {
-  if (mode === 'lost') return S.cause === 'starve' ? 4 : S.cause === 'burn' ? 0 : 16;
+  if (mode === 'lost') return 0;   // each death draws its own
   if (mode === 'dawn' || mode === 'ended' || mode === 'day') return 0;
   if (S.fire > 1) return 0;
   const h = S.lit ? hour() : 0;
@@ -1826,16 +1830,14 @@ function updateEyes(dt) {
       if (S.fire >= 2 || live > want + 1) e.out = true;
       if (lightDist(e.x, e.y) < dispR + 4 || nearLantern(e.x, e.y, 0)) e.out = true;
     }
-    if (mode === 'dawn' || mode === 'ended') e.out = true;
+    if (mode === 'dawn' || mode === 'ended' || mode === 'lost') e.out = true;
 
     if (e.out) {
       e.alpha -= dt * 2.5;
     } else {
       e.alpha = Math.min(1, e.alpha + dt * (mode === 'lost' ? 3 : 0.5));
       const dx = FIRE.x - e.x, dy = LIGHT_Y - e.y, d = Math.hypot(dx, dy) || 1;
-      if (mode === 'lost' && S.cause !== 'starve') {
-        if (d > 6) { e.x += (dx / d) * dt * 30; e.y += (dy / d) * dt * 30; }
-      } else if (S.fire === 0 && S.lit && lightDist(e.x, e.y) > dispR + 12) {
+      if (S.fire === 0 && S.lit && lightDist(e.x, e.y) > dispR + 12) {
         const sp = 1.6 + S.dread / 40;
         e.x += (dx / d) * dt * sp;
         e.y += (dy / d) * dt * sp;
@@ -1934,11 +1936,16 @@ function drawBackground() {
   g.fillStyle = C.snow; g.fillRect(45, 65, 32, 2);
   g.fillStyle = C.frameHi; g.fillRect(42, 32, 38, 1); g.fillRect(42, 69, 38, 2);
 
-  // shelf with jars
-  g.fillStyle = C.frame; g.fillRect(200, 60, 34, 3);
-  g.fillStyle = '#3d3a35'; g.fillRect(204, 53, 5, 7);
-  g.fillStyle = '#4a3020'; g.fillRect(212, 55, 4, 5);
-  g.fillStyle = '#363a3e'; g.fillRect(220, 52, 6, 8);
+  // the meat rack: a pole on two pegs, with iron hooks
+  g.fillStyle = '#2a1b10'; g.fillRect(183, 40, 2, 4); g.fillRect(229, 40, 2, 4);
+  g.fillStyle = C.frame; g.fillRect(181, 41, 52, 2);
+  g.fillStyle = C.frameHi; g.fillRect(181, 41, 52, 1);
+  g.fillStyle = '#4a4440';
+  for (let i = 0; i < 8; i++) g.fillRect(186 + i * 6, 43, 1, 2);
+  // the storage shelf on two brackets, for blood, salt and whatever else you keep
+  g.fillStyle = C.frame; g.fillRect(181, 66, 52, 3);
+  g.fillStyle = C.frameHi; g.fillRect(181, 66, 52, 1);
+  g.fillStyle = '#2a1b10'; g.fillRect(185, 69, 2, 4); g.fillRect(227, 69, 2, 4); g.fillRect(186, 72, 2, 1); g.fillRect(226, 72, 2, 1);
 
   // bedroll
   g.fillStyle = '#3b2e2a'; g.fillRect(222, 118, 28, 7);
@@ -1958,7 +1965,9 @@ function drawBackground() {
   }
 }
 
-const dawnLevel = () => (mode === 'dawn' ? Math.min(1, dawnT / 4) : mode === 'day' || (mode === 'ended' && S.won) ? 1 : 0);
+const dawnLevel = () => (mode === 'dawn' ? Math.min(1, dawnT / 4)
+  : mode === 'lost' && S.cause === 'falseStranger' ? 1 - ease(seg(2.8, 4.8))
+  : mode === 'day' || (mode === 'ended' && S.won) ? 1 : 0);
 
 function drawDawnWindow() {
   const k = dawnLevel();
@@ -2117,29 +2126,58 @@ function drawShedIcon(canvas) {
   P('#4a3222', 16, 9, 2, 9);                  // the door, swung open
 }
 
+// Elk meat hanging on the rack: raw haunches (dark red, marbled with fat, a knob of bone at the top),
+// cooked ones seared brown, salt-cured ones dark and flecked white. Meat about to turn goes gray-green.
+const SLAB = ['..b..', '..b..', '.rRr.', 'rRfrr', 'rrRfr', 'rfRrr', 'rrrRr', '.rrr.'];
+const SLAB_COLORS = {
+  raw: { b: '#d8ccb0', r: '#7e1c18', R: '#a8322a', f: '#d8a090' },
+  rawBad: { b: '#b8b098', r: '#5a5232', R: '#6e6a3e', f: '#a8a47a' },
+  cooked: { b: '#d8ccb0', r: '#5a2e1c', R: '#94522e', f: '#c08a58' },
+  cookedBad: { b: '#b8b098', r: '#3e3a22', R: '#545030', f: '#7a7450' },
+  cured: { b: '#d8ccb0', r: '#4a1a14', R: '#6a2a1e', f: '#7a3a2a' },
+};
+
+// Glass vials of blood, corked. Salt in a clay crock, heaped higher the more you have.
+function drawVial(x, y) {
+  px.fillStyle = '#8a6a4a'; px.fillRect(x, y, 2, 1);                   // cork
+  px.fillStyle = '#7a8290'; px.fillRect(x - 1, y + 1, 1, 5); px.fillRect(x + 2, y + 1, 1, 5); px.fillRect(x, y + 6, 2, 1);
+  px.fillStyle = '#6a0a0a'; px.fillRect(x, y + 2, 2, 4);
+  px.fillStyle = '#b02020'; px.fillRect(x, y + 2, 1, 2);
+  px.fillStyle = '#c8d0dc'; px.fillRect(x - 1, y + 1, 1, 1);           // glint on the glass
+}
+
+function drawCrock(x, y, n) {
+  const heap = Math.min(4, Math.ceil(n / 2));
+  px.fillStyle = '#e4e0d8';
+  for (let i = 0; i < heap; i++) px.fillRect(x + 1 + Math.floor(i / 2), y - 1 - i, 6 - Math.floor(i / 2) * 2 - (i % 2), 1);
+  px.fillStyle = '#6a4a36'; px.fillRect(x, y, 8, 6); px.fillRect(x + 1, y + 6, 6, 1);
+  px.fillStyle = '#8a6448'; px.fillRect(x, y, 8, 1); px.fillRect(x + 1, y + 1, 1, 4);
+  px.fillStyle = '#4a3226'; px.fillRect(x, y + 3, 8, 1);
+}
+
+// What sits on the shelf, left to right. New goods get a line here.
+const SHELF = [
+  { has: () => S.blood > 0, w: () => Math.min(S.blood, 7) * 5, draw: (x) => { for (let i = 0; i < Math.min(S.blood, 7); i++) drawVial(x + 2 + i * 5, 59); } },
+  { has: () => S.salt > 0, w: () => 10, draw: (x) => drawCrock(x + 1, 60, S.salt) },
+];
+
 function drawMeat() {
-  // raw meat (pale, purple, veined) and cooked meat (charred) hanging from the shelf; jars of blood on it
-  // fresh raw is purple; it goes green before it rots. cured meat is flecked with salt.
-  const strips = [
+  const slabs = [
     ...[...S.rawLife].sort((a, b) => b - a).slice(0, 4).map((l) => (l < 30 ? 'rawBad' : 'raw')),
-    ...[...S.cookedLife].sort((a, b) => b - a).slice(0, 4).map((l) => (l >= CURED / 2 ? 'cured' : l < 30 ? 'cookedBad' : 'cooked')),
-  ].slice(0, 7);
-  strips.forEach((kind, i) => {
-    const x = 201 + i * 5;
-    if (kind === 'raw' || kind === 'rawBad') {
-      px.fillStyle = kind === 'raw' ? '#7a4a6a' : '#5a6a3a'; px.fillRect(x, 63, 3, 6);
-      px.fillStyle = '#3a1430'; px.fillRect(x + 1, 64, 1, 4);
-      px.fillStyle = '#d8ccb0'; px.fillRect(x, 63, 1, 1);
-    } else {
-      px.fillStyle = kind === 'cookedBad' ? '#3a3a1e' : '#4a2616'; px.fillRect(x, 63, 3, 5);
-      px.fillStyle = '#8a4a28'; px.fillRect(x, 63, 1, 4);
-      if (kind === 'cured') { px.fillStyle = '#e4e0d8'; px.fillRect(x + 1, 64, 1, 1); px.fillRect(x + 2, 66, 1, 1); }
-      else { px.fillStyle = '#8a1010'; px.fillRect(x + 2, 68, 1, 1); }
-    }
+    ...[...S.cookedLife].sort((a, b) => b - a).slice(0, 8).map((l) => (l >= CURED / 2 ? 'cured' : l < 30 ? 'cookedBad' : 'cooked')),
+  ].slice(0, 8);
+  slabs.forEach((kind, i) => {
+    const x = 184 + i * 6, y = 44;
+    drawMap(SLAB, x, y, SLAB_COLORS[kind]);
+    if (kind === 'cured') { px.fillStyle = '#ece8e0'; px.fillRect(x + 1, y + 4, 1, 1); px.fillRect(x + 3, y + 6, 1, 1); }
+    if (kind === 'cooked') { px.fillStyle = '#2a140a'; px.fillRect(x + 1, y + 5, 1, 1); px.fillRect(x + 3, y + 3, 1, 1); }
+    if (kind === 'raw' && Math.sin(animT * 0.5 + i * 3) > 0.7) { px.fillStyle = '#5a0a08'; px.fillRect(x + 2, y + 8 + Math.floor((animT * 2 + i) % 3), 1, 1); }   // a slow drip
   });
-  for (let i = 0; i < Math.min(S.blood, 5); i++) {
-    px.fillStyle = '#3a0a0a'; px.fillRect(228 - i * 4, 55, 3, 5);
-    px.fillStyle = '#6a1010'; px.fillRect(228 - i * 4, 56, 3, 2);
+  let x = 183;
+  for (const item of SHELF) {
+    if (!item.has()) continue;
+    item.draw(x);
+    x += item.w() + 2;
   }
 }
 
@@ -2187,6 +2225,19 @@ function drawStranger() {
     const col = S.strangerFalse ? FALSE_COLORS : SPR_COLORS;
     drawMap(STAND, x, y, col);
     drawMap(legs, x, y + 11, col);
+    return;
+  }
+  if (mode === 'lost' && S.cause === 'risen') {
+    const col = { ...SPR_COLORS, e: '#d02814' };
+    const jit = Math.random() < 0.3 ? 1 : 0;
+    if (lossT < 0.7) drawMap(DEAD, 186 + jit, 135);
+    else if (lossT < 1.4) drawMap(SIT, 186, 128 - jit, col);
+    else if (lossT < 2.0) { drawMap(STAND, 190 + jit, 124, col); drawMap(LEGS[0], 190, 135, col); }
+    return;
+  }
+  if (mode === 'lost' && S.cause === 'falseStranger') {
+    drawMap(STAND, 190, 124, FALSE_COLORS);
+    drawMap(LEGS[0], 190, 135, FALSE_COLORS);
     return;
   }
   if (S.stranger === 'dead' && !S.carcass && !(S.away && S.away.kind === 'drag')) {
@@ -2301,17 +2352,18 @@ function drawCooking() {
   px.fillStyle = '#5a3a22'; px.fillRect(146, 125, 29, 1);
   const k = clamp(1 - S.cooking.t / COOK_TIME, 0, 1);
   const lerp = (a, b) => Math.round(a + (b - a) * k);
-  const col = `rgb(${lerp(122, 74)}, ${lerp(74, 38)}, ${lerp(106, 22)})`;
+  const col = `rgb(${lerp(140, 84)}, ${lerp(34, 44)}, ${lerp(28, 24)})`;
   for (let i = 0; i < S.cooking.n; i++) {
     const x = 153 + i * 6;
     px.fillStyle = col; px.fillRect(x, 124, 4, 4);
-    px.fillStyle = k > 0.6 ? '#20100a' : '#3a1430'; px.fillRect(x + 1, 126, 2, 1);
+    px.fillStyle = k > 0.6 ? '#20100a' : '#e2cdb4'; px.fillRect(x + 1, 126, 2, 1);
   }
 }
 
 function targetRadius() {
   if (mode === 'lost' && S.cause === 'burn') return 180;
-  if (mode === 'lost' && S.cause !== 'starve') return 0;
+  if (mode === 'lost' && S.cause === 'dark') return 0;
+  if (mode === 'lost' && S.cause === 'starve') return LIGHT_R[S.fire] * (1 - seg(0.5, 4.5) * 0.6);
   if (!S.lit) return 5;
   if (S.fire === 0) return 6 + 10 * Math.max(0, 1 - S.deadFor / 30);
   return LIGHT_R[S.fire] + (S.blaze > 0 ? 40 : 0);
@@ -2328,6 +2380,10 @@ function drawGrin(s, t) {
   const show = (mode === 'playing' && S.hunter.near) || (mode === 'lost' && S.cause === 'hunter');
   const k = clamp(S.stalk / 100, 0, 1);
   if (!show || S.stalk < 0.8) return;
+  const dying = mode === 'lost';
+  if (dying && lossT > 1.45) return;
+  const wide = dying ? 1 + ease(seg(0.1, 1.3)) * 2.6 : 1;
+  const red = dying ? seg(0.2, 1.0) : 0;
   const a = clamp(0.35 + 0.65 * k, 0, 1);
   const cx = 55.5, ey = 56;
 
@@ -2340,7 +2396,7 @@ function drawGrin(s, t) {
   glow.addColorStop(1, 'rgba(0, 0, 0, 0)');
   lx.fillStyle = glow;
   lx.fillRect(cx * s - gr, (ey + 2) * s - gr, gr * 2, gr * 2);
-  lx.fillStyle = `rgba(255, 190, 80, ${a * blink})`;
+  lx.fillStyle = `rgba(255, ${Math.round(190 - 150 * red)}, ${Math.round(80 - 50 * red)}, ${a * blink})`;
   lpx(s, 53 - ew, ey - eh / 2, ew, eh);
   lpx(s, 58, ey - eh / 2, ew, eh);
 
@@ -2348,7 +2404,7 @@ function drawGrin(s, t) {
   const cy = ey + 2;
   const w = 4 + k * 12;
   const curve = 0.5 + k * 2.6;
-  const gap = Math.pow(k, 1.5) * 3.4;
+  const gap = Math.pow(k, 1.5) * 3.4 * wide;
   const lip = (u) => cy + curve * (1 - u * u) - Math.pow(Math.abs(u), 6) * curve * 0.6;   // corners hook upward
   for (let x = -w / 2; x <= w / 2; x += 0.5) {
     const u = (2 * x) / w;
@@ -2376,6 +2432,13 @@ function drawHatch() {
   const hc = S.hatch;
   const lift = hc.phase === 'lift' ? hc.p : hc.phase === 'feeding' ? 1 : hc.phase === 'open' ? 1.4 : 0;
   const rattle = hc.phase === 'creak' && Math.random() < 0.4 ? 1 : 0;
+  if (mode === 'lost' && (S.cause === 'cellar' || S.cause === 'cellarAway')) {
+    // thrown off: the hole is open and the lid lies on the floor beside it
+    px.fillStyle = '#020101'; px.fillRect(x, y, w, h);
+    px.fillStyle = '#3a2618'; px.fillRect(x - 25, y + 3, w, h - 3);
+    px.fillStyle = '#2a1a10'; for (let i = 5; i < w; i += 5) px.fillRect(x - 25 + i, y + 3, 1, h - 3);
+    return;
+  }
   // the dark below, showing as the lid rises
   if (lift > 0) { px.fillStyle = '#020101'; px.fillRect(x, y, w, h); }
   // the lid: planks and an iron ring, raised toward you as it lifts
@@ -2438,7 +2501,7 @@ function drawBelow(s, t) {
     }
   }
   // when it comes up, an arm and a swollen pale hand reaching across the floor toward the fire
-  if (ph === 'open') {
+  if (ph === 'open' && !dead) {
     const reach = Math.min(1, lossT * 0.6);
     const hx = x - 4 - reach * 40, hy = y + 4 - reach * 6;
     for (let j = 0; j <= 1; j += 0.02) {
@@ -2464,44 +2527,46 @@ function spawnDust() {
 const HER = { black: 'rgba(6, 2, 3, 0.97)', rim: 'rgba(130, 16, 12, 0.85)', nail: 'rgba(70, 8, 6, 0.95)' };
 
 // a thick limb segment from a to b, rim first then the black core
-function limbSeg(s, ax, ay, bx, by, w) {
+function limbSeg(s, ax, ay, bx, by, w, pal = HER) {
   const len = Math.hypot(bx - ax, by - ay);
   const n = Math.max(1, Math.ceil(len * 2));
   for (let i = 0; i <= n; i++) {
     const x = ax + ((bx - ax) * i) / n, y = ay + ((by - ay) * i) / n;
-    lx.fillStyle = HER.rim; lpx(s, x - w / 2 - 0.4, y - w / 2 - 0.4, w + 0.8, w + 0.8);
+    lx.fillStyle = pal.rim; lpx(s, x - w / 2 - 0.4, y - w / 2 - 0.4, w + 0.8, w + 0.8);
   }
   for (let i = 0; i <= n; i++) {
     const x = ax + ((bx - ax) * i) / n, y = ay + ((by - ay) * i) / n;
-    lx.fillStyle = HER.black; lpx(s, x - w / 2, y - w / 2, w, w);
+    lx.fillStyle = pal.black; lpx(s, x - w / 2, y - w / 2, w, w);
   }
 }
 
 // shoulder to hand with the elbow pushed out to one side by `bend`
-function limb(s, ax, ay, bx, by, bend, w = 1.6) {
+function limb(s, ax, ay, bx, by, bend, w = 1.6, pal = HER) {
   const mx = (ax + bx) / 2, my = (ay + by) / 2;
   const len = Math.hypot(bx - ax, by - ay) || 1;
   const ex = mx + (-(by - ay) / len) * bend, ey = my + ((bx - ax) / len) * bend;
-  limbSeg(s, ax, ay, ex, ey, w);
-  limbSeg(s, ex, ey, bx, by, w * 0.85);
-  lx.fillStyle = HER.black; lpx(s, ex - w * 0.7, ey - w * 0.7, w * 1.4, w * 1.4);   // a knobbed elbow
+  limbSeg(s, ax, ay, ex, ey, w, pal);
+  limbSeg(s, ex, ey, bx, by, w * 0.85, pal);
+  lx.fillStyle = pal.black; lpx(s, ex - w * 0.7, ey - w * 0.7, w * 1.4, w * 1.4);   // a knobbed elbow
   return { ex, ey };
 }
 
 // four long fingers fanned around `dir`; curl closes them into a fist
-function claw(s, hx, hy, dir, spread, curl, len = 5) {
-  lx.fillStyle = HER.rim; lpx(s, hx - 1.9, hy - 1.9, 3.8, 3.8);
-  lx.fillStyle = HER.black; lpx(s, hx - 1.5, hy - 1.5, 3, 3);
+function claw(s, hx, hy, dir, spread, curl, len = 5, pal = HER) {
+  const pw = Math.max(1, len / 9);   // big hands get thick fingers
+  const pr = pw > 1 ? 0.75 : 1;      // and a smaller palm for their size
+  lx.fillStyle = pal.rim; lpx(s, hx - 1.9 * pw * pr, hy - 1.9 * pw * pr, 3.8 * pw * pr, 3.8 * pw * pr);
+  lx.fillStyle = pal.black; lpx(s, hx - 1.5 * pw * pr, hy - 1.5 * pw * pr, 3 * pw * pr, 3 * pw * pr);
   for (let i = 0; i < 4; i++) {
     let a = dir + (i - 1.5) * spread;
     let x = hx, y = hy;
     const fl = len * (i === 1 || i === 2 ? 1.15 : 0.9);
-    for (let k = 0; k < fl; k += 0.5) {
+    for (let k = 0; k < fl; k += 0.5 * pw) {
       a += curl * 0.09 * (i < 2 ? -1 : 1) * (k > fl * 0.4 ? 1 : 0.2);   // the tips hook inward
-      x += Math.cos(a) * 0.5; y += Math.sin(a) * 0.5;
-      const tip = k > fl - 1.2;
-      lx.fillStyle = tip ? HER.nail : HER.black;
-      lpx(s, x - 0.35, y - 0.35, tip ? 0.6 : 0.9, tip ? 0.6 : 0.9);
+      x += Math.cos(a) * 0.5 * pw; y += Math.sin(a) * 0.5 * pw;
+      const tip = k > fl - 1.2 * pw;
+      lx.fillStyle = tip ? pal.nail : pal.black;
+      lpx(s, x - 0.35 * pw, y - 0.35 * pw, (tip ? 0.6 : 0.9) * pw, (tip ? 0.6 : 0.9) * pw);
     }
   }
 }
@@ -2509,11 +2574,10 @@ function claw(s, hx, hy, dir, spread, curl, len = 5) {
 // her head and shoulders: a long narrow skull, one huge pale eye, an empty socket, a hanging jaw, wet hair
 function drawHerHead(s, t, cx, cy, sc, eyeOpen = 1) {
   // shoulders, hunched and too narrow
-  for (let r = 0; r < 22; r++) {
-    const y = cy + 7 * sc + r * 0.5 * sc;
-    const half = (3 + r * 0.42) * sc;
-    lx.fillStyle = HER.rim; lpx(s, cx - half - 0.5, y, half * 2 + 1, 0.5 * sc + 0.1);
-    lx.fillStyle = HER.black; lpx(s, cx - half, y, half * 2, 0.5 * sc + 0.1);
+  for (let y = 0; y < 11 * sc; y += 0.5) {
+    const half = (3 + (y / sc) * 0.84) * sc;
+    lx.fillStyle = HER.rim; lpx(s, cx - half - 0.5, cy + 7 * sc + y, half * 2 + 1, 0.6);
+    lx.fillStyle = HER.black; lpx(s, cx - half, cy + 7 * sc + y, half * 2, 0.6);
   }
   // the skull, wide at the brow and tapering to a point at the chin
   const hh = 17 * sc;
@@ -2533,8 +2597,9 @@ function drawHerHead(s, t, cx, cy, sc, eyeOpen = 1) {
       lpx(s, ex - w / 2, ey + y, w, 0.5);
     }
     const look = Math.sin(t * 0.7) * 0.6 * sc;
+    const pp = 0.9 * Math.max(1, sc * 0.45);
     lx.fillStyle = 'rgba(210, 20, 14, 1)';
-    lpx(s, ex - 0.45 + look, ey - 0.45, 0.9, 0.9);
+    lpx(s, ex - pp / 2 + look, ey - pp / 2, pp, pp);
   } else {
     lx.fillStyle = 'rgba(232, 224, 206, 0.6)'; lpx(s, ex - 1.6 * sc, ey, 3.2 * sc, 0.5);
   }
@@ -2551,7 +2616,7 @@ function drawHerHead(s, t, cx, cy, sc, eyeOpen = 1) {
     for (let k = 0; k < len; k += 0.5) {
       const x = x0 + Math.sin(t * 1.2 + i * 1.7 + k * 0.22) * 0.5 * sc * (k / len);
       lx.fillStyle = k < len * 0.3 ? HER.black : 'rgba(10, 4, 6, 0.85)';
-      lpx(s, x, cy - 7.5 * sc + k, 0.5, 0.6);
+      lpx(s, x, cy - 7.5 * sc + k, 0.5 * Math.max(1, sc * 0.4), 0.6);
     }
   }
 }
@@ -2594,7 +2659,7 @@ function drawHand(s, t) {
   const hd = S.hand;
   const dead = mode === 'lost' && (S.cause === 'hand' || S.cause === 'handAway');
   const ph = dead ? 'crawl' : hd.phase;
-  if (ph === 'idle') return;
+  if (ph === 'idle' || (dead && lossT >= 2.1)) return;
 
   if (ph === 'warn') {
     // she rises into the window from below the sill, fingertips dragging down the glass
@@ -2791,6 +2856,19 @@ function drawLight() {
   }
   lx.restore();
 
+  // the firelight catches the meat rack and the shelf on the back wall, so you can see what you have
+  if (S.lit && S.fire > 0 && mode !== 'lost') {
+    const k = 0.18 + S.fire * 0.07;
+    lx.save();
+    lx.globalCompositeOperation = 'destination-out';
+    const sg = lx.createRadialGradient(207 * s, 56 * s, 0, 207 * s, 56 * s, 34 * s);
+    sg.addColorStop(0, `rgba(0, 0, 0, ${k})`);
+    sg.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    lx.fillStyle = sg;
+    lx.fillRect(170 * s, 20 * s, 74 * s, 72 * s);
+    lx.restore();
+  }
+
   // the blood lantern's red pool by the door
   if (lanternLit() && !(mode === 'lost' && S.cause === 'dark')) {
     const lr = (28 + Math.sin(t * 4) * 0.8) * s;
@@ -2944,12 +3022,502 @@ function drawLight() {
     lx.fillRect(0, 0, light.width, light.height);
   }
 
-  // dying: everything goes black
-  if (mode === 'lost' || (mode === 'ended' && !S.won)) {
-    const start = S.cause === 'starve' ? 0.4 : 1.6;
-    const k = mode === 'ended' ? 1 : clamp((lossT - start) / 1.6, 0, 1);
-    // the cabin burning: the room goes orange, then dark with smoke
-    lx.fillStyle = S.cause === 'burn' && mode !== 'ended' ? `rgba(${Math.round(150 * (1 - k))}, ${Math.round(45 * (1 - k))}, 0, ${0.35 + 0.65 * k})` : `rgba(0, 0, 0, ${k})`;
+  drawDeath(s, t);
+}
+
+/* ------------------------------------------------------------- deaths */
+
+// Every way to die has its own few seconds before the red screen. lossT runs from 0 when you die.
+const DEATH_LEN = {
+  dark: 5.6, starve: 5.6, burn: 5.8, mimic: 5.4, hand: 5.2, handAway: 5.2, hunter: 5.6,
+  risen: 5.6, cellar: 5.2, cellarAway: 5.2, falseStranger: 5.6,
+};
+const deathLen = () => DEATH_LEN[S.cause] || 4;
+const seg = (a, b) => clamp((lossT - a) / (b - a), 0, 1);   // progress 0..1 through one stretch of a death
+const lerp = (a, b, k) => a + (b - a) * k;
+
+const MIMIC_PAL = { black: 'rgba(3, 3, 6, 0.98)', rim: 'rgba(40, 52, 78, 0.8)', nail: 'rgba(20, 20, 30, 1)' };
+const MIMIC_IN_PAL = { black: 'rgba(22, 15, 15, 0.99)', rim: 'rgba(120, 62, 34, 0.95)', nail: 'rgba(10, 6, 6, 1)' };   // in the firelight
+const RISEN_PAL = { black: 'rgba(24, 16, 18, 0.99)', rim: 'rgba(130, 40, 24, 0.95)', nail: 'rgba(60, 8, 6, 1)' };
+const SHADOW_PAL = { black: 'rgba(0, 0, 0, 1)', rim: 'rgba(0, 0, 0, 1)', nail: 'rgba(0, 0, 0, 1)' };
+const PALE_PAL = { black: 'rgba(96, 104, 84, 0.96)', rim: 'rgba(28, 32, 24, 0.95)', nail: 'rgba(22, 18, 14, 1)' };
+
+// sounds, each fired once when lossT passes its time
+const DEATH_CUES = {
+  dark: [[1.1, () => sfx.heartbeat(0.5)], [2.55, () => sfx.heartbeat(0.8)], [3.95, () => sfx.heartbeat(1.1)], [4.25, () => sfx.breath()]],
+  starve: [[0.3, () => sfx.heartbeat(0.9)], [1.5, () => sfx.heartbeat(0.7)], [2.9, () => sfx.heartbeat(0.5)], [4.5, () => sfx.heartbeat(0.3)]],
+  burn: [[0.05, () => sfx.roar()], [1.3, () => sfx.crack()], [2.6, () => sfx.roar()], [3.25, () => { sfx.crack(); sfx.thump(1); shake = 0.5; for (let i = 0; i < 40; i++) spawnEmber(true); }]],
+  mimic: [[0, () => sfx.slam()], [1.35, () => sfx.crack()], [2.2, () => sfx.crack()], [2.8, () => sfx.growl(1.2)], [3.4, () => sfx.footsteps(3)]],
+  hand: [[0.1, () => sfx.scratch()], [1.2, () => sfx.scratch()], [2.1, () => sfx.scream()], [2.6, () => sfx.scratch()]],
+  hunter: [[0, () => sfx.growl(1.4)], [1.45, () => sfx.scream()], [2.0, () => sfx.drag()], [3.3, () => { sfx.gust(); sfx.creak(); }]],
+  risen: [[0.7, () => sfx.crack()], [1.4, () => sfx.crack()], [2.1, () => sfx.breath()], [2.9, () => sfx.growl(1.1)], [3.1, () => sfx.footsteps(4)]],
+  cellar: [[0, () => sfx.slam()], [1.0, () => sfx.scratch()], [2.9, () => { sfx.drag(); sfx.thump(1); shake = 0.3; }]],
+  falseStranger: [[0.7, () => sfx.crack()], [1.8, () => sfx.breath()], [3.2, () => sfx.growl(1.3)]],
+};
+DEATH_CUES.handAway = DEATH_CUES.hand;
+DEATH_CUES.cellarAway = DEATH_CUES.cellar;
+
+let deathCue = 0;
+let deathEyes = [];
+
+function startDeath(cause) {
+  deathCue = 0;
+  deathEyes = [];
+  if (cause === 'dark') {
+    // the eyes that open around you once the last coal goes out
+    for (let tries = 0; deathEyes.length < 15 && tries < 300; tries++) {
+      const x = rand(14, 306), y = rand(14, 168);
+      if (Math.hypot(x - 160, (y - 100) * 1.6) < 46) continue;
+      if (deathEyes.some((e) => Math.hypot(e.x - x, e.y - y) < 26)) continue;
+      deathEyes.push({ x, y, red: Math.random() < 0.3, sz: rand(0.8, 1.25), at: 0.9 + deathEyes.length * 0.1 + rand(0, 0.08) });
+    }
+  }
+}
+
+function updateDeath(dt) {
+  const cues = DEATH_CUES[S.cause] || [];
+  while (deathCue < cues.length && lossT >= cues[deathCue][0]) cues[deathCue++][1]();
+  if (S.cause === 'burn' && Math.random() < dt * 10) sfx.crackle(4);
+  if (S.cause === 'burn' && Math.random() < dt * 30) spawnEmber(true);
+  // nobody is coming back: the door swings open in the wind and the fire sinks
+  if (S.cause === 'hunter') {
+    if (lossT > 3.3) doorTarget = 0.55;
+    if (lossT > 3.6 && S.fire > 2) S.fire = 2;
+    if (lossT > 4.4 && S.fire > 1) S.fire = 1;
+  }
+  if (S.cause === 'mimic' && lossT > 3.0) doorTarget = 1;
+}
+
+// The camera, for the deaths that move it: you slump to the floor, or you are dragged into the hatch.
+function deathCamera() {
+  if (mode !== 'lost') return { tf: '', filter: '', origin: '' };
+  if (S.cause === 'starve') {
+    const k = ease(seg(0.5, 2.6));
+    const sway = Math.sin(lossT * 1.3) * 0.8 * seg(0.5, 1.5);
+    return {
+      tf: `translateY(${(k * 4).toFixed(2)}%) rotate(${(-8 * k + sway).toFixed(2)}deg) scale(${(1 + 0.36 * k).toFixed(3)})`,
+      filter: `blur(${(seg(1.4, 4.6) * 2.5).toFixed(2)}px)`,
+      origin: '50% 70%',
+    };
+  }
+  if (S.cause === 'cellar' || S.cause === 'cellarAway') {
+    const k = ease(seg(2.9, 4.5));
+    const jerk = lossT > 2.9 && lossT < 3.1 ? 1.5 : 0;
+    return {
+      tf: `translateY(${(k * 4 + jerk).toFixed(2)}%) rotate(${(k * 9).toFixed(2)}deg) scale(${(1 + k * 3.4).toFixed(3)})`,
+      filter: '',
+      origin: `${(262 / W) * 100}% ${(134 / H) * 100}%`,
+    };
+  }
+  return { tf: '', filter: '', origin: '' };
+}
+
+// Draw something into an offscreen layer and lay it down at one even opacity, so overlapping parts don't stack.
+const shadowLayer = document.createElement('canvas');
+function asLayer(alpha, fn) {
+  if (shadowLayer.width !== light.width || shadowLayer.height !== light.height) {
+    shadowLayer.width = light.width;
+    shadowLayer.height = light.height;
+  }
+  const main = lx;
+  lx = shadowLayer.getContext('2d');
+  lx.setTransform(1, 0, 0, 1, 0, 0);
+  lx.globalCompositeOperation = 'source-over';
+  lx.clearRect(0, 0, shadowLayer.width, shadowLayer.height);
+  fn();
+  lx = main;
+  lx.save();
+  lx.setTransform(1, 0, 0, 1, 0, 0);
+  lx.globalAlpha = alpha;
+  lx.drawImage(shadowLayer, 0, 0);
+  lx.restore();
+}
+
+// One eye of the things in the dark: an almond of pale light with a slit pupil, `lid` 0 shut .. 1 open.
+function darkEye(s, x, y, sz, lid, red, a = 1) {
+  if (lid <= 0.04 || a <= 0) return;
+  const w = 2.6 * sz, h = 1.5 * sz * lid;
+  const st = sz > 3 ? 1 : 0.5;
+  const gr = 6 * sz * s;
+  const g = lx.createRadialGradient(x * s, y * s, 0, x * s, y * s, gr);
+  g.addColorStop(0, red ? `rgba(255, 50, 30, ${0.16 * a})` : `rgba(255, 210, 140, ${0.12 * a})`);
+  g.addColorStop(1, 'rgba(0, 0, 0, 0)');
+  lx.fillStyle = g;
+  lx.fillRect(x * s - gr, y * s - gr, gr * 2, gr * 2);
+  for (let yy = -h / 2; yy < h / 2; yy += st) {
+    const v = (yy + st / 2) / (h / 2);                       // -1 top .. 1 bottom
+    const k = Math.sqrt(Math.max(0, 1 - v * v));
+    const half = (w / 2) * k * (v < 0 ? 1 : 0.92);           // the lower lid a little flatter
+    lx.fillStyle = red ? `rgba(200, 40, 24, ${a})` : `rgba(214, 160, 70, ${a})`;
+    lpx(s, x - half, y + yy, half * 2, st);
+    lx.fillStyle = red ? `rgba(255, 96, 70, ${a})` : `rgba(255, 232, 160, ${a})`;
+    lpx(s, x - half * 0.62, y + yy, half * 1.24, st);
+    if (sz > 1.6) {   // up close you can see the slit, thin at its ends
+      const pw = sz * 0.14 * (0.4 + 0.6 * k);
+      lx.fillStyle = `rgba(8, 2, 2, ${a})`;
+      lpx(s, x - pw / 2, y + yy, pw, st);
+    }
+  }
+}
+
+function eyePair(s, x, y, sz, lid, red, a) {
+  darkEye(s, x - 2.3 * sz, y, sz, lid, red, a);
+  darkEye(s, x + 2.3 * sz, y, sz, lid, red, a);
+}
+
+// The fire is out. The eyes open one by one; they blink together, and each time they open again they are closer.
+function deathDark(s) {
+  lx.fillStyle = `rgba(0, 0, 0, ${seg(0, 0.9)})`;
+  lx.fillRect(0, 0, light.width, light.height);
+  const blinkLid = (a, b) => (lossT < a ? 1 : lossT > b ? 1 : Math.abs(lossT - (a + b) / 2) / ((b - a) / 2));
+  if (lossT < 4.0) {
+    const near = lossT < 2.62 ? 0 : 1;
+    const lid = near ? blinkLid(3.85, 4.12) * seg(2.62, 2.82) : blinkLid(2.4, 2.62);
+    const pull = near ? lerp(0.45, 0.55, seg(2.8, 3.85)) : 0;
+    for (const e of deathEyes) {
+      const open = clamp((lossT - e.at) / 0.3, 0, 1);
+      if (open <= 0) continue;
+      const x = lerp(e.x, 160, pull), y = lerp(e.y, 92, pull);
+      const breathe = Math.sin(lossT * 2 + e.at * 9) * 0.3;
+      eyePair(s, x, y + breathe, e.sz * (near ? 1.9 : 1), Math.min(open, lid), e.red, 1);
+    }
+  } else {
+    // one pair, right in front of you, opening slowly
+    const lid = ease(seg(4.12, 5.0));
+    eyePair(s, 160, 88, 8.5, lid, false, 1);
+  }
+}
+
+// Starving: you slump over (see deathCamera), your vision narrows with each slower heartbeat, and something
+// in the dark comes out to watch.
+function deathStarve(s) {
+  const beats = [0.3, 1.5, 2.9, 4.5];
+  let pulse = 0;
+  for (const b of beats) if (lossT > b) pulse = Math.max(pulse, Math.max(0, 1 - (lossT - b) / 0.5));
+  const close = seg(0.2, 5.0);
+  const inner = lerp(0.55, 0.02, close) * light.height;
+  const outer = lerp(1.1, 0.25, close) * light.height + pulse * 0.08 * light.height;
+  const cx = light.width / 2, cy = light.height * 0.62;
+  const vg = lx.createRadialGradient(cx, cy, inner, cx, cy, Math.max(inner + 1, outer));
+  vg.addColorStop(0, 'rgba(0, 0, 0, 0)');
+  vg.addColorStop(0.6, `rgba(30, 0, 0, ${0.7 + 0.3 * close})`);
+  vg.addColorStop(1, 'rgba(0, 0, 0, 1)');
+  lx.fillStyle = vg;
+  lx.fillRect(0, 0, light.width, light.height);
+  // the last thing you see: a pair of eyes at the edge of the light, waiting
+  const a = seg(2.6, 3.6) * (1 - seg(5.0, 5.4));
+  eyePair(s, 124, 124, 1.3, lossT % 3.1 > 3.0 ? 0.1 : 1, true, a);
+}
+
+// The cabin burns: flames race across the floor and climb the walls, smoke comes down from the roof, a beam falls.
+const hash = (n) => { const v = Math.sin(n * 12.9898) * 43758.5453; return v - Math.floor(v); };
+
+// one row of flames along a line, spreading out from the fire pit; taller where they climb the walls
+function flameRow(s, t, base, front, maxH, wallBoost, delay, seed) {
+  lx.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < 90; i++) {
+    const x = (i * 3.6 + hash(i + seed) * 3) % W;
+    const d = Math.abs(x - FIRE.x);
+    const reach = (lossT - delay) * front;
+    if (d > reach) continue;
+    const grow = clamp((reach - d) / 50, 0, 1);
+    const wall = x < 46 ? (46 - x) / 46 : x > 274 ? (x - 274) / 46 : 0;
+    const r = hash(i * 7 + seed);
+    const flick = 0.6 + 0.4 * Math.sin(t * (9 + r * 6) + i * 2.3);
+    const h = grow * (maxH * (0.45 + r * 0.8) * flick + wall * wallBoost * (0.6 + r * 0.6));
+    const wid = 3 + r * 4;
+    for (let y = 0; y < h; y += 1) {
+      const k = y / Math.max(1, h);
+      const col = k < 0.2 ? '255, 214, 110' : k < 0.5 ? '255, 140, 40' : k < 0.8 ? '220, 70, 20' : '140, 26, 10';
+      const half = (wid / 2) * (1 - k) ** 0.8;
+      const sway = Math.sin(t * 6 + i + y * 0.25) * k * 2.2;
+      lx.fillStyle = `rgba(${col}, ${0.42 * (1 - k * 0.4)})`;
+      lpx(s, x - half + sway, base - y - 1, half * 2, 1);
+    }
+  }
+  lx.globalCompositeOperation = 'source-over';
+}
+
+function deathBurn(s, t) {
+  const heat = seg(0, 2.2);
+  lx.fillStyle = `rgba(${Math.round(160 - 60 * seg(3, 5))}, ${Math.round(50 - 30 * seg(3, 5))}, 0, ${0.22 * heat})`;
+  lx.fillRect(0, 0, light.width, light.height);
+  flameRow(s, t, 113, 95, 14, 80, 0, 1);       // along the back wall, climbing it
+
+  // a roof beam gives way
+  const fall = seg(2.8, 3.25);
+  if (lossT > 2.5) {
+    lx.save();
+    lx.translate(96 * s, lerp(18, 104, ease(fall)) * s);
+    lx.rotate(lerp(0, 0.42, ease(fall)) + (lossT < 2.8 ? Math.sin(t * 40) * 0.01 : 0));
+    lx.fillStyle = 'rgba(14, 8, 4, 1)'; lpx(s, -40, -2.5, 80, 5);
+    lx.globalCompositeOperation = 'lighter';
+    for (let x = -40; x < 40; x += 2) {
+      const r = hash(x + 99);
+      const f = (0.4 + 0.6 * r) * (0.6 + 0.4 * Math.sin(t * (8 + r * 7) + x));
+      for (let y = 0; y < f * 7; y += 1) {
+        const k = y / (f * 7);
+        lx.fillStyle = `rgba(255, ${Math.round(170 - 110 * k)}, 30, ${0.45 * (1 - k * 0.5)})`;
+        lpx(s, x + Math.sin(t * 6 + x + y) * k, -2.5 - y - 1, 2 * (1 - k * 0.7), 1);
+      }
+    }
+    lx.restore();
+    lx.globalCompositeOperation = 'source-over';
+  }
+
+  // smoke rolling down from the roof
+  const edge = lerp(-12, 200, ease(seg(2.2, 5.4)));
+  for (let x = 0; x < W; x += 2) {
+    const y = edge + Math.sin(x * 0.07 + t * 1.4) * 6 + Math.sin(x * 0.19 - t * 2.1) * 3;
+    if (y <= 0) continue;
+    lx.fillStyle = 'rgba(18, 12, 10, 0.9)';
+    lpx(s, x, 0, 2, y);
+    lx.fillStyle = 'rgba(60, 30, 18, 0.5)';
+    lpx(s, x, y, 2, 3);
+  }
+  flameRow(s, t, 184, 80, 24, 30, 0.7, 5);     // the floor right in front of you, in front of the smoke
+}
+
+// A thing standing at (cx, feet), h tall: long legs, a narrow body, arms that hang too low, a head on a
+// broken neck. tilt bends the head over (radians). Drawn on the light layer in the given palette.
+function tallThing(s, t, cx, feet, h, o = {}) {
+  const pal = o.pal || MIMIC_PAL;
+  const u = h / 40;
+  const step = o.walk ? Math.sin(t * 6) : 0;
+  const hip = feet - h * 0.44, sh = feet - h * 0.8;
+  // legs, the knees bent the wrong way
+  for (const side of [-1, 1]) {
+    const lift = side * step;
+    limb(s, cx + side * 1.7 * u, hip, cx + side * (2.6 + lift * 0.8) * u, feet - Math.max(0, lift) * 1.5 * u, -side * 1.6 * u, 2.2 * u, pal);
+  }
+  // the body: sloped shoulders, a sunken waist, ribs that show through
+  for (let y = sh - 1.2 * u; y < hip + 1.5 * u; y += 0.5) {
+    const k = (y - sh) / (hip - sh);
+    const half = u * (k < 0 ? 4.2 + k * 9 : 1.6 + 3.2 * Math.cos(Math.min(1, k / 0.8) * Math.PI / 2) ** 1.4 + Math.max(0, k - 0.8) * 5);
+    if (half <= 0) continue;
+    lx.fillStyle = pal.rim; lpx(s, cx - half - 0.5, y, half * 2 + 1, 0.5);
+    lx.fillStyle = pal.black; lpx(s, cx - half, y, half * 2, 0.5);
+  }
+  // arms hanging past the knees, fingers almost on the floor
+  const reach = o.reach ?? 0.9;
+  for (const side of [-1, 1]) {
+    const ax = cx + side * 4 * u, ay = sh + 0.4 * u;
+    const sway = Math.sin(t * 2 + side) * 0.6 * u;
+    const hx = cx + side * (6.4 + (o.spread || 0) * 10) * u + sway, hy = lerp(hip, feet - 2 * u, reach);
+    limb(s, ax, ay, hx, hy, side * (2.5 + (o.spread || 0) * 6) * u, 1.6 * u, pal);
+    claw(s, hx, hy, Math.PI / 2 + side * 0.2, 0.35, 1.5, 3.5 * u, pal);
+  }
+  // the neck and head, bent over by tilt
+  const tilt = o.tilt || 0;
+  const nx = cx + Math.sin(tilt) * 3 * u, ny = sh - 1.2 * u - Math.cos(tilt) * 2.6 * u;
+  limbSeg(s, cx, sh - u, nx, ny, 1.8 * u, pal);
+  const hr = 3.2 * u, hcx = nx + Math.sin(tilt) * hr, hcy = ny - Math.cos(tilt) * hr;
+  const at = (fx, fy) => [hcx + fx * Math.cos(tilt) - fy * Math.sin(tilt), hcy + fx * Math.sin(tilt) + fy * Math.cos(tilt)];
+  const st = 0.5;
+  for (let y = -hr * 1.4; y <= hr * 1.4; y += st) {
+    for (let x = -hr * 1.4; x <= hr * 1.4; x += st) {
+      // a long skull, narrow at the chin, in the head's own frame rotated by tilt
+      const fx = x * Math.cos(tilt) + y * Math.sin(tilt), fy = -x * Math.sin(tilt) + y * Math.cos(tilt);
+      const wid = hr * (fy < 0 ? 0.85 : 0.85 - (fy / (hr * 1.3)) * 0.45);
+      const d = (fx / wid) ** 2 + (fy / (hr * 1.3)) ** 2;
+      if (d > 1) continue;
+      lx.fillStyle = d > 0.86 ? pal.rim : pal.black;
+      lpx(s, hcx + x, hcy + y, st, st);
+    }
+  }
+  // a mouth that splits down the length of the face, ringed with teeth
+  if (o.mouth > 0) {
+    const len = 1.5 * hr * o.mouth, top = -0.1 * hr;
+    for (let y = 0; y < len; y += st) {
+      const wid = 0.75 * u * Math.sin(Math.PI * (y / len)) * o.mouth;
+      for (let x = -wid; x <= wid; x += st) {
+        const [mx, my] = at(x, top + y);
+        const edge = Math.abs(x) > wid - st * 1.2;
+        lx.fillStyle = edge ? (Math.round(y / st) % 2 ? 'rgba(226, 216, 196, 0.95)' : 'rgba(60, 0, 0, 1)') : 'rgba(110, 4, 2, 1)';
+        lpx(s, mx, my, st, st);
+      }
+    }
+  }
+  // its eyes: pale and small, too far apart, with a faint glow
+  if (o.eyes) {
+    for (const ex of [-1.5, 1.5]) {
+      const [x, y] = at(ex * u, -0.8 * hr);
+      const gr = 2.5 * u * s;
+      const g = lx.createRadialGradient(x * s, y * s, 0, x * s, y * s, gr);
+      g.addColorStop(0, o.eyes.replace(/[\d.]+\)$/, '0.25)'));
+      g.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      lx.fillStyle = g;
+      lx.fillRect(x * s - gr, y * s - gr, gr * 2, gr * 2);
+      lx.fillStyle = o.eyes;
+      const ew = Math.max(0.5, 1.1 * u), eh = Math.max(0.5, 0.6 * u);
+      lpx(s, x - ew / 2, y - eh / 2, ew, eh);
+    }
+  }
+}
+
+// draw only inside the open doorway
+function inDoorway(s, fn) {
+  lx.save();
+  lx.beginPath();
+  lx.rect(257 * s, 51 * s, 34 * s, 61 * s);
+  lx.clip();
+  fn();
+  lx.restore();
+}
+
+// It looked like a person. In the doorway it unfolds, too tall for the door, its head bending down under
+// the lintel on a broken neck. Then it comes in.
+function deathMimic(s, t) {
+  if (lossT < 2.7) {
+    inDoorway(s, () => {
+      const grow = ease(seg(1.2, 2.2));
+      const h = lerp(27, 58, grow);
+      const tilt = lossT < 1.35 ? 0 : lerp(0.5, 1.9, ease(seg(1.35, 2.5)));
+      tallThing(s, t, 274, 111, h, {
+        pal: MIMIC_PAL, tilt, reach: lerp(0.3, 1, grow), mouth: seg(2.1, 2.7),
+        eyes: lossT > 1.35 ? 'rgba(235, 235, 255, 0.95)' : null,
+      });
+    });
+  } else {
+    // it steps in and comes toward you, filling the room
+    const k = ease(seg(2.7, 4.9));
+    tallThing(s, t, lerp(274, 178, k), lerp(111, 196, k), lerp(58, 190, k), {
+      pal: MIMIC_IN_PAL, tilt: 1.9 - 0.6 * k, reach: lerp(1, 0.55, k), spread: 0.2 + 0.9 * k, mouth: 1, walk: true,
+      eyes: 'rgba(235, 235, 255, 0.95)',
+    });
+  }
+}
+
+// She is already in. She drops off the wall and comes across the floor toward you on her long arms.
+function deathHand(s, t) {
+  if (lossT < 2.1) return;   // the crawl in through the window is drawn by drawHand
+  const k = ease(seg(2.1, 4.7));
+  const hx = lerp(70, 156, k), hy = lerp(75, 98, k), sc = lerp(1.9, 5.2, k);
+  herGlow(s, hx, hy, 30 + 70 * k, 0.55);
+  for (const side of [-1, 1]) {
+    // her hands planted on the floor out to either side, stepping forward
+    const stepK = Math.sin(lossT * 9 + (side > 0 ? Math.PI : 0));
+    const handX = hx + side * (14 + 120 * k), handY = lerp(120, 200, k) + stepK * 2 * (1 - k);
+    limb(s, hx + side * 4 * sc, hy + 9 * sc, handX, handY, side * -(10 + 30 * k), 1.8 + 3 * k);
+    claw(s, handX, handY, Math.PI / 2 - side * 0.3, 0.45, 2.2, 6 + 10 * k);
+  }
+  drawHerHead(s, t, hx, hy, sc, 1);
+}
+
+// Out in the trees. Its grin opens all the way, then something is dragged past the window, and nobody comes
+// home: the door blows open and the fire sinks. (The grin is drawn by drawGrin.)
+function deathHunter(s, t) {
+  if (lossT < 1.9) return;
+  const k = seg(1.9, 3.4);
+  // a little moonlight on the snow outside, so you can see what goes past
+  const m = seg(1.6, 2.0) * (1 - seg(3.6, 4.2));
+  lx.save();
+  lx.globalCompositeOperation = 'destination-out';
+  const mg = lx.createRadialGradient(61 * s, 60 * s, 0, 61 * s, 60 * s, 22 * s);
+  mg.addColorStop(0, `rgba(0, 0, 0, ${0.7 * m})`);
+  mg.addColorStop(1, 'rgba(0, 0, 0, 0)');
+  lx.fillStyle = mg;
+  lx.fillRect(39 * s, 38 * s, 44 * s, 44 * s);
+  lx.restore();
+  throughWindow(s, () => {
+    const x = lerp(40, 84, k), y = 62;
+    lx.fillStyle = 'rgba(140, 10, 8, 0.9)';
+    lpx(s, 40, y, x - 40, 2);                 // the smear it leaves in the snow
+    lx.fillStyle = 'rgba(6, 3, 3, 0.95)';
+    lpx(s, x - 5, y - 2, 6, 3);                  // what it is dragging
+    lpx(s, x + 1, y - 7, 3, 8);                  // and the thing dragging it, hunched
+    lpx(s, x + 2, y - 9, 3, 2);
+    lx.fillStyle = 'rgba(255, 190, 80, 0.9)'; lpx(s, x + 3, y - 8.5, 0.5, 0.5);
+  });
+}
+
+// The stranger gets up: in jerks, then taller than she was, then she walks toward you.
+function deathRisen(s, t) {
+  if (lossT < 2.0) return;   // sitting up and standing are pixel sprites; see drawStranger
+  const grow = ease(seg(2.0, 2.8));
+  const k = ease(seg(2.8, 5.0));
+  tallThing(s, t, lerp(193, 168, k), lerp(136, 200, k), lerp(lerp(15, 40, grow), 190, k), {
+    pal: RISEN_PAL, tilt: lerp(0.3, 1.2, grow) + Math.sin(t * 3) * 0.05, reach: lerp(0.5, 1, grow),
+    mouth: seg(2.6, 3.4), walk: lossT > 2.8, eyes: 'rgba(230, 40, 20, 1)',
+  });
+}
+
+// Pale arms come up out of the hatch and across the floor, one reaches you, and it pulls you down
+// (deathCamera dives into the hole).
+function deathCellar(s, t) {
+  const { x, y, w } = HATCH;
+  const k = seg(0.2, 1.6);
+  for (let i = 0; i < 3; i++) {
+    const bx = x + 4 + i * 6, by = y + 4;
+    const sway = Math.sin(t * 2.2 + i * 2) * 3;
+    const ex = bx + (i - 1) * 9 + sway, ey = by - lerp(2, 32 + i * 6, ease(k));
+    if (i !== 1 || lossT < 1.6) {
+      limb(s, bx, by, ex, ey, (i - 1) * 6 + 3, 2.4, PALE_PAL);
+      claw(s, ex, ey, -Math.PI / 2 + (i - 1) * 0.4, 0.4, 2 + Math.sin(t * 3 + i), 6, PALE_PAL);
+    }
+  }
+  // the middle one comes down and across the floor, right up to you
+  if (lossT >= 1.6) {
+    const r = ease(seg(1.6, 2.9));
+    const hx = lerp(x + 4, 190, r), hy = lerp(y - 20, 186, r);
+    limb(s, x + 10, y + 4, hx, hy, -18 - 10 * r, 2.4 + 4 * r, PALE_PAL);
+    claw(s, hx, hy, Math.PI * 0.75, 0.42, lossT > 2.9 ? 3.5 : 1.5, 8 + 22 * r, PALE_PAL);
+  }
+  // the room goes dark around you as you're pulled in; the hole glowing is the last thing you see
+  lx.fillStyle = `rgba(0, 0, 0, ${0.85 * seg(3.0, 4.3)})`;
+  lx.fillRect(0, 0, light.width, light.height);
+  const gx = x + w / 2, gy = y + 4, gr = 40 * s;
+  const g = lx.createRadialGradient(gx * s, gy * s, 0, gx * s, gy * s, gr);
+  g.addColorStop(0, `rgba(150, 170, 110, ${0.12 + 0.12 * seg(2.9, 4)})`);
+  g.addColorStop(1, 'rgba(0, 0, 0, 0)');
+  lx.fillStyle = g;
+  lx.fillRect(gx * s - gr, gy * s - gr, gr * 2, gr * 2);
+}
+
+// It waited for the light. She stands in the dawn and her shadow climbs the wall, too tall, with arms
+// that reach across the ceiling, and bends down over you as the light goes out.
+function deathFalseStranger(s, t) {
+  const grow = ease(seg(0.8, 3.0));
+  const bend = ease(seg(3.0, 4.8));
+  asLayer(0.72, () => {
+    lx.save();
+    const fx = 196 * s, fy = 136 * s;
+    lx.translate(fx, fy);
+    lx.transform(1, 0, -0.35 - 0.3 * grow, 1, 0, 0);   // cast up and away from the window
+    lx.scale(1 + bend * 1.8, 1 + bend * 0.6);
+    lx.translate(-fx, -fy);
+    tallThing(s, t, 196, 136, lerp(14, 128, grow), {
+      pal: SHADOW_PAL, tilt: lerp(0.1, 0.9, grow) + bend * 1.2, reach: 1, spread: grow * 0.9,
+      mouth: seg(2.2, 3.2),
+    });
+    lx.restore();
+  });
+  // two red eyes in the shadow's head
+  if (lossT > 1.8) {
+    const a = seg(1.8, 2.4);
+    const hx = lerp(232, 160, bend), hy = lerp(36, 70, bend), sz = lerp(1, 4, bend);
+    eyePair(s, hx, hy, sz, 1, true, a);
+  }
+}
+
+const DEATH_SCENES = {
+  dark: deathDark, starve: deathStarve, burn: deathBurn, mimic: deathMimic, hand: deathHand, handAway: deathHand,
+  hunter: deathHunter, risen: deathRisen, cellar: deathCellar, cellarAway: deathCellar, falseStranger: deathFalseStranger,
+};
+
+function drawDeath(s, t) {
+  if (mode === 'ended' && !S.won) {
+    lx.fillStyle = '#000';
+    lx.fillRect(0, 0, light.width, light.height);
+    return;
+  }
+  if (mode !== 'lost') return;
+  DEATH_SCENES[S.cause]?.(s, t);
+  // and then black
+  const L = deathLen();
+  const end = seg(L - (S.cause === 'dark' ? 0.5 : 0.8), L - 0.1);
+  if (end > 0) {
+    lx.fillStyle = `rgba(0, 0, 0, ${end})`;
     lx.fillRect(0, 0, light.width, light.height);
   }
 }
@@ -3033,13 +3601,13 @@ const ICONS = {
   },
   cooked: {
     title: 'cooked meat',
-    map: ['...ww...', '..wccc..', '.ccCcccc', 'cckccCcc', 'ccccckcc', 'cCcckccc', '.cccccc.', '..r..r..'],
-    colors: { c: '#5a2e1c', C: '#9a5430', k: '#1a0c06', w: '#d8ccb0', r: '#8a1010' },
+    map: ['......ww', '..cccCww', '.cCccccc', 'cckcfccC', 'cccckcfc', 'cCfccccc', '.cccckc.', '..cccc..'],
+    colors: { c: '#5a2e1c', C: '#94522e', k: '#2a140a', f: '#c08a58', w: '#d8ccb0' },
   },
   raw: {
     title: 'raw meat',
-    map: ['..ww....', '..wwpp..', '.pppppp.', 'ppvpyppp', 'pvpppvpp', 'ppPpppvp', '.ppvppp.', '..p..p..'],
-    colors: { p: '#8a5a7a', P: '#b07a96', v: '#3a1430', w: '#d8ccb0', y: '#e0d070' },
+    map: ['......ww', '..rrrRww', '.rRrfrrr', 'rrfrRrfr', 'rRrrfrrr', 'rrfRrrRr', '.rrrfrr.', '..rrrr..'],
+    colors: { r: '#7e1c18', R: '#a8322a', f: '#d8a090', w: '#d8ccb0' },
   },
   salt: {
     title: 'salt',
@@ -3048,8 +3616,8 @@ const ICONS = {
   },
   blood: {
     title: 'blood',
-    map: ['..gggg..', '..g..g..', '.gbbbbg.', '.gbRbbg.', '.gbbbbg.', '.gbbRbg.', '.gbbbbg.', '..gggg..'],
-    colors: { g: '#6a7080', b: '#6a0a0a', R: '#a01818' },
+    map: ['...kk...', '..gkkg..', '..g..g..', '..gRbg..', '..gRbg..', '..gbbg..', '..gbbg..', '...gg...'],
+    colors: { g: '#7a8290', b: '#6a0a0a', R: '#b02020', k: '#8a6a4a' },
   },
 };
 const RES_VALUE = { wood: () => `${S.wood}/${PILE_CAP}`, cooked: () => S.cooked, raw: () => S.meat, blood: () => S.blood, salt: () => S.salt };
@@ -3213,7 +3781,7 @@ function continueNight() {
 }
 
 function nightScore() {
-  return computeScore({ wood: S.wood + S.shedWood, cooked: S.cooked, blood: S.blood, salt: S.salt, fire: S.fire, companion: S.stranger === 'inside' && !S.strangerFalse, trusted: S.trusted, mimicsKept: S.rec.mimicsKept, burned: S.rec.burned });
+  return computeScore({ wood: S.wood + S.shedWood, cooked: S.cooked, blood: S.blood, salt: S.salt, fire: S.fire, companion: S.stranger === 'inside' && !S.strangerFalse, trusted: S.trusted, burned: S.rec.burned });
 }
 
 function showEnding(won) {
@@ -3445,6 +4013,12 @@ function frame(now) {
   drawLight();
   syncUI();
   sfx.setLevels(mode === 'lost' || mode === 'ended' ? 0 : S.fire, S.time, door, S.glassBroken && mode === 'playing' ? (S.boards > 0 ? 0.4 : 1) : 0);
+  const cam = deathCamera();
+  for (const c of [pix, light]) {
+    if (c.style.transform !== cam.tf) c.style.transform = cam.tf;
+    if (c.style.filter !== cam.filter) c.style.filter = cam.filter;
+    if (c.style.transformOrigin !== cam.origin) c.style.transformOrigin = cam.origin;
+  }
   stage.style.transform = shake > 0 ? `translate(${rand(-3, 3).toFixed(1)}px, ${rand(-3, 3).toFixed(1)}px)` : '';
   requestAnimationFrame(frame);
 }
@@ -3460,6 +4034,8 @@ window.__firelight = {
   day: { start: startDay, do: doDay, night: startNight2 },
   act: { douse, bringIn: bringInWood, slam: slamHatch, stoke, eat, cook, wood: () => startTrip('wood'), hunt: () => startTrip('hunt'), strike: strikeHand, runBack, build },
   visit: (who, as, fake) => queueVisit(who, as, fake),
+  die: (cause) => die(cause),
+  get lossT() { return lossT; },
   choose,
   newNight: () => newNight(true),
   backToTitle,

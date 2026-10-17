@@ -3,13 +3,12 @@
 export const BOARD_SIZE = 10;
 
 // Only a night survived to dawn scores, and mostly for how you lived through it: making it, the people you
-// let in, the mimics you kept out, the times you burned her back. What you held on to counts for less.
-// end: { wood, cooked, blood, salt, fire (0..4), companion, trusted, mimicsKept, burned }
-export function computeScore({ wood = 0, cooked = 0, blood = 0, salt = 0, fire = 0, companion = false, trusted = 0, mimicsKept = 0, burned = 0 }) {
+// let in and the times you burned her back. (Keeping a mimic out earns nothing: letting one in kills you.) What you held on to counts for less.
+// end: { wood, cooked, blood, salt, fire (0..4), companion, trusted, burned }
+export function computeScore({ wood = 0, cooked = 0, blood = 0, salt = 0, fire = 0, companion = false, trusted = 0, burned = 0 }) {
   const held = Math.floor(wood / 2) + cooked + blood * 2 + salt + fire * 5;
   const lines = [['made it to dawn', '', 100]];
   if (trusted > 0) lines.push(['people you let in', trusted, trusted * 10]);
-  if (mimicsKept > 0) lines.push(['mimics kept out', mimicsKept, mimicsKept * 10]);
   if (burned > 0) lines.push(['burned her back', burned, burned * 5]);
   if (companion) lines.push(['not alone', '', 25]);
   lines.push(['what you held on to', '', held]);

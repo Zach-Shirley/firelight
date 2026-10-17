@@ -2,7 +2,7 @@
 
 **Survive one night in a dark room. Keep the fire alive, eat, and be careful what you let in.**
 
-A short horror-survival game in chunky pixel art. One night lasts about seven minutes and gets worse every hour. Most first nights end in death; each death screen tells you what killed you and gives a hint. Your score is whatever you still have at dawn.
+A short horror-survival game in chunky pixel art. One night lasts about seven minutes and gets worse every hour. Most first nights end in death; each death screen tells you what killed you and gives a hint. Only a night survived to dawn scores, mostly for how you got through it.
 
 **Play:** https://firelight-topaz.vercel.app (desktop browser with keyboard or mouse, or a phone held sideways)
 
@@ -124,12 +124,25 @@ Only a night survived to dawn scores, and mostly for **how you lived through it*
 | --- | --- |
 | Made it to dawn | 100 |
 | Each real person you let in | 10 |
-| Each mimic kept out | 10 |
 | Each time you burned her back | 5 |
 | The stranger still with you | 25 |
 | What you held on to | half a point per log (pile and shed), 1 per cooked meat, 2 per blood, 1 per salt, 5 per level of fire |
 
-The resource bar uses small pixel icons: a log end (with the pile's 25-log limit), charred cooked meat, raw meat (purple, veined, with something like an eye in it), salt and a jar of blood.
+The resource bar uses small pixel icons: a log end (with the pile's 25-log limit), cooked and raw elk meat, salt and a vial of blood. The room shows what you're keeping too: elk haunches hang from a meat rack (raw dark red and marbled, cooked seared brown, cured dark and salt-flecked, gray-green when about to turn), and below it a shelf holds corked vials of blood and a crock of salt.
+
+Every death has its own few seconds before the red screen:
+
+| Killed by | What you see |
+| --- | --- |
+| The dark | The last coal goes out. Eyes open one pair at a time all around the room. They blink together, and every time they open again they are closer, until one pair is right in front of you |
+| Hunger | You slump sideways to the floor. Your vision blurs and narrows with each slower heartbeat, and a pair of red eyes waits at the edge of the light |
+| The fire | Flames race out from the pit along the floor and climb the walls, smoke rolls down from the roof, and a burning beam comes down |
+| The mimic | The door bangs open on what looks like a person. It unfolds, too tall for the doorway, its head bending down under the lintel on a broken neck and a mouth splitting down its face. Then it comes in, arms spread |
+| Her, at the window | She pulls herself through the window, drops off the wall and comes across the floor toward you on her long arms |
+| The thing in the trees | Its grin opens all the way and its eyes go red. A scream outside, something dragged past the window through the snow leaving a red smear, and then the door swings open in the wind and the fire sinks. Nobody comes home |
+| The stranger, risen | Her body gets up in jerks, sitting, then standing, then taller than she was, and walks toward you |
+| The thing under the floor | The hatch is thrown open, pale arms come up out of it and across the floor, and you're pulled down into the hole |
+| The false stranger | In the dawn light her shadow climbs the wall, far too tall, red-eyed, its arms spreading across the ceiling, and bends down over you as the light goes out |
 
 Every ending, death or dawn, shows a **recap of your night**: people let in, mimics kept out, times you burned her back, trips, meat cooked, your closest call with the grin and how hungry you got. It also shows an **all-time tally**, for example "14 nights · 2 dawns · killed by: the mimic 6, her, at the window 3, hunger 2". The tally also appears under best nights on the title screen. The simulation's automated nights don't count toward it.
 
@@ -158,7 +171,7 @@ Results on 2026-10-17, after the economy round (food back, spoilage, the 25-log 
 | Strong | 120 | 78% | mimic 20% |
 | Hoarder | 150 | 69% | mimic 22%, her at the window 8% |
 
-The **hoarder** plays like the strong player but with the rush-traps-then-hoard plan: three traps at once, wood until midnight, then as few trips as possible. Before this round that plan let a good player coast through the rest of the night. Now it survives slightly less often than steady play (69% against 78%) and scores the same (median 293 against 287): the pile caps at 25, meat spoils, traps wear out and hunger keeps you going out.
+The **hoarder** plays like the strong player but with the rush-traps-then-hoard plan: three traps at once, wood until midnight, then as few trips as possible. Before this round that plan let a good player coast through the rest of the night. Now it survives slightly less often than steady play (69% against 78%) and scores about the same (medians within 10 points of each other): the pile caps at 25, meat spoils, traps wear out and hunger keeps you going out.
 
 Night 2, among the runs that reach it (`sim.runTwo`):
 
@@ -167,7 +180,7 @@ Night 2, among the runs that reach it (`sim.runTwo`):
 | Learner | 45 of 200 | 9% | mimic 47%, the hatch while away 13% (measured before the economy round) |
 | Strong | 48 of 60 | 63% | the hatch while away 15%, the dark 10%, her at the window 10% |
 
-Two-night scores for the strong player now land between about 620 and 910.
+Two-night scores for the strong player now land between about 550 and 850. (Keeping a mimic out no longer scores, since letting one in kills you.)
 
 A real first-time player lands between the beginner and the learner, so the large majority of first nights end in death. The doubled lantern cost is what brought the strong player down from about 93% to 84%: it now has to work to have the lantern lit when the walkers start.
 

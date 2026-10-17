@@ -569,3 +569,40 @@ export function trapSnap() {
     o.stop(at + 0.2);
   });
 }
+
+// Filtered noise with a gain envelope: shared by the death sounds below.
+function noiseShape(type, freqs, gains, dur, q = 1) {
+  const t = ctx.currentTime;
+  const src = ctx.createBufferSource();
+  src.buffer = noiseBuf;
+  const f = ctx.createBiquadFilter();
+  f.type = type;
+  f.Q.value = q;
+  freqs.forEach(([at, v]) => f.frequency.linearRampToValueAtTime(v, t + at));
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  gains.forEach(([at, v]) => g.gain.linearRampToValueAtTime(v, t + at));
+  src.connect(f).connect(g).connect(master);
+  src.start(t, 0, dur);
+}
+
+// A long, slow breath out of the dark, very close.
+export function breath() {
+  if (!ctx || !enabled) return;
+  noiseShape('bandpass', [[0, 260], [0.9, 420], [1.8, 200]], [[0.7, 0.22], [1.3, 0.16], [1.9, 0.0001]], 2, 2.5);
+}
+
+// The whole cabin catching: a rising roar.
+export function roar() {
+  if (!ctx || !enabled) return;
+  noiseShape('lowpass', [[0, 200], [1.2, 1600], [3, 700]], [[0.8, 0.45], [2.4, 0.4], [3.4, 0.0001]], 3.5);
+}
+
+// Something heavy dragged away through the snow.
+export function drag() {
+  if (!ctx || !enabled) return;
+  const pts = [];
+  for (let i = 0; i < 9; i++) pts.push([0.08 + i * 0.16, i % 2 ? 0.05 : 0.2]);
+  pts.push([1.6, 0.0001]);
+  noiseShape('bandpass', [[0, 500], [1.6, 300]], pts, 1.7, 1.5);
+}
