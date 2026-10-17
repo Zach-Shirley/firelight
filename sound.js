@@ -99,10 +99,39 @@ function thud(at, vol = 0.5) {
   o.stop(at + 0.2);
 }
 
+// A knock on the door: a dull thump (the door's weight) and a wooden tok on top, so it carries over the fire
+// even on small speakers.
+function knockHit(at, vol) {
+  thud(at, 0.55 * vol);
+  const src = ctx.createBufferSource();
+  src.buffer = noiseBuf;
+  const bp = ctx.createBiquadFilter();
+  bp.type = 'bandpass';
+  bp.frequency.value = 850;
+  bp.Q.value = 2.5;
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.0001, at);
+  g.gain.exponentialRampToValueAtTime(0.5 * vol, at + 0.004);
+  g.gain.exponentialRampToValueAtTime(0.0001, at + 0.07);
+  src.connect(bp).connect(g).connect(master);
+  src.start(at, Math.random(), 0.1);
+  const o = ctx.createOscillator();
+  const og = ctx.createGain();
+  o.type = 'triangle';
+  o.frequency.setValueAtTime(240, at);
+  o.frequency.exponentialRampToValueAtTime(150, at + 0.08);
+  og.gain.setValueAtTime(0.0001, at);
+  og.gain.exponentialRampToValueAtTime(0.18 * vol, at + 0.004);
+  og.gain.exponentialRampToValueAtTime(0.0001, at + 0.1);
+  o.connect(og).connect(master);
+  o.start(at);
+  o.stop(at + 0.12);
+}
+
 export function knock(times = 3, slow = false) {
   if (!ctx || !enabled) return;
   const t = ctx.currentTime + 0.05;
-  for (let i = 0; i < times; i++) thud(t + i * (slow ? 0.6 : 0.28));
+  for (let i = 0; i < times; i++) knockHit(t + i * (slow ? 0.6 : 0.28), 1);
 }
 
 export function tap() {
@@ -752,4 +781,26 @@ export function sputter() {
   noiseShape('highpass', [[0, 2600], [1.4, 1800]], [[0.05, 0.12], [0.8, 0.09], [1.5, 0.0001]], 1.6);
   const t = ctx.currentTime;
   for (let i = 0; i < 4; i++) thud(t + 0.15 + i * (0.18 + Math.random() * 0.2), 0.12);
+}
+
+// The stranger, taken: one sharp, caught breath, a muffled sound cut off, and something dragged under the floor.
+export function gasp() {
+  if (!ctx || !enabled) return;
+  noiseShape('bandpass', [[0, 700], [0.22, 1500]], [[0.05, 0.3], [0.24, 0.0001]], 0.3, 3);
+  const t = ctx.currentTime + 0.35;
+  const o = ctx.createOscillator();
+  const lp = ctx.createBiquadFilter();
+  const g = ctx.createGain();
+  o.type = 'triangle';
+  o.frequency.setValueAtTime(260, t);
+  o.frequency.linearRampToValueAtTime(200, t + 0.35);
+  lp.type = 'lowpass';
+  lp.frequency.value = 420;
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.linearRampToValueAtTime(0.12, t + 0.05);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.38);
+  o.connect(lp).connect(g).connect(master);
+  o.start(t);
+  o.stop(t + 0.4);
+  setTimeout(drag, 700);
 }

@@ -287,10 +287,10 @@ button:disabled { opacity: 0.4; cursor: default; }
   font-size: calc(7px * var(--s));
   min-width: calc(120px * var(--s));
 }
-.board li { display: grid; grid-template-columns: 2.2em 3.5em 1fr 1.2em; gap: calc(2px * var(--s)); }
+.board li { display: grid; grid-template-columns: 2.2em 3.5em 1fr auto; gap: calc(2px * var(--s)); align-items: baseline; }
 .board .rank { color: var(--ink-dim); }
 .board .pts { text-align: right; color: #ffcf6a; }
-.board .sun { color: #f0d8a0; text-align: center; }
+.board .sun { color: #f0d8a0; text-align: right; white-space: nowrap; letter-spacing: -0.05em; }
 .board li.mine { color: #fff3d6; background: rgba(255, 154, 46, 0.15); animation: flicker 1.2s infinite; }
 .board li.empty { display: block; color: var(--ink-dim); }
 
@@ -531,7 +531,6 @@ body.touch #dayList button { min-height: calc(14px * var(--s)); }
   border: calc(0.5px * var(--s)) solid #2e1f14;
   border-radius: calc(2px * var(--s));
 }
-#shedIcon { width: calc(24px * var(--s)); height: calc(20px * var(--s)); image-rendering: pixelated; }
 .shed-count { font-size: calc(5.5px * var(--s)); color: var(--ink-dim); }
 #stage:not([data-mode="playing"]) #shed { pointer-events: none; }
 #res .item.full .n { color: #ffb040; }

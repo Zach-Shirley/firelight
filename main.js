@@ -6,7 +6,7 @@ import * as sfx from './sound.js';
 import { ACHIEVEMENTS, createStore } from './achievements.js';
 import { computeScore, qualifies, insertScore, cleanInitials, sanitizeBoard } from './score.js';
 
-const VERSION = '0.25';   // one step per commit to the repository
+const VERSION = '0.26';   // one step per commit to the repository
 const W = 320, H = 180;
 const FIRE = { x: 160, y: 136 };          // base of the flames
 const LIGHT_Y = 130;                       // centre of the light pool
@@ -57,7 +57,7 @@ const ui = {
   endRecap: $('endRecap'), endTally: $('endTally'), boardTally: $('boardTally'),
   day: $('day'), dayHours: $('dayHours'), dayList: $('dayList'), dayLog: $('dayLog'), dayNight: $('dayNight'),
   dayBtn: $('dayBtn'), endRunBtn: $('endRunBtn'), slam: $('slam'),
-  douse: $('douse'), shed: $('shed'), shedCount: $('shedCount'), shedIcon: $('shedIcon'),
+  douse: $('douse'),
   initials: $('initials'), initialsInput: $('initialsInput'), endBoard: $('endBoard'), retry: $('retryBtn'),
 };
 
@@ -142,7 +142,7 @@ function freshState() {
     boardLoose: false,
     hatch: { phase: 'idle', t: 18, total: 1, p: 0 },
     hatchFed: 0,
-    hatchWeighted: false,
+    hatchBar: false,                             // a beam nailed across the cellar hatch
     buried: false,
     n2HintT: -1,
     strangerFalse: false,
@@ -485,7 +485,7 @@ function updateNight(dt) {
   if (S.n2HintT > 0 && S.stranger === 'inside' && !dialog && !S.away) {
     S.n2HintT -= dt;
     if (S.n2HintT <= 0) {
-      openDialogue({ id: 'hint', portrait: 'stranger', text: 'The stranger keeps looking at the floor. "There\'s a hatch under there, and something under the hatch. When the boards creak, slam it. If you go out, pile logs on it first. And salt on the doorway will stop one of them. One."', choices: [{ label: 'nod', act: () => {} }] });
+      openDialogue({ id: 'hint', portrait: 'stranger', text: 'The stranger keeps looking at the floor. "There\'s a hatch under there, and something under the hatch. When the boards creak, slam it. If you go out, nail a beam across it first. And salt on the doorway will stop one of them. One."', choices: [{ label: 'nod', act: () => {} }] });
     }
   }
   // night 3: she knows this weather (a placeholder; her story comes in a later pass)
@@ -613,15 +613,18 @@ function addWood(n) {
     S.shedWood += over;
     S.wood -= over;
     if (S.shedWood >= SHED_CAP) achieve('full_shed');
+    if (over > 0) cabT = 1.4;
   }
 }
 
 // With a woodshed, the pile restocks itself from the shed whenever it runs low.
 function restockPile() {
-  if (!S.shed || S.shedWood <= 0 || S.wood >= PILE_CAP) return;
+  if (!S.shed || S.shedWood <= 0 || S.wood > PILE_CAP - 5) return;   // a few logs at a time, not one per stoke
   const n = Math.min(S.shedWood, PILE_CAP - S.wood);
   S.shedWood -= n;
   S.wood += n;
+  cabT = 1.4;
+  sfx.thump(0.3);
 }
 
 let pileLean = -1;           // seconds until an overfull pile topples
@@ -761,6 +764,7 @@ function startTrip(kind) {
     stumble: blizzard() && kind !== 'drag' && Math.random() < 0.04 ? rand(1, total * 0.7) : -1,
     doom: blizzard() && kind !== 'drag' && Math.random() < 1 / 2500 ? rand(1, total * 0.8) : -1 };   // never found: about one blizzard night in a hundred
   S.stalk = 0;   // the four seconds always start from the moment you step out
+  swingDoor();
   if (kind !== 'drag') S.rec.trips += 1;
   toggleBuild(false);
   say(kind === 'wood' ? 'you slip out into the trees for wood.'
@@ -769,8 +773,17 @@ function startTrip(kind) {
   save();
 }
 
+// out and back in: the door swings open for a moment and shuts behind you (it doesn't change the trip time)
+function swingDoor() {
+  if (pendingVisit || dialog) return;
+  doorTarget = 0.8;
+  doorCloseIn = 0.5;
+  sfx.creak();
+}
+
 function runBack() {
   if (!S.away || mode !== 'playing') return;
+  swingDoor();
   if (S.away.kind === 'drag') { say("you can't leave her here. you keep dragging."); return; }
   if (S.away.kind === 'shed') {
     const back = S.away.logs - S.away.placed;   // logs only leave the pile as they go into the walls
@@ -812,14 +825,19 @@ function updateTrip(dt) {
     else S.stalk = Math.max(0, S.stalk - dt * 4);
     if (S.stalk >= 100) {
       if (S.spear) {
+        // you drive the spear into it; it drags itself off into the trees, and you hurry to finish
         S.spear = false;
         S.stalk = 0;
-        S.away = null;
+        S.hunter.near = false;
+        S.hunter.t = 45;
+        a.startedNear = false;
+        a.t *= 0.5;
         shake = 0.5;
-        sfx.scream();
+        sfx.thump(1);
+        sfx.growl(1.6);
+        spawnSpear();
         achieve('bone_spear');
-        say('it catches you. you drive the bone spear into it and run. the spear stays in it.');
-        announceWaiting();
+        say('it lunges. you drive the bone spear into it. it shrieks and drags itself back into the trees, the spear still in it. you hurry.');
         return;
       }
       die('hunter');
@@ -831,6 +849,7 @@ function updateTrip(dt) {
 
 function finishTrip(kind) {
   S.away = null;
+  swingDoor();
   if (kind === 'shed') {
     if (S.shedBuilt >= PILE_CAP) {
       S.shed = true;
@@ -872,6 +891,8 @@ function finishTrip(kind) {
 const nextHand = () => rand(26, 42) * (1 - (hour() - 3) * 0.08);
 const BOARD_ROWS = [[37, 5], [48, 6], [59, 5]];
 const STEAL_TIME = 2.4;
+const HER_TOLL = 10;      // logs she takes through a bare window; without them, it's you
+const TEAR_EACH = 0.75;   // seconds per board as she rips them all off
 
 function breakGlass() {
   S.glassBroken = true;
@@ -898,7 +919,7 @@ function updateHand(dt) {
     if (hd.t <= 0) {
       if (S.boards > 0) {
         hd.phase = 'reach';
-        hd.total = hd.t = Math.max(3.2, 5.5 - (hour() - 3) * 0.45) * (blizzard() ? 0.7 : 1);
+        hd.total = hd.t = Math.max(3.2, 5.5 - (hour() - 3) * 0.45) * (blizzard() ? 0.7 : 1) * (S.nails ? 1.35 : 1);   // nails make her work longer
         hd.beat = 0;
         say('a long black hand punches through a gap in the boards and takes hold.');
       } else {
@@ -914,6 +935,24 @@ function updateHand(dt) {
     if (hd.beat <= 0) { sfx.thump(0.7 + hd.p * 0.6); hd.beat = 0.62 - hd.p * 0.28; hd.jerk = 0.18; }
     hd.jerk = Math.max(0, (hd.jerk || 0) - dt);
     if (hd.t <= 0) handTimeout();
+  } else if (hd.phase === 'tear') {
+    // she rips the boards off one by one and drags them out with her
+    hd.beat -= dt;
+    if (hd.beat <= 0 && S.boards > 0) {
+      const row = BOARD_ROWS[S.boards - 1];
+      S.boards -= 1;
+      S.rec.boardsLost += 1;
+      spawnBoardOut(row);
+      sfx.crack();
+      shake = 0.25;
+      hd.beat = TEAR_EACH;
+    }
+    if (S.boards === 0 && hd.beat <= TEAR_EACH * 0.4) {
+      S.boardsBuilt = false;
+      hd.phase = 'idle';
+      hd.t = nextHand();
+      say('she drags the boards out through the window and is gone. the window is bare. next time she will come in.');
+    }
   } else if (hd.phase === 'crawl') {
     hd.p = 1 - hd.t / hd.total;
     // nailing boards up in time still saves you
@@ -924,7 +963,17 @@ function updateHand(dt) {
       say('you get the boards up just in time. she claws at them.');
     } else if (hd.t <= 0) {
       if (S.saltWin) saltRepels();
-      else die(S.away ? 'handAway' : 'hand');
+      else if (S.wood >= HER_TOLL) {
+        // she is in up to the waist; there is nothing to burn her back with that she won't take. she takes the wood
+        hd.phase = 'steal';
+        hd.t = STEAL_TIME;
+        hd.took = false;
+        hd.got = 0;
+        hd.want = HER_TOLL;
+        hd.gripY = 56;
+        sfx.scratch();
+        say(S.away ? 'back at the house, something is dragging logs out through the bare window.' : 'she hangs in through the bare window and reaches past you for the wood.');
+      } else die(S.away ? 'handAway' : 'hand');
     }
   } else if (hd.phase === 'steal') {
     // she takes the logs at the moment her hand closes on the pile
@@ -933,7 +982,7 @@ function updateHand(dt) {
       const n = Math.min(S.wood, hd.want || 0);
       S.wood -= n;
       hd.got = n;
-      say(n ? `she drags ${n} logs back out through the gap.${S.boards ? '' : ' the window is bare now.'}` : `her hand closes on nothing. the pile is empty.${S.boards ? '' : ' the window is bare now.'}`);
+      say(`she drags ${n} logs out through the window and is gone. -${n} wood`);
     }
     if (hd.t <= 0) { hd.phase = 'idle'; hd.t = nextHand(); }
   } else if (hd.t <= 0) {
@@ -974,29 +1023,11 @@ function saltRepels() {
 function handTimeout() {
   const hd = S.hand;
   if (S.saltWin) { saltRepels(); return; }
-  // nailed boards hold through one more pull
-  if (S.nails && !S.boardLoose) {
-    S.boardLoose = true;
-    hd.phase = 'retreat';
-    hd.t = 0.9;
-    sfx.crack();
-    say('the nails groan, but the board holds. barely.');
-    return;
-  }
-  S.boardLoose = false;
-  const row = BOARD_ROWS[S.boards - 1];
-  S.boards -= 1;
-  S.rec.boardsLost += 1;
-  spawnBoardFall(row);
-  hd.phase = 'steal';
-  hd.t = STEAL_TIME;
-  hd.took = false;
-  hd.got = 0;
-  hd.want = 3 + Math.floor(hour() / 2);
-  hd.gripY = row[1] ? row[0] - 3 : 56;
-  sfx.crack();
-  shake = 0.35;
-  say('she tears a board loose. her arm keeps coming, reaching for your wood.');
+  // not burned in time: every board comes off
+  hd.phase = 'tear';
+  hd.beat = 0;
+  sfx.scream();
+  say('she gets both hands into the gap and pulls. the boards are coming off.');
 }
 
 // Where her hand holds on: the gap just above the lowest board still standing.
@@ -1550,40 +1581,29 @@ function updateHatch(dt) {
       hc.t = 3.5;
       sfx.creak();
       spawnDust();
-      say(S.hatchWeighted ? 'the hatch strains under the logs. something pushes from below.' : 'the floorboards creak near the hatch. dust puffs up between them.');
+      say(S.hatchBar ? 'the beam over the hatch creaks. something pushes from below.' : 'the floorboards creak near the hatch. dust puffs up between them.');
     }
   } else if (hc.phase === 'creak') {
     if (Math.random() < dt * 4) spawnDust();
     if (hc.t <= 0) {
-      if (S.hatchWeighted) {
-        // the logs hold it twice, then they tumble off
-        hc.phase = 'idle';
-        hc.t = nextHatch();
-        sfx.thump(1);
-        S.weightHolds = (S.weightHolds || 0) + 1;
-        if (S.weightHolds >= 2) {
-          S.hatchWeighted = false;
-          S.weightHolds = 0;
-          say('the hatch bucks hard. the logs tumble off it.');
-        } else {
-          say('the hatch jumps against the weight, and settles. the logs shift.');
-        }
-        return;
-      }
       hc.phase = 'lift';
       hc.total = hc.t = Math.max(2.4, 3.6 - hour() * 0.12);
       sfx.creak();
-      say('the hatch lifts. pale fingers curl out over the edge.');
+      say(S.hatchBar ? 'the hatch heaves up against the beam. pale fingers curl through the gap.' : 'the hatch lifts. pale fingers curl out over the edge.');
     }
   } else if (hc.phase === 'lift') {
     hc.p = 1 - hc.t / hc.total;
-    if (hc.t <= 0) hatchFeeds();
+    if (hc.t <= 0) hatchMissed();
+  } else if (hc.phase === 'feeding' || hc.phase === 'taking') {
+    if (hc.phase === 'taking' && hc.t <= 0.2 && S.stranger === 'inside') S.stranger = 'taken';
+    if (hc.t <= 0) { hc.phase = 'idle'; hc.t = nextHatch() * 1.8; }   // fed, it stays down a long while
   } else if (hc.t <= 0) {
     hc.phase = 'idle';
     hc.t = nextHatch();
   }
 }
 
+// Slam it down on its fingers. With the beam across it, you stamp it shut and the beam stays whole.
 function slamHatch() {
   const hc = S.hatch;
   if (hc.phase !== 'lift' || S.away || dialog || mode !== 'playing') return;
@@ -1594,24 +1614,47 @@ function slamHatch() {
   sfx.slam();
   shake = 0.3;
   spawnDust();
-  say('you slam the hatch down on its fingers. something below hisses and lets go.');
+  say(S.hatchBar ? 'you stamp the hatch down against the beam. something below hisses and lets go.' : 'you slam the hatch down on its fingers. something below hisses and lets go.');
 }
 
-function hatchFeeds() {
+// Nobody slammed it. The beam, if there is one, breaks and buys you this time. Otherwise it comes up for food:
+// half of the meat on the rack. No meat, and it takes the stranger. No stranger, and it takes you.
+function hatchMissed() {
   const hc = S.hatch;
-  S.hatchFed += 1;
-  if (S.hatchFed >= 3) {
-    hc.phase = 'open';
-    die(S.away ? 'cellarAway' : 'cellar');
+  if (S.hatchBar) {
+    S.hatchBar = false;
+    hc.phase = 'slammed';
+    hc.t = 0.8;
+    sfx.crack();
+    shake = 0.3;
+    spawnDust();
+    say(S.away ? 'back at the house, something cracks the beam over the hatch in two.' : 'the beam over the hatch cracks in two. the hatch drops shut again, for now.');
     return;
   }
-  const took = S.meat + S.cooked;
-  S.rawLife = []; S.cookedLife = []; syncMeat();
-  if (S.cooking) S.cooking = null;
-  hc.phase = 'feeding';
-  hc.t = 2.2;
-  sfx.retch();
-  say(took ? `it drags all your meat down through the hatch. you hear it chewing under the floor. -${took} meat` : 'it gropes around for food and finds nothing. you hear it under the floor, waiting.');
+  const meat = S.meat + S.cooked;
+  if (meat > 0) {
+    const n = Math.max(Math.min(2, meat), Math.ceil(meat / 2));
+    let left = n;
+    while (left > 0 && S.meat > 0) { takeRaw(1); left -= 1; }
+    while (left > 0 && S.cooked > 0) { takeCooked(1); left -= 1; }
+    hc.phase = 'feeding';
+    hc.t = 2.4;
+    hc.took = n;
+    sfx.retch();
+    say(S.away ? `you come back to claw marks on the floor. half your meat is gone down the hatch. -${n} meat`
+      : `a long pale arm comes up out of the hatch and strips the rack. it drags it all down. -${n} meat`);
+    return;
+  }
+  if (S.stranger === 'inside') {
+    hc.phase = 'taking';
+    hc.t = 2.6;
+    sfx.gasp();
+    say(S.away ? 'when you come back, the stranger is gone. the hatch is shut. there are marks on the floor where she was sitting.'
+      : 'there is no meat. pale arms close around the stranger and pull her down into the dark. one sharp breath, and then nothing.');
+    return;
+  }
+  hc.phase = 'open';
+  die(S.away ? 'cellarAway' : 'cellar');
 }
 
 /* ------------------------------------------------------------------ the day */
@@ -1663,7 +1706,7 @@ const DAY_ACTIONS = [
   { id: 'sit', name: 'sit with the stranger', hours: 1, desc: 'she has been quiet all morning.', show: () => S.stranger === 'inside' && !S.strangerFalse && !S.dayDone.sit,
     act: () => {
       S.dayDone.sit = true; S.salt += 2;
-      return 'she presses a pouch of salt into your hands. "something lives under this floor," she says. "when the boards creak, slam that hatch shut. if you go out, pile logs on it." +2 salt';
+      return 'she presses a pouch of salt into your hands. "something lives under this floor," she says. "when the boards creak, slam that hatch shut. if you go out, bar it." +2 salt';
     } },
   { id: 'sleep', name: 'sleep', hours: 6, desc: "you haven't slept. go into the night without it and you'll be slow, and your eyes will close.", show: () => S.tired,
     act: () => { S.tired = false; return 'you sleep by the coals. no dreams. you wake to long shadows.'; } },
@@ -1778,12 +1821,9 @@ function startNextNight() {
 /* ------------------------------------------------------------------ build */
 
 const BUILDS = [
-  { id: 'boards', name: 'window boards', desc: 'three boards over the window. the hand has to tear through them first.',
+  { id: 'boards', name: 'window boards', desc: 'three boards over the window. burn her hand when she grabs them; if you don\'t, she tears every board off and takes them. through a bare window she climbs in and takes ten logs, or you.',
     show: () => !S.boardsBuilt, cost: () => ({ wood: 8 }),
     done: () => { S.boardsBuilt = true; S.boards = 3; say('you nail three boards across the window.'); } },
-  { id: 'repair', name: 'repair a board', desc: () => `the window has ${S.boards} of 3 boards left.`,
-    show: () => S.boardsBuilt && S.boards < 3, cost: () => ({ wood: 3 }),
-    done: () => { S.boards += 1; say('you nail a new board over the gap.'); } },
   { id: 'trap', name: 'trap', desc: () => `the only way to get meat at night. catches meat and blood, checked on every trip. wears out after a few catches. the smell keeps the thing in the trees close. (${S.traps}/3)`,
     show: () => S.traps < 3, cost: () => ({ wood: 6 }),
     done: () => { S.trapUses.push(makeTrap()); syncTraps(); say('you set a trap out in the snow. it will only last so long.'); } },
@@ -1816,9 +1856,9 @@ const BUILDS = [
   { id: 'saltWin', name: 'salt the window sill', desc: 'the next time she would get through the window, she recoils instead.',
     show: () => !S.saltWin && (S.salt > 0 || S.nightNo >= 2), cost: () => ({ salt: 2 }),
     done: () => { S.saltWin = true; say('you pour a line of salt along the window sill.'); } },
-  { id: 'weigh', name: 'weigh down the hatch', desc: 'pile logs on the cellar hatch. they hold it down twice, then they tumble off.',
-    show: () => S.nightNo >= 2 && !S.hatchWeighted, cost: () => ({ wood: 6 }),
-    done: () => { S.hatchWeighted = true; S.weightHolds = 0; say('you stack logs on the hatch. something underneath goes quiet. it will not stay quiet forever.'); } },
+  { id: 'bar', name: 'bar the hatch', desc: 'nail a beam across the cellar hatch. if it comes up and you miss the slam, the beam breaks instead of it getting out. slam it in time and the beam stays whole.',
+    show: () => S.nightNo >= 2 && !S.hatchBar, cost: () => ({ wood: 4 }),
+    done: () => { S.hatchBar = true; say('you nail a beam across the hatch. something underneath goes quiet.'); } },
 ];
 
 const canAfford = (cost) => Object.entries(cost).every(([k, n]) => S[k] >= n);
@@ -1934,6 +1974,7 @@ function updateAmbient(dt) {
   figure = Math.max(0, figure - dt * (mode === 'lost' ? 0.3 : 1));
   shake = Math.max(0, shake - dt);
   trapWreck = Math.max(0, trapWreck - dt);
+  cabT = Math.max(0, cabT - dt);
   doze = Math.max(0, doze - dt);
   hunterEyes = clamp(hunterEyes + dt * (S.hunter.near && mode === 'playing' ? 0.8 : -0.8), 0, 1);
 
@@ -2166,9 +2207,9 @@ function drawBackground() {
   g.fillStyle = '#2a1b10'; g.fillRect(185, 69, 2, 4); g.fillRect(227, 69, 2, 4); g.fillRect(186, 72, 2, 1); g.fillRect(226, 72, 2, 1);
 
   // bedroll
-  g.fillStyle = '#3b2e2a'; g.fillRect(222, 118, 28, 7);
-  g.fillStyle = '#4a3a33'; g.fillRect(222, 118, 7, 7);
-  g.fillStyle = '#2a201d'; g.fillRect(222, 124, 28, 1);
+  g.fillStyle = '#3b2e2a'; g.fillRect(238, 126, 28, 7);
+  g.fillStyle = '#4a3a33'; g.fillRect(238, 126, 7, 7);
+  g.fillStyle = '#2a201d'; g.fillRect(238, 132, 28, 1);
 
   // fire pit
   g.fillStyle = C.ash;
@@ -2358,19 +2399,38 @@ function drawTrader() {
   px.fillStyle = '#5a1a14'; px.fillRect(cx - 4, feet - 32, 9, 1);
 }
 
-// the woodshed outside, drawn small in its own corner widget with a door you can open
-function drawShedIcon(canvas) {
-  const g = canvas.getContext('2d');
-  g.clearRect(0, 0, 24, 20);
-  const P = (c, x, y, w, h) => { g.fillStyle = c; g.fillRect(x, y, w, h); };
-  P('#e8ecf4', 0, 17, 24, 3);                 // snow
-  P('#3a2618', 3, 7, 18, 11);                 // walls
-  P('#2a1a10', 3, 10, 18, 1); P('#2a1a10', 3, 13, 18, 1);
-  P('#1a1210', 1, 5, 22, 2); P('#241812', 3, 3, 18, 2); P('#e8ecf4', 2, 4, 20, 1);   // roof with snow
-  const n = Math.min(9, Math.ceil(S.shedWood / 11));
-  P('#0e0806', 9, 9, 7, 9);                   // the open door
-  for (let i = 0; i < n; i++) { P('#a07a4e', 10 + (i % 3) * 2, 15 - Math.floor(i / 3) * 2, 2, 2); }
-  P('#4a3222', 16, 9, 2, 9);                  // the door, swung open
+// The woodshed is built against the outside of the right wall. Inside, a small cabinet in the wall opens onto
+// it, with a candle burning beside it. Click it to look in; it also opens on its own when logs go in or out.
+const CABINET = { x: 297, y: 80, w: 20, h: 24 };
+let cabOpen = 0;       // 0 shut .. 1 open
+let cabT = 0;          // seconds it stays open by itself
+
+function drawCabinet() {
+  if (!S.shed) return;
+  const { x, y, w, h } = CABINET;
+  cabOpen += ((cabT > 0 || cabHeld ? 1 : 0) - cabOpen) * 0.18;
+  R('#2a1b10', x - 1, y - 1, w + 2, h + 2);                 // the frame
+  R('#0c0806', x, y, w, h);                                 // the dark inside, through to the shed
+  const n = Math.min(20, Math.ceil(S.shedWood / 5));        // log ends, one per five logs
+  for (let i = 0; i < n; i++) {
+    const lx0 = x + 1 + (i % 4) * 5, ly0 = y + h - 5 - Math.floor(i / 4) * 4;
+    R('#5a3a22', lx0, ly0, 4, 4); R('#a07a4e', lx0 + 1, ly0 + 1, 2, 2);
+  }
+  // two doors, swinging open toward you
+  const dw = Math.round((w / 2) * (1 - cabOpen * 0.8));
+  R('#3b2717', x, y, dw, h); R('#3b2717', x + w - dw, y, dw, h);
+  R('#2a1b10', x + dw - 1, y, 1, h); R('#2a1b10', x + w - dw, y, 1, h);
+  if (dw > 4) { R('#8a7a5a', x + dw - 3, y + 11, 1, 2); R('#8a7a5a', x + w - dw + 2, y + 11, 1, 2); }
+  // the candle on its little shelf
+  R('#2a1b10', x + 7, y - 4, 7, 2);
+  R('#d8ccb0', x + 9, y - 9, 3, 5);
+  R(Math.sin(animT * 13) > 0 ? '#ffd35a' : '#ffb347', x + 10, y - 11, 1, 2);
+}
+
+let cabHeld = false;   // opened by hand
+function cabinetHit(px0, py0) {
+  const { x, y, w, h } = CABINET;
+  return S.shed && px0 >= x - 2 && px0 <= x + w + 2 && py0 >= y - 12 && py0 <= y + h + 2;
 }
 
 // Elk meat hanging on the rack: raw haunches (dark red, marbled with fat, a knob of bone at the top),
@@ -2445,7 +2505,7 @@ const BROKEN_TRAP = [
 ];
 
 function drawTraps() {
-  if (trapWreck > 0) drawMap(BROKEN_TRAP, 230, 127, TRAP_COLORS);
+  if (trapWreck > 0) drawMap(BROKEN_TRAP, 268, 136, TRAP_COLORS);
   // spare traps lying by the door until they're set outside
   for (let i = 0; i < S.traps; i++) drawMap(BEAR_TRAP, 243 - (i % 2) * 10, 106 - Math.floor(i / 2) * 3 + (i % 2), TRAP_COLORS);
 }
@@ -2580,6 +2640,12 @@ function drawStranger() {
     return;
   }
   if (S.stranger !== 'inside') return;
+  if (S.hatch.phase === 'taking') {
+    const T = 2.6 - S.hatch.t;
+    const k = ease(clamp((T - 0.8) / 1.6, 0, 1));
+    if (k < 0.95) drawCloakedSitting(Math.round(lerp(194, HATCH.x + 12, k)), Math.round(lerp(139, HATCH.y + 8, k)), strangerLook());
+    return;
+  }
   if (dawnLevel() > 0.6) { drawCloaked(193, 138, strangerLook()); return; }
   const bob = !S.strangerFalse && Math.sin(S.time * 1.6) > 0.6 ? 1 : 0;
   const shiver = !S.strangerFalse && (S.fire === 0 || (S.cold || 0) > 60) ? (Math.random() < 0.3 ? 1 : 0) : 0;
@@ -2653,6 +2719,7 @@ function drawPixels() {
   drawHatch();
   drawSalt();
   drawWoodPile();
+  drawCabinet();
   drawPitLogs();
   drawGrate();
   drawRack();
@@ -2755,7 +2822,7 @@ function drawGrin(s, t) {
 }
 
 // The cellar hatch in the floor, front right. It is always there; on the second night it matters.
-const HATCH = { x: 252, y: 130, w: 20, h: 9 };
+const HATCH = { x: 210, y: 116, w: 20, h: 9 };   // right under the meat rack: it comes for the smell
 
 function drawHatch() {
   const { x, y, w, h } = HATCH;
@@ -2779,12 +2846,11 @@ function drawHatch() {
   for (let i = 5; i < w; i += 5) px.fillRect(x + i, ly, 1, lh);
   px.fillStyle = '#4a3222'; px.fillRect(x, ly, w, 1);
   px.fillStyle = '#6a6460'; px.fillRect(x + w / 2 - 1, ly + Math.floor(lh / 2), 3, 1);
-  // logs piled on top to weigh it down
-  if (S.hatchWeighted) {
-    for (let i = 0; i < 4; i++) {
-      px.fillStyle = C.logBark; px.fillRect(x + 1 + i * 5, ly - 3, 5, 3);
-      px.fillStyle = C.logEnd; px.fillRect(x + 2 + i * 5, ly - 3, 3, 3);
-    }
+  // a beam nailed across it
+  if (S.hatchBar) {
+    px.fillStyle = '#4a3220'; px.fillRect(x - 3, ly + 2, w + 6, 3);
+    px.fillStyle = '#5a3e28'; px.fillRect(x - 3, ly + 2, w + 6, 1);
+    px.fillStyle = '#8a8a8a'; px.fillRect(x - 2, ly + 3, 1, 1); px.fillRect(x + w + 1, ly + 3, 1, 1);
   }
 }
 
@@ -2800,7 +2866,7 @@ function drawBelow(s, t) {
   const hc = S.hatch;
   const dead = mode === 'lost' && (S.cause === 'cellar' || S.cause === 'cellarAway');
   const ph = dead ? 'open' : hc.phase;
-  if (ph !== 'lift' && ph !== 'feeding' && ph !== 'open') return;
+  if (ph !== 'lift' && ph !== 'feeding' && ph !== 'taking' && ph !== 'open') return;
   const { x, y, w } = HATCH;
   const k = ph === 'lift' ? hc.p : 1;
   const pale = 'rgba(196, 200, 184, 0.95)', shade = 'rgba(120, 126, 112, 0.95)', nail = 'rgba(20, 16, 14, 1)';
@@ -2828,6 +2894,22 @@ function drawBelow(s, t) {
       const curl = j > len * 0.6 ? (j - len * 0.6) * 0.5 : 0;
       lx.fillStyle = j > len - 0.8 ? nail : (j % 2 < 0.5 ? pale : shade);
       lpx(s, fx + wig + curl * 0.3, y + 1 - j + curl, 0.9, 0.6);
+    }
+  }
+  // feeding: a long pale arm up the wall to the meat rack, and back down with it
+  if (ph === 'feeding' || ph === 'taking') {
+    const T = (ph === 'feeding' ? 2.4 : 2.6) - hc.t;
+    const ext = T < 0.9 ? ease(T / 0.9) : T < 1.3 ? 1 : 1 - ease(clamp((T - 1.3) / 1.0, 0, 1));
+    const tx = ph === 'feeding' ? 200 : 190, ty = ph === 'feeding' ? 50 : 122;
+    const bx = x + w / 2, by = y + 2;
+    const hx = lerp(bx, tx, ext), hy = lerp(by, ty, ext);
+    limb(s, bx, by, hx, hy, ph === 'feeding' ? 10 : -8, 2.2, PALE_PAL);
+    claw(s, hx, hy, Math.atan2(ty - by, tx - bx), T > 1.1 ? 0.15 : 0.45, T > 1.1 ? 3.5 : 0.8, 6, PALE_PAL);
+    if (ph === 'feeding' && T > 1.1 && hc.took) {
+      lx.fillStyle = 'rgba(126, 28, 24, 0.95)'; lpx(s, hx - 2, hy - 1, 4, 3);
+    }
+    if (ph === 'taking') {
+      limb(s, bx - 4, by, lerp(bx - 4, 186, ext), lerp(by, 126, ext), 8, 2, PALE_PAL);
     }
   }
   // when it comes up, an arm and a swollen pale hand reaching across the floor toward the fire
@@ -3010,7 +3092,7 @@ function drawHand(s, t) {
     return;
   }
 
-  if (ph === 'reach' || ph === 'retreat') {
+  if (ph === 'reach' || ph === 'retreat' || ph === 'tear') {
     const g = handGrip();
     const out = ph === 'retreat' ? clamp(hd.t / 0.9, 0, 1) : 1;
     herGlow(s, 61, 52, 20, ph === 'retreat' ? 0.25 : 0.5);
@@ -3084,10 +3166,19 @@ function spawnSmoke(x, y) {
   for (let i = 0; i < 12; i++) fx.push({ kind: 'smoke', x: x + rand(-2, 2), y: y + rand(-1, 2), vx: rand(-4, 4), vy: rand(-14, -5), life: 0, max: rand(0.8, 1.8) });
 }
 
+// the bone spear, out in the trees: a pale streak into its eyes, and a red burst where it goes in
+function spawnSpear() {
+  fx.push({ kind: 'spear', x: 44, y: 66, tx: 55.5, ty: 56.5, life: 0, max: 1.4 });
+}
+
 // a burning branch jammed into her hand: flames flare up and curl off into smoke
 function spawnBurn(x, y) {
   for (let i = 0; i < 26; i++) fx.push({ kind: 'burn', x: x + rand(-2.5, 2.5), y: y + rand(-1, 1.5), vx: rand(-6, 6), vy: rand(-26, -10), life: 0, max: rand(0.9, 1.6) });
   for (let i = 0; i < 10; i++) fx.push({ kind: 'ember', x: x + rand(-2, 2), y, vx: rand(-18, 18), vy: rand(-30, -8), life: 0, max: rand(0.5, 1.1) });
+}
+
+function spawnBoardOut(row) {
+  fx.push({ kind: 'board', out: true, x: 61, y: row[0] + row[1] / 2, vx: -26, vy: -8, rot: 0, vr: rand(-1.5, -0.5), life: 0, max: 0.9, floor: 999, h: row[1] });
 }
 
 function spawnBoardFall(row) {
@@ -3103,12 +3194,15 @@ function updateFx(dt) {
   for (const f of fx) {
     f.life += dt;
     if (f.kind === 'shard' || f.kind === 'board') {
+      if (f.out) { f.x += f.vx * dt; f.y += f.vy * dt; f.rot += f.vr * dt; f.vx *= 0.97; continue; }
       if (f.y < f.floor) {
         f.vy += 70 * dt;
         f.x += f.vx * dt; f.y += f.vy * dt;
         if (f.kind === 'board') f.rot += f.vr * dt;
         if (f.y >= f.floor) { f.y = f.floor; f.vx = f.vy = 0; f.vr = 0; }
       }
+    } else if (f.kind === 'spear') {
+      // drawn from its start and target
     } else if (f.kind === 'burn' || f.kind === 'ember') {
       f.x += f.vx * dt; f.y += f.vy * dt; f.vx *= 0.95;
       if (f.kind === 'ember') f.vy += 30 * dt;
@@ -3130,6 +3224,19 @@ function drawFx(s) {
     } else if (f.kind === 'smoke') {
       lx.fillStyle = `rgba(110, 104, 100, ${0.45 * a})`;
       lpx(s, f.x - 1, f.y - 1, 2 + f.life * 2, 2 + f.life * 2);
+    } else if (f.kind === 'spear') {
+      const k = clamp(f.life / 0.25, 0, 1);
+      const x = lerp(f.x, f.tx, k), y = lerp(f.y, f.ty, k);
+      lx.fillStyle = `rgba(232, 222, 196, ${a})`;
+      for (let i = 0; i < 6; i++) lpx(s, x - (f.tx - f.x) * 0.06 * i, y - (f.ty - f.y) * 0.06 * i, 0.6, 0.6);
+      if (k >= 1) {
+        const r = (2 + f.life * 6) * s;
+        const g = lx.createRadialGradient(f.tx * s, f.ty * s, 0, f.tx * s, f.ty * s, r);
+        g.addColorStop(0, `rgba(200, 20, 10, ${0.8 * a})`);
+        g.addColorStop(1, 'rgba(120, 0, 0, 0)');
+        lx.fillStyle = g;
+        lx.fillRect(f.tx * s - r, f.ty * s - r, r * 2, r * 2);
+      }
     } else if (f.kind === 'burn') {
       // flame first (bright, small), then gray smoke (bigger, fading)
       const k = f.life / f.max;
@@ -3153,6 +3260,7 @@ function drawFx(s) {
       lpx(s, f.x, f.y, 0.5, 0.5);
     } else if (f.kind === 'board') {
       lx.save();
+      if (f.out) { lx.beginPath(); lx.rect(42 * s, 32 * s, 38 * s, 38 * s); lx.clip(); }   // dragged out through the frame
       lx.globalAlpha = Math.min(1, a * 3);
       lx.translate(f.x * s, f.y * s);
       lx.rotate(f.rot);
@@ -3210,6 +3318,27 @@ function drawLight() {
     lx.fillRect(-r * s, -r * s, r * s * 2, r * s * 2);
   }
   lx.restore();
+
+  // the candle by the woodshed cabinet
+  if (S.shed && S.lit) {
+    const cx = CABINET.x + 10.5, cy = CABINET.y + 2;
+    const cr = (21 + Math.sin(t * 9) * 0.8) * s;
+    lx.save();
+    lx.globalCompositeOperation = 'destination-out';
+    let cg = lx.createRadialGradient(cx * s, cy * s, 0, cx * s, cy * s, cr);
+    cg.addColorStop(0, 'rgba(0,0,0,0.8)');
+    cg.addColorStop(0.5, 'rgba(0,0,0,0.5)');
+    cg.addColorStop(1, 'rgba(0,0,0,0)');
+    lx.fillStyle = cg;
+    lx.fillRect(cx * s - cr, cy * s - cr, cr * 2, cr * 2);
+    lx.globalCompositeOperation = 'lighter';
+    cg = lx.createRadialGradient(cx * s, cy * s, 0, cx * s, cy * s, cr);
+    cg.addColorStop(0, 'rgba(255, 170, 70, 0.18)');
+    cg.addColorStop(1, 'rgba(0,0,0,0)');
+    lx.fillStyle = cg;
+    lx.fillRect(cx * s - cr, cy * s - cr, cr * 2, cr * 2);
+    lx.restore();
+  }
 
   // the firelight catches the meat rack and the shelf on the back wall, so you can see what you have
   if (S.lit && S.fire > 0 && mode !== 'lost') {
@@ -3504,7 +3633,7 @@ function deathCamera() {
     return {
       tf: `translateY(${(k * 4 + jerk).toFixed(2)}%) rotate(${(k * 9).toFixed(2)}deg) scale(${(1 + k * 3.4).toFixed(3)})`,
       filter: '',
-      origin: `${(262 / W) * 100}% ${(134 / H) * 100}%`,
+      origin: `${((HATCH.x + HATCH.w / 2) / W) * 100}% ${((HATCH.y + 4) / H) * 100}%`,
     };
   }
   return { tf: '', filter: '', origin: '' };
@@ -4086,7 +4215,7 @@ const ICONS = {
     colors: { g: '#7a8290', b: '#6a0a0a', R: '#b02020', k: '#8a6a4a' },
   },
 };
-const RES_VALUE = { wood: () => `${S.wood}/${PILE_CAP}${wetInPile() ? ` · ${wetInPile()} wet` : ''}`, cured: () => curedCount(), cooked: () => S.cooked - curedCount(), raw: () => S.meat, blood: () => S.blood, salt: () => S.salt, fur: () => S.fur };
+const RES_VALUE = { wood: () => `${S.wood}/${PILE_CAP}${wetInPile() ? ` · ${wetInPile()} wet` : ''}${S.shed ? ` · shed ${S.shedWood}` : ''}`, cured: () => curedCount(), cooked: () => S.cooked - curedCount(), raw: () => S.meat, blood: () => S.blood, salt: () => S.salt, fur: () => S.fur };
 const resCounts = {};
 
 function buildResBar() {
@@ -4128,8 +4257,6 @@ function syncUI() {
   resCounts.wood.parentElement.classList.toggle('full', S.wood >= PILE_CAP - 2);
   resCounts.raw.parentElement.classList.toggle('spoiling', spoilingSoon(S.rawLife));
   resCounts.cooked.parentElement.classList.toggle('spoiling', spoilingSoon(S.cookedLife.filter((l) => l < CURED / 2)));
-  ui.shed.classList.toggle('hidden', !S.shed || !(mode === 'playing' || mode === 'day'));
-  if (S.shed) { ui.shedCount.textContent = S.shedWood; drawShedIcon(ui.shedIcon); }
   const blazing = S.blaze > 0 && mode === 'playing' && !S.away && !dialog;
   ui.douse.classList.toggle('hidden', !blazing);
   if (blazing) ui.douse.style.setProperty('--cd', `${(S.blaze / 9) * 100}%`);
@@ -4491,6 +4618,11 @@ function devStart(which) {
   else renderDay();
 }
 $('devBtn').addEventListener('click', () => showTitle('dev'));
+light.addEventListener('pointerdown', (e) => {
+  if (mode !== 'playing' && mode !== 'day') return;
+  const r = light.getBoundingClientRect();
+  if (cabinetHit(((e.clientX - r.left) / r.width) * W, ((e.clientY - r.top) / r.height) * H)) { cabHeld = !cabHeld; sfx.creak(); }
+});
 $('achBtn').addEventListener('click', () => showTitle('ach'));
 document.querySelectorAll('[data-dev]').forEach((b) => b.addEventListener('click', () => devStart(b.dataset.dev)));
 $('version').textContent = `v${VERSION}`;

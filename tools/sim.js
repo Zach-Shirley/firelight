@@ -77,7 +77,6 @@ function learner(f, S, mem) {
     if (S.hint >= 2) {
       if (S.hand.phase === 'reach') f.act.strike();
       if (!S.boardsBuilt && S.wood >= 8) f.act.build('boards');
-      if (S.boardsBuilt && S.boards === 0 && S.wood >= 3) f.act.build('repair');
       if (!S.boardsBuilt && S.wood < 8 && !S.hunter.near) return goOut(f, S, mem);
     }
     if (S.hint >= 4 && !S.lantern && S.blood >= 4 && S.wood >= 10) f.act.build('lantern');
@@ -124,9 +123,9 @@ function skilled(f, S, mem, human = false, hoard = false) {
   if (S.hatch.phase === 'lift' && (!human || S.hatch.p > mem.clawDelay)) f.act.slam();
   if (S.salt >= 2 && !S.saltDoor) f.act.build('saltDoor');
   if (S.salt >= 2 && !S.saltWin) f.act.build('saltWin');
-  if (S.nightNo === 2 && !S.hatchWeighted && S.wood >= 14) f.act.build('weigh');
+  if (S.nightNo >= 2 && !S.hatchBar && S.wood >= 10) f.act.build('bar');
   if (S.hand.phase !== 'reach') mem.clawDelay = 0.1 + Math.random() * 0.35;
-  if (S.hand.phase === 'crawl' && S.wood >= 8) f.act.build(S.boardsBuilt ? 'repair' : 'boards');
+  if (S.hand.phase === 'crawl' && S.wood >= 8) f.act.build('boards');
   if (!S.lit || S.fire <= 2 || (S.fire === 3 && S.wood > 12)) f.act.stoke();
   if (S.meat >= 1 && S.fire >= 1) f.act.cook();
   if (S.hunger >= 60 && S.cooked > 0) f.act.eat();
@@ -138,7 +137,7 @@ function skilled(f, S, mem, human = false, hoard = false) {
   if (S.salt >= 1 && S.cooked >= 2) f.act.build('cure');
   if (!S.shed && S.wood >= 25 && !S.hunter.near && S.hand.phase === 'idle' && S.hour !== 0) f.act.build('shed');
   if (!S.boardsBuilt && S.wood >= 9 && S.night > 50) f.act.build('boards');
-  if (S.boardsBuilt && S.boards < 2 && S.wood >= 8) f.act.build('repair');
+  if (!S.boardsBuilt && S.glassBroken && S.wood >= 12) f.act.build('boards');   // re-board after she tears them off
   if (S.traps < 2 && S.wood >= 6) f.act.build('trap');
   if (S.traps < 3 && S.wood >= 12 && S.boardsBuilt) f.act.build('trap');
   if (!S.lantern && S.blood >= 4 && S.wood >= 10) f.act.build('lantern');
