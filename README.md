@@ -163,6 +163,7 @@ Every death has its own few seconds before the red screen:
 | The thing under the floor | The hatch is thrown open, pale arms come up out of it and across the floor, and you're pulled down into the hole |
 | The false stranger | In the dawn light her shadow climbs the wall, far too tall, red-eyed, its arms spreading across the ceiling, and bends down over you as the light goes out |
 | The cold | A white glaze creeps in from the edges and frost ferns grow over it, your breath shows slower and fainter each time, and the fire seems to shrink away |
+| The white (very rare) | About one blizzard trip in five hundred, you lose the path for good. The whiteout swallows the room and a small dark figure walks away into it |
 
 Every ending, death or dawn, shows a **recap of your night**: people let in, mimics kept out, times you burned her back, trips, meat cooked, how hungry you got and your **closest call**: the nearest you came to any of the threats you survived, such as the grin 92% full, burning her back with 0.4 s to spare, the dark 88% of the way in, slamming the hatch at the last moment or putting out the blaze with a second left. Whatever actually killed you doesn't count as a close call. It also shows an **all-time tally**, for example "14 nights · 2 dawns · killed by: the mimic 6, her, at the window 3, hunger 2". The tally also appears under best nights on the title screen. The simulation's automated nights don't count toward it.
 
@@ -313,11 +314,30 @@ Checked on 2026-10-16:
 
 The background music is generated in the browser like the rest of the sound: a low, slowly breathing drone under a warped music box picking out a minor-key lullaby one note at a time, never quite in tune. As the night goes on, and as the dark closes in, a sour note creeps into the drone and the music box plays faster, with notes that clash. It's quieter during the day, and silent at dawn and when you die. **N** or the music button turns it off (remembered per browser).
 
+## Achievements
+
+29 achievements, under **achievements** on the title screen, with a toast and a chime when you earn one:
+- **A death for every way to die**, 13 in all, including the one-in-five-hundred trip lost in the white (shown as ??? until you get it).
+- **Surviving nights 1, 2 and 3.** Nights 4 and 5 are listed for a later version.
+- **Feats.** A few that mean something:
+  - keeping her alive to the third dawn;
+  - seeing through the false stranger;
+  - counting the feet under the lantern;
+  - turning away a walker;
+  - burning her back with less than half a second to spare, or five times in a night;
+  - dousing a blaze;
+  - the bone spear;
+  - filling the woodshed to all 100 logs;
+  - holding 200 points' worth at one dawn;
+  - a 1,000-point run.
+
+They're stored in this browser for now (`achievements.js`). Each unlock keeps its time and a "not synced yet" flag, so a future account system can upload what you earned before you signed in. Simulated and playtest runs don't earn them.
+
 ## Playtesting
 
 Open the game once with `?dev` on the address (https://firelight-topaz.vercel.app/?dev) and the title menu gets a **playtest** button, remembered in that browser. It starts you at the day before night 2 or 3, or straight into night 2 or 3, with a basic kit: boarded window, two traps (three on night 3), the lantern, the stranger, some food and wood, and on night 3 a woodshed and the drying rack. Playtest runs don't count toward the stats or the leaderboard.
 
-The version is in the bottom-right corner (v0.22 is the 22nd commit), so you can tell a refresh picked up the latest build.
+The version is in the bottom-right corner (v0.23 is the 23rd commit), so you can tell a refresh picked up the latest build.
 
 ## Future ideas
 
@@ -326,7 +346,7 @@ Noted for later and very much subject to change:
 - **Night 5:** a blood moon.
 - **The stranger's story** and its endings.
 - **The day overhaul:** trips that make sense in hours, a village worth exploring.
-- **Achievements.**
+- **Accounts and a backend**, so scores, achievements and stats follow a player between devices.
 
 ## Known limits
 

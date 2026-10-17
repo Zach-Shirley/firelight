@@ -20,6 +20,7 @@
     <canvas id="light"></canvas>
 
     <div id="version"></div>
+    <div id="toast" aria-live="polite"></div>
     <div id="hud"><div id="res"></div><div id="clock"></div><div id="hunger"></div><div id="cold"></div></div>
 
     <div id="menu">
@@ -88,8 +89,15 @@
           <button id="contBtn" class="hidden">continue the night</button>
           <button id="newBtn">new night</button>
           <button id="boardBtn">best nights</button>
+          <button id="achBtn">achievements</button>
           <button id="howBtn">how to play</button>
           <button id="devBtn" class="hidden">playtest</button>
+        </div>
+
+        <div id="achPanel" class="subpanel hidden">
+          <h2>achievements <span id="achCount" class="ach-count"></span></h2>
+          <ul id="achList" class="ach-list"></ul>
+          <button class="backBtn">back</button>
         </div>
 
         <div id="devPanel" class="subpanel hidden">

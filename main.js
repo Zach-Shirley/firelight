@@ -3,9 +3,10 @@
 // The light layer runs at full screen resolution so the glow stays smooth.
 
 import * as sfx from './sound.js';
+import { ACHIEVEMENTS, createStore } from './achievements.js';
 import { computeScore, qualifies, insertScore, cleanInitials, sanitizeBoard } from './score.js';
 
-const VERSION = '0.22';   // one step per commit to the repository
+const VERSION = '0.23';   // one step per commit to the repository
 const W = 320, H = 180;
 const FIRE = { x: 160, y: 136 };          // base of the flames
 const LIGHT_Y = 130;                       // centre of the light pool
@@ -49,6 +50,7 @@ const ui = {
   journal: $('journal'), journalList: $('journalList'),
   buildPanel: $('build'), buildList: $('buildList'),
   sound: $('soundBtn'),
+  toast: $('toast'), achPanel: $('achPanel'), achList: $('achList'), achCount: $('achCount'),
   title: $('title'), titleMenu: $('titleMenu'), howPanel: $('howPanel'), boardPanel: $('boardPanel'), devPanel: $('devPanel'), dayWarn: $('dayWarn'),
   boardList: $('boardList'), cont: $('contBtn'),
   ending: $('ending'), endTitle: $('endTitle'), endText: $('endText'), endHint: $('endHint'), endScore: $('endScore'),
@@ -197,7 +199,7 @@ function save() {
 const CAUSE_NAMES = {
   dark: 'the dark', starve: 'hunger', burn: 'the fire', mimic: 'the mimic', hand: 'her, at the window', handAway: 'her, at the window',
   hunter: 'the thing in the trees', risen: "the stranger's body", falseStranger: 'the false stranger',
-  cellar: 'the thing under the floor', cellarAway: 'the thing under the floor', freeze: 'the cold',
+  cellar: 'the thing under the floor', cellarAway: 'the thing under the floor', freeze: 'the cold', lost: 'the white',
 };
 
 function loadStats() {
@@ -229,7 +231,7 @@ function tallyText(st) {
 
 // Close calls: for each threat, the nearest you came to it. The recap shows the nearest one overall,
 // leaving out whatever actually killed you.
-const CLOSE_KILLERS = { cold: ['freeze'], grin: ['hunter'], dark: ['dark'], hunger: ['starve'], her: ['hand', 'handAway'], hatch: ['cellar', 'cellarAway'], blaze: ['burn'] };
+const CLOSE_KILLERS = { cold: ['freeze', 'lost'], grin: ['hunter'], dark: ['dark'], hunger: ['starve'], her: ['hand', 'handAway'], hatch: ['cellar', 'cellarAway'], blaze: ['burn'] };
 
 function nearMiss(kind, d, text) {
   S.rec.close ||= {};
@@ -609,6 +611,7 @@ function addWood(n) {
     const over = Math.min(S.wood - PILE_CAP, SHED_CAP - S.shedWood);
     S.shedWood += over;
     S.wood -= over;
+    if (S.shedWood >= SHED_CAP) achieve('full_shed');
   }
 }
 
@@ -659,6 +662,7 @@ function douse() {
   if (S.blood < 2) { say("you don't have enough blood to throw on it. two jars, at least."); return; }
   S.blood -= 2;
   nearMiss('blaze', 1 - S.blaze / 9, `put out the blaze with ${S.blaze.toFixed(1)} s to spare`);
+  achieve('doused');
   S.blaze = 0;
   S.fire = 2;
   S.decay = decayTime();
@@ -752,7 +756,8 @@ function startTrip(kind) {
   const total = TRIPS[kind].time * slow * (kind === 'shed' ? logs : 1) * (blizzard() ? 1.5 : 1);
   // if it is already out there when you leave, there is no head start
   S.away = { kind, t: total, total, startedNear: S.hunter.near, logs, placed: 0,
-    stumble: blizzard() && kind !== 'drag' && Math.random() < 0.04 ? rand(1, total * 0.7) : -1 };
+    stumble: blizzard() && kind !== 'drag' && Math.random() < 0.04 ? rand(1, total * 0.7) : -1,
+    doom: blizzard() && kind !== 'drag' && Math.random() < 1 / 500 ? rand(1, total * 0.8) : -1 };   // never found
   S.stalk = 0;   // the four seconds always start from the moment you step out
   if (kind !== 'drag') S.rec.trips += 1;
   toggleBuild(false);
@@ -781,6 +786,8 @@ function updateTrip(dt) {
   const a = S.away;
   if (!a) return;
   a.t -= dt;
+  // about one blizzard trip in five hundred, you lose the path and never find it again
+  if (a.doom > 0 && a.total - a.t >= a.doom) { die('lost'); return; }
   // lost in the white for a moment: a rare stumble that costs a few seconds out there
   if (a.stumble > 0 && a.total - a.t >= a.stumble) {
     a.stumble = -1;
@@ -808,6 +815,7 @@ function updateTrip(dt) {
         S.away = null;
         shake = 0.5;
         sfx.scream();
+        achieve('bone_spear');
         say('it catches you. you drive the bone spear into it and run. the spear stays in it.');
         announceWaiting();
         return;
@@ -938,9 +946,11 @@ function strikeHand() {
   if (S.wood < 1 || S.fire < 1) { say('you need a burning branch. there is no fire to take one from.'); return; }
   S.wood -= 1;
   nearMiss('her', 1 - hd.t / hd.total, `burned her back with ${hd.t.toFixed(1)} s to spare`);
+  if (hd.t < 0.5) achieve('by_a_hair');
   hd.phase = 'retreat';
   hd.t = 0.9;
   S.rec.burned += 1;
+  if (S.rec.burned >= 5) achieve('burned_five');
   sfx.hiss();
   sfx.scream();
   const g = handGrip();
@@ -1110,6 +1120,7 @@ function openDoorFor(v) {
       figure = 1.2;
       doorCloseIn = 1.3;
       sfx.scream();
+      achieve('salt_line');
       say('it stops at the salt line. it screams without a sound, and is gone. the salt is scattered.');
       return;
     }
@@ -1155,6 +1166,8 @@ function openDoorFor(v) {
 function keepShut(v) {
   if (v.who === 'mimic') {
     S.rec.mimicsKept += 1;
+    if (lanternLit()) achieve('count_feet');
+    if (v.fake) achieve('walker');
     say('the knocking stops. no footsteps leave.');
     return;
   }
@@ -1266,6 +1279,7 @@ function updateFalseStranger(dt) {
 
 function sendStrangerAway() {
   if (S.strangerFalse) {
+    achieve('saw_through');
     sfx.slam();
     say('it stands up. it is taller than she was. it walks out into the snow without a sound.');
   } else {
@@ -1284,6 +1298,7 @@ function killAtDawn() {
   S.cause = 'falseStranger';
   S.won = false;
   startDeath('falseStranger');
+  achieve('die_falseStranger');
   shake = 0.5;
   sfx.death();
   sfx.scream();
@@ -1318,6 +1333,8 @@ const DEATHS = {
     : 'real visitors walk up through the snow. listen for footsteps before the knock. and there is only one stranger.') },
   hand: { text: 'She climbed in through the broken window.', hint: 'board the window before one in the morning. glass will not stop her, and fire will.' },
   handAway: { text: 'You came back to a broken window. She was already inside.', hint: 'board the window before one in the morning. a bare window lets her in, whether you are home or not.' },
+  lost: { text: 'You lost the path in the white, and never found it again.',
+    hint: "nothing you could have done. about one blizzard trip in five hundred ends like this. you were very, very unlucky." },
   freeze: { text: () => (S.away ? 'You froze in the snow, a little way from the door.' : 'You froze by a fire too small to save you.'),
     hint: 'in the blizzard, one trip outside chills you badly and two in a row can kill you. warm up by a strong fire between trips. a fur coat helps.' },
   hunter: { text: 'Something found you in the trees.', hint: 'when it howls close and its eyes shine in the treeline, stay inside.' },
@@ -1341,6 +1358,7 @@ function die(cause) {
   if (cause === 'risen') shake = 0.6;
   if (cause === 'burn') { shake = 0.8; S.fire = 4; }
   startDeath(cause);
+  achieve(`die_${cause}`);
   sfx.death();
   save();
 }
@@ -1356,9 +1374,64 @@ function startDawn() {
   S.hand.phase = 'idle';
   S.hunter.near = false;
   for (const e of eyes) e.out = true;
+  achieve(`night_${S.nightNo}`);
+  if (S.stranger === 'inside' && !S.strangerFalse) { achieve('not_alone'); if (S.nightNo >= 3) achieve('three_together'); }
   sfx.dawn();
   say('the sky outside is turning gray.');
   save();
+}
+
+/* ----------------------------------------------------------- achievements */
+
+const achievements = (() => { try { return createStore(localStorage); } catch (e) { return createStore({ getItem: () => null, setItem: () => {} }); } })();
+const toasts = [];
+let toastT = 0;
+
+// Simulated and playtest runs don't earn achievements, the same as stats and the leaderboard.
+function achieve(id) {
+  if (window.__simulating || S.dev) return;
+  const a = achievements.unlock(id);
+  if (a) toasts.push(a);
+}
+
+function updateToasts(dt) {
+  toastT -= dt;
+  if (toastT > 0) return;
+  ui.toast.classList.remove('show');
+  if (toastT > -0.4 || !toasts.length) return;   // a short gap between them
+  const a = toasts.shift();
+  ui.toast.innerHTML = '<span class="k">achievement</span><span class="name"></span><span class="desc"></span>';
+  ui.toast.querySelector('.name').textContent = a.name;
+  ui.toast.querySelector('.desc').textContent = a.desc;
+  ui.toast.classList.add('show');
+  sfx.chime();
+  toastT = 3.6;
+}
+
+const ACH_GROUPS = [['nights', 'nights survived'], ['feats', 'feats'], ['deaths', 'ways to die']];
+
+function renderAchievements() {
+  const got = achievements.unlocked();
+  const real = ACHIEVEMENTS.filter((a) => !a.later);
+  ui.achCount.textContent = `${real.filter((a) => got[a.id]).length} of ${real.length}`;
+  ui.achList.innerHTML = '';
+  for (const [group, title] of ACH_GROUPS) {
+    const h = document.createElement('li');
+    h.className = 'group';
+    h.textContent = title;
+    ui.achList.appendChild(h);
+    for (const a of ACHIEVEMENTS.filter((x) => x.group === group)) {
+      const li = document.createElement('li');
+      const has = !!got[a.id];
+      li.className = has ? 'got' : a.later ? 'later' : 'locked';
+      const secret = a.hidden && !has;
+      li.innerHTML = '<span class="mark"></span><span class="name"></span><span class="desc"></span>';
+      li.querySelector('.mark').textContent = has ? '✦' : '·';
+      li.querySelector('.name').textContent = secret ? '???' : a.name;
+      li.querySelector('.desc').textContent = secret ? 'something very unlucky.' : a.later ? `${a.desc} (a later version)` : a.desc;
+      ui.achList.appendChild(li);
+    }
+  }
 }
 
 /* --------------------------------------------------------------- messages */
@@ -1848,6 +1921,7 @@ function updateGame(dt) {
 // Things that keep moving on every screen: light, door, eyes, flames, snow and the endings.
 function updateAmbient(dt) {
   if (mode !== 'playing') updateMessages(dt);
+  updateToasts(dt);
   if (doorCloseIn > 0) {
     doorCloseIn -= dt;
     if (doorCloseIn <= 0) { doorTarget = 0; visitorAtDoor = null; }
@@ -3307,7 +3381,7 @@ function drawLight() {
 // Every way to die has its own few seconds before the red screen. lossT runs from 0 when you die.
 const DEATH_LEN = {
   dark: 5.6, starve: 5.6, burn: 5.8, mimic: 5.4, hand: 5.2, handAway: 5.2, hunter: 5.6,
-  risen: 5.6, cellar: 5.2, cellarAway: 5.2, falseStranger: 5.6, freeze: 5.6,
+  risen: 5.6, cellar: 5.2, cellarAway: 5.2, falseStranger: 5.6, freeze: 5.6, lost: 5.6,
 };
 const deathLen = () => DEATH_LEN[S.cause] || 4;
 const seg = (a, b) => clamp((lossT - a) / (b - a), 0, 1);   // progress 0..1 through one stretch of a death
@@ -3330,6 +3404,7 @@ const DEATH_CUES = {
   risen: [[0.7, () => sfx.crack()], [1.4, () => sfx.crack()], [2.1, () => sfx.breath()], [2.9, () => sfx.growl(1.1)], [3.1, () => sfx.footsteps(4)]],
   cellar: [[0, () => sfx.slam()], [1.0, () => sfx.scratch()], [2.9, () => { sfx.drag(); sfx.thump(1); shake = 0.3; }]],
   falseStranger: [[0.7, () => sfx.crack()], [1.8, () => sfx.breath()], [3.2, () => sfx.growl(1.3)]],
+  lost: [[0, () => sfx.gust()], [1.3, () => sfx.gust()], [2.6, () => sfx.gust()], [3.6, () => sfx.howl()]],
   freeze: [[0.1, () => sfx.gust()], [0.6, () => sfx.heartbeat(0.7)], [2.0, () => sfx.heartbeat(0.45)], [3.6, () => sfx.heartbeat(0.25)], [3.0, () => sfx.gust()]].sort((a, b) => a[0] - b[0]),
 };
 DEATH_CUES.handAway = DEATH_CUES.hand;
@@ -3830,10 +3905,31 @@ function deathFreeze(s, t) {
   }
 }
 
+// Lost in the white: the whiteout swallows the room, snow driving sideways, and a small dark figure, you,
+// walks away into it until there is nothing left to see.
+function deathLost(s, t) {
+  const k = seg(0.2, 2.6);
+  lx.fillStyle = `rgba(226, 232, 242, ${0.92 * k})`;
+  lx.fillRect(0, 0, light.width, light.height);
+  lx.fillStyle = `rgba(255, 255, 255, ${0.5 + 0.4 * k})`;
+  for (let i = 0; i < 90; i++) {
+    const y = hash(i) * H;
+    const x = ((hash(i + 7) * (W + 60) + lossT * (180 + hash(i + 3) * 160)) % (W + 60)) - 30;
+    lpx(s, x, y, 5 + hash(i + 5) * 12, 0.5);
+  }
+  const w = seg(1.2, 4.6);
+  if (w > 0 && w < 1) {
+    const h = lerp(26, 2, w), cx = 160 + Math.sin(lossT * 2) * 2 * (1 - w), feet = lerp(150, 104, w);
+    lx.fillStyle = `rgba(30, 30, 36, ${0.85 * (1 - w)})`;
+    lpx(s, cx - h * 0.18, feet - h, h * 0.36, h);
+    lpx(s, cx - h * 0.12, feet - h * 1.18, h * 0.24, h * 0.2);
+  }
+}
+
 const DEATH_SCENES = {
   dark: deathDark, starve: deathStarve, burn: deathBurn, mimic: deathMimic, hand: deathHand, handAway: deathHand,
   hunter: deathHunter, risen: deathRisen, cellar: deathCellar, cellarAway: deathCellar, falseStranger: deathFalseStranger,
-  freeze: deathFreeze,
+  freeze: deathFreeze, lost: deathLost,
 };
 
 function drawDeath(s, t) {
@@ -4090,6 +4186,8 @@ function showTitle(panel = 'menu') {
   ui.howPanel.classList.toggle('hidden', panel !== 'how');
   ui.boardPanel.classList.toggle('hidden', panel !== 'board');
   ui.devPanel.classList.toggle('hidden', panel !== 'dev');
+  ui.achPanel.classList.toggle('hidden', panel !== 'ach');
+  if (panel === 'ach') renderAchievements();
   $('devBtn').classList.toggle('hidden', !devMode);
   if (panel === 'board') { renderBoard(ui.boardList); ui.boardTally.textContent = tallyText(loadStats()); }
   ui.cont.classList.toggle('hidden', !(S.lit && !S.ended));
@@ -4097,7 +4195,7 @@ function showTitle(panel = 'menu') {
   ui.day.classList.add('hidden');
   toggleJournal(false);
   toggleBuild(false);
-  const sel = panel === 'menu' ? '#titleMenu' : panel === 'how' ? '#howPanel' : panel === 'dev' ? '#devPanel' : '#boardPanel';
+  const sel = panel === 'menu' ? '#titleMenu' : panel === 'how' ? '#howPanel' : panel === 'dev' ? '#devPanel' : panel === 'ach' ? '#achPanel' : '#boardPanel';
   ui.title.querySelector(`${sel} button:not(.hidden)`)?.focus({ preventScroll: true });
 }
 
@@ -4210,6 +4308,8 @@ function showEnding(won) {
   }
   S.runNights = n;
   scoreRow('score', '', S.final, 'total');
+  if (result.lines.at(-1)[2] >= 200) achieve('well_stocked');
+  if (S.final >= 1000) achieve('four_figures');
   if (n < LAST_NIGHT) {
     renderBoard(ui.endBoard);
     ui.dayBtn.classList.remove('hidden');
@@ -4349,6 +4449,7 @@ function devStart(which) {
   else renderDay();
 }
 $('devBtn').addEventListener('click', () => showTitle('dev'));
+$('achBtn').addEventListener('click', () => showTitle('ach'));
 document.querySelectorAll('[data-dev]').forEach((b) => b.addEventListener('click', () => devStart(b.dataset.dev)));
 $('version').textContent = `v${VERSION}`;
 ui.retry.addEventListener('click', () => newNight(true));
