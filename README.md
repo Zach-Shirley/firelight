@@ -64,7 +64,7 @@ Keep the door shut on a real visitor and you hear their footsteps leave. Keep it
 
 ## The day, and nights 2 and 3
 
-Make it to dawn and you choose: **end here** and bank your score, or **rest through the day** and face the next night. A run is up to three nights. Longer runs score far more, and the leaderboard marks them with one ☀ per night.
+Make it to dawn and you choose: **end here** and bank your score, or **rest through the day** and face the next night. A run is up to four nights (night 4 is a placeholder for now: the blizzard again). Longer runs score far more, and the leaderboard marks them with one ☀ per night.
 
 **The day** is a planning screen over the daylit room. It runs from 6 am to 10 pm: 16 hours, and every choice costs some. Each button shows what time it'll be when you're done.
 
@@ -77,7 +77,7 @@ Make it to dawn and you choose: **end here** and bank your score, or **rest thro
 | Repair or board the window | 2 | Back to three boards. The glass is gone for good, so the wind is in from the start |
 | Bury her | 2 | Only if you dragged the stranger's body out; it stops drawing the hunter |
 | Sit with the stranger | 1 | Only if she's alive; she gives you salt and warns you about the floor |
-| Sleep | 6 | Skip it and you start the night **tired**: slower hands, slower trips, and now and then your eyes close and the screen goes black for a moment |
+| Sleep | 6 | Skip it and the night gets worse; see **No sleep** below. Sleeping resets the count |
 
 The day also dries every wet log and spoils any meat that isn't cured. The day screen warns you what the next night brings.
 
@@ -88,6 +88,15 @@ The day also dries every wet log and spoils any meat that isn't cured. The day s
 | **Salt** | *Salt the doorway* (2 salt): the next thing you open the door to that isn't a person can't cross; the line breaks instead of you. *Salt the sill* (2 salt): the next time she would get through the window, she recoils |
 | **The thing under the floor** | There is a cellar hatch in the room. The floorboards creak and dust puffs up, then the lid lifts and pale fingers curl out, with eyes in the gap. It sits right under the meat rack. **Slam the hatch** (F/Space). **Bar it** with a beam (4 wood): slam it in time and the beam stays whole; miss, and the beam breaks instead of it getting out. With no beam, a long pale arm comes up the wall and strips **half your meat** off the rack, then stays down a long while. No meat, and it takes **the stranger**: one sharp breath and she's gone. No stranger, and it takes you. While you're out, nobody is there to slam it |
 | **Fur** | From night 2, traps now and then catch a pelt. Fur makes a coat or insulation, or keep it: 3 points each at dawn |
+
+**No sleep.** Each day in a row you skip sleep makes the next night worse:
+
+| Days awake | What happens |
+| --- | --- |
+| 1 | Your eyes close every 15–20 seconds or so for 2–3 seconds; you can't act while they're shut. Slower hands and trips, and you get hungry faster. **Meat cooking while your eyes are shut burns**: it goes on the fire instead, which burns a little longer for it |
+| 2 | Longer, more frequent dozes, and **things that aren't there**: knocks with footsteps but nothing under the door (the lantern shows no feet at all); howls with no eyes in the treeline; whispering at the edge of hearing; her at the window when she isn't (look closely: a faint double of her drifts around her); the hatch rattling three times as often, only one in three real. And every mimic seems to walk up, so footsteps tell you nothing |
+| 3 | Longer and more frequent still, trips take two seconds more, it howls every few seconds, its eyes and grin flicker in the treeline, and the false hers have no tell at all |
+| 4 | You don't make it to the first hour |
 
 **Night 3 is the blizzard.** Everything still comes two hours early, and:
 
@@ -350,7 +359,7 @@ They're stored in this browser for now (`achievements.js`). Each unlock keeps it
 
 Open the game once with `?dev` on the address (https://firelight-topaz.vercel.app/?dev) and the title menu gets a **playtest** button, remembered in that browser. It starts you at the day before night 2 or 3, or straight into night 2 or 3, with a basic kit: boarded window, two traps (three on night 3), the lantern, the stranger, some food and wood, and on night 3 a woodshed and the drying rack. Playtest runs don't count toward the stats or the leaderboard.
 
-The version is in the bottom-right corner (v0.29 is the 29th commit), so you can tell a refresh picked up the latest build.
+The version is in the bottom-right corner (v0.30 is the 30th commit), so you can tell a refresh picked up the latest build.
 
 ## Future ideas
 

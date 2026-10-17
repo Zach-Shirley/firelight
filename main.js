@@ -6,7 +6,7 @@ import * as sfx from './sound.js';
 import { ACHIEVEMENTS, createStore } from './achievements.js';
 import { computeScore, qualifies, insertScore, cleanInitials, sanitizeBoard } from './score.js';
 
-const VERSION = '0.29';   // one step per commit to the repository
+const VERSION = '0.30';   // one step per commit to the repository
 const W = 320, H = 180;
 const FIRE = { x: 160, y: 136 };          // base of the flames
 const LIGHT_Y = 130;                       // centre of the light pool
@@ -135,6 +135,7 @@ function freshState() {
     dayDone: {},
     dayLog: [],
     tired: false,                                // didn't sleep through the day
+    awake: 0,                                    // days in a row without sleep (0..3; a fourth kills you)
     dozeT: 22,
     salt: 0,
     saltDoor: false,
@@ -201,7 +202,7 @@ function save() {
 const CAUSE_NAMES = {
   dark: 'the dark', starve: 'hunger', burn: 'the fire', mimic: 'the mimic', hand: 'her, at the window', handAway: 'her, at the window',
   hunter: 'the thing in the trees', risen: "the stranger's body", falseStranger: 'the false stranger',
-  cellar: 'the thing under the floor', cellarAway: 'the thing under the floor', freeze: 'the cold', lost: 'the white',
+  cellar: 'the thing under the floor', cellarAway: 'the thing under the floor', freeze: 'the cold', lost: 'the white', sleep: 'no sleep',
 };
 
 function loadStats() {
@@ -327,7 +328,7 @@ function resetTransients() {
 const clockHour = () => Math.min(NIGHT_HOURS - 1, Math.floor(S.night / HOUR));
 // from the second night everything that hunts you behaves as if it were two hours later
 const hour = () => Math.min(NIGHT_HOURS - 1, clockHour() + (S.nightNo >= 2 ? 2 : 0));
-const LAST_NIGHT = 3;
+const LAST_NIGHT = 4;   // night 4 is a placeholder for now: the blizzard again, nothing new yet
 const blizzard = () => S.nightNo >= 3;   // nights 3 (and later 4): the blizzard
 
 function clockText(night) {
@@ -358,6 +359,16 @@ const HOUR_LINES_2 = {
   7: 'the last hour of the second night. hold on.',
 };
 
+const HOUR_LINES_4 = {
+  1: "eleven o'clock. the blizzard has not stopped since last night.",
+  2: 'midnight. snow is piled to the sill.',
+  3: 'one in the morning. the cold is in the walls now.',
+  4: 'two in the morning. the trees are gone in the white.',
+  5: 'three in the morning. you have been here a long time.',
+  6: 'four in the morning. almost.',
+  7: 'the last hour of the fourth night. hold on.',
+};
+
 const HOUR_LINES_3 = {
   1: "eleven o'clock. the wind screams around the cabin.",
   2: 'midnight. you can no longer see the trees.',
@@ -374,7 +385,7 @@ function updateNight(dt) {
   S.night += dt;
   const h = hour();
   const ch = clockHour();
-  if (ch > S.hourSaid) { S.hourSaid = ch; say((S.nightNo >= 3 ? HOUR_LINES_3 : S.nightNo === 2 ? HOUR_LINES_2 : HOUR_LINES)[ch]); }
+  if (ch > S.hourSaid) { S.hourSaid = ch; say((S.nightNo >= 4 ? HOUR_LINES_4 : S.nightNo === 3 ? HOUR_LINES_3 : S.nightNo === 2 ? HOUR_LINES_2 : HOUR_LINES)[ch]); }
   if (S.night >= NIGHT_HOURS * HOUR) { startDawn(); return; }
 
   // the fire burns down, faster every hour
@@ -392,7 +403,7 @@ function updateNight(dt) {
   else S.darkTime = Math.max(0, S.darkTime - dt * 3);
 
   // hunger: you have to keep eating all night
-  S.hunger += dt * (0.62 + h * 0.03) * (S.sick > 0 ? 1.25 : 1) * (S.cold > 50 ? 1.3 : 1);   // the cold burns through you
+  S.hunger += dt * (0.62 + h * 0.03) * (S.sick > 0 ? 1.25 : 1) * (S.cold > 50 ? 1.3 : 1) * awakeMult([1, 1.15, 1.25, 1.35]);   // the cold burns through you, and so does no sleep
   if (S.hunger >= 70 && S.hungerSaid < 1) { S.hungerSaid = 1; sfx.growl(0.7); say('your stomach aches. you need to eat.'); }
   if (S.hunger >= 90 && S.hungerSaid < 2) { S.hungerSaid = 2; growlT = 6; sfx.growl(1); say("you're weak with hunger. your hands shake."); }
   if (S.hunger >= 90) {
@@ -429,8 +440,15 @@ function updateNight(dt) {
       S.cooking.t -= dt;
       if (Math.random() < dt * 3) sfx.sizzle();
       if (S.cooking.t <= 0) {
-        addCooked(S.cooking.n);
-        say(`the meat is cooked. +${S.cooking.n} cooked meat`);
+        if (S.cooking.burnt) {
+          S.decay += 1.2 * S.cooking.n;
+          for (let i = 0; i < 16; i++) spawnEmber(true);
+          sfx.sizzle();
+          say(`the meat burned black while your eyes were shut. you throw it on the fire. -${S.cooking.n} raw meat`);
+        } else {
+          addCooked(S.cooking.n);
+          say(`the meat is cooked. +${S.cooking.n} cooked meat`);
+        }
         S.cooking = null;
       }
     }
@@ -478,11 +496,7 @@ function updateNight(dt) {
   updateHatch(dt);
   if (mode !== 'playing') return;
   updateDoor(dt);
-  // no sleep: now and then your eyes close for a moment
-  if (S.tired && S.nightNo >= 2) {
-    S.dozeT -= dt;
-    if (S.dozeT <= 0) { S.dozeT = rand(18, 30); doze = 1.4; say('your eyes close for a moment.'); }
-  }
+  updateAwake(dt);
   // the stranger warns you about the floor, once, early on the second night
   if (S.n2HintT > 0 && S.stranger === 'inside' && !dialog && !S.away) {
     S.n2HintT -= dt;
@@ -498,6 +512,69 @@ function updateNight(dt) {
     }
   }
   updateStranger(dt);
+}
+
+/* --------------------------------------------------------- no sleep */
+
+// Each day you skip sleep makes the next night worse. One: your eyes close now and then, you're slow and hungrier,
+// and meat cooking while your eyes are shut burns. Two: you start hearing and seeing things that aren't there.
+// Three: it hardly stops. A fourth: you don't make it to the first hour.
+const AWAKE_LINES = ['', "you didn't sleep. your eyes are heavy.", "two days without sleep. the edges of things won't hold still.", 'three days without sleep. you are not sure what is real anymore.'];
+const lvl = () => Math.min(3, S.awake || 0);
+const DOZE = [null, [15, 20, 2, 3], [10, 15, 3, 4], [7, 11, 4, 5]];   // gap min..max, length min..max (seconds)
+const dozeGap = () => (lvl() ? rand(DOZE[lvl()][0], DOZE[lvl()][1]) : 99);
+let dozeLen = 1.4;
+const awakeMult = (list) => list[lvl()];
+
+function updateAwake(dt) {
+  const L = lvl();
+  if (!L) return;
+  // your eyes close: you can't act, and the dark doesn't wait
+  S.dozeT -= dt;
+  if (S.dozeT <= 0 && !S.away && !dialog) {
+    S.dozeT = dozeGap();
+    dozeLen = doze = rand(DOZE[L][2], DOZE[L][3]);
+    if (S.cooking) S.cooking.burnt = true;
+    say(pick(['your eyes close for a moment.', 'you jerk awake. how long was that?', 'your head drops. the room swims back.']));
+  }
+  if (L < 2) return;
+  // the things that aren't there
+  S.halT -= dt;
+  if (S.halT <= 0) {
+    S.halT = L >= 3 ? rand(6, 11) : rand(14, 24);
+    hallucinate(L);
+  }
+  if (L >= 3) {
+    S.howlT -= dt;
+    if (S.howlT <= 0) { S.howlT = rand(4, 9); sfx.howl(); }   // it never stops howling
+    if (!S.away && Math.random() < dt * 0.12) phantomEyes = rand(1.5, 3.5);   // its eyes, there and not there
+    if (!S.away && Math.random() < dt * 0.05) phantomGrin = rand(0.6, 1.2);
+  }
+  if (Math.random() < dt / (L >= 3 ? 25 : 60)) sfx.whisper();
+}
+
+let phantomEyes = 0, phantomGrin = 0;
+
+function hallucinate(L) {
+  const roll = Math.random();
+  if (roll < 0.3 && !pendingVisit && !dialog && !S.away && S.lit) {
+    // a knock, footsteps and all, from nothing (the lantern would show no feet at all)
+    queueVisit('phantom', pick(S.nightNo >= 2 ? ['woodcutter', 'trader', 'stranger'] : ['woodcutter', 'stranger']));
+  } else if (roll < 0.5) {
+    sfx.howl();
+    say('a long, low howl from the trees. close.');
+    if (L >= 3) phantomEyes = rand(2, 4);
+  } else if (roll < 0.75 && hour() >= 1 && S.hand.phase === 'idle' && S.hand.t > 10) {
+    // her, at the window, and not
+    S.hand.realT = S.hand.t;
+    S.hand.phantom = true;
+    S.hand.phase = 'warn';
+    S.hand.t = 4;
+    sfx.scratch();
+    say(S.boards ? 'something scrapes at the boards over the window.' : 'something is moving outside the broken window.');
+  } else {
+    sfx.whisper();
+  }
 }
 
 /* --------------------------------------------------------- the hunter */
@@ -789,11 +866,11 @@ function openShop(first) {
 
 function startTrip(kind) {
   if (!canAct() || S.away || !S.lit) return;
-  const slow = (S.hunger >= 90 ? 1.3 : 1) * (S.sick > 0 ? 1.3 : 1) * (S.tired && S.nightNo >= 2 ? 1.2 : 1) * (S.shoes && kind !== 'shed' ? 0.7 : 1) * (S.cold >= 60 ? 1.15 : 1);
+  const slow = (S.hunger >= 90 ? 1.3 : 1) * (S.sick > 0 ? 1.3 : 1) * awakeMult([1, 1.2, 1.3, 1.4]) * (S.shoes && kind !== 'shed' ? 0.7 : 1) * (S.cold >= 60 ? 1.15 : 1);
   // the woodshed: you take out what wood you have (up to what it still needs) and build log by log
   const logs = kind === 'shed' ? Math.min(S.wood, PILE_CAP - S.shedBuilt) : 0;
   if (kind === 'shed' && logs < 1) { say('you need wood to build with.'); return; }
-  const total = TRIPS[kind].time * slow * (kind === 'shed' ? logs : 1) * (blizzard() ? 1.5 : 1);
+  const total = TRIPS[kind].time * slow * (kind === 'shed' ? logs : 1) * (blizzard() ? 1.5 : 1) + (lvl() >= 3 ? 2 : 0);
   // if it is already out there when you leave, there is no head start
   S.away = { kind, t: total, total, startedNear: S.hunter.near, logs, placed: 0,
     stumble: blizzard() && kind !== 'drag' && Math.random() < 0.04 ? rand(1, total * 0.7) : -1,
@@ -949,8 +1026,8 @@ function updateHand(dt) {
       say(!S.glassBroken ? 'something scrapes slowly down the window glass.' : S.boards ? 'something scrapes at the boards over the window.' : 'something is moving outside the broken window.');
     }
   } else if (hd.phase === 'warn') {
-    // her first visit: the glass goes partway through her arrival, boards or not
-    if (!S.glassBroken && hd.t <= 1.8) breakGlass();
+    // her first visit: the glass goes partway through her arrival, boards or not (not when she isn't real)
+    if (!S.glassBroken && hd.t <= 1.8 && !hd.phantom) breakGlass();
     if (hd.t <= 0) {
       if (S.boards > 0) {
         hd.phase = 'reach';
@@ -969,7 +1046,7 @@ function updateHand(dt) {
     hd.beat -= dt;
     if (hd.beat <= 0) { sfx.thump(0.7 + hd.p * 0.6); hd.beat = 0.62 - hd.p * 0.28; hd.jerk = 0.18; }
     hd.jerk = Math.max(0, (hd.jerk || 0) - dt);
-    if (hd.t <= 0) handTimeout();
+    if (hd.t <= 0) { if (hd.phantom) endPhantom(); else handTimeout(); }
   } else if (hd.phase === 'tear') {
     // she rips the boards off one by one and drags them out with her
     hd.beat -= dt;
@@ -996,6 +1073,8 @@ function updateHand(dt) {
       hd.total = hd.t = 3.5 * (blizzard() ? 0.7 : 1);
       hd.beat = 0;
       say('you get the boards up just in time. she claws at them.');
+    } else if (hd.t <= 0 && hd.phantom) {
+      endPhantom();
     } else if (hd.t <= 0) {
       if (S.saltWin) saltRepels();
       else if (S.wood >= HER_TOLL) {
@@ -1026,11 +1105,29 @@ function updateHand(dt) {
   }
 }
 
+// a her that was never there fades out of the window, and the real one's clock picks up where it was
+function endPhantom() {
+  const hd = S.hand;
+  hd.phantom = false;
+  hd.phase = 'idle';
+  hd.t = Math.max(6, hd.realT || nextHand());
+  say('the window is empty. it was always empty.');
+}
+
 function strikeHand() {
   const hd = S.hand;
   if (hd.phase !== 'reach' || S.away || dialog || mode !== 'playing') return;
   if (S.wood < 1 || S.fire < 1) { say('you need a burning branch. there is no fire to take one from.'); return; }
   S.wood -= 1;
+  if (hd.phantom) {
+    hd.phantom = false;
+    hd.phase = 'idle';
+    hd.t = Math.max(6, hd.realT || nextHand());
+    spawnBurn(handGrip().x + 3, handGrip().y + 1);
+    sfx.hiss();
+    say('you jam the burning branch into the gap. there is nothing there. there was never anything there.');
+    return;
+  }
   nearMiss('her', 1 - hd.t / hd.total, `burned her back with ${hd.t.toFixed(1)} s to spare`);
   if (hd.t < 0.5) achieve('by_a_hair');
   hd.phase = 'retreat';
@@ -1098,7 +1195,7 @@ function updateDoor(dt) {
     const looks = ['woodcutter'];
     if (S.nightNo >= 2) looks.push('trader');
     if (S.stranger !== 'none') looks.push('stranger', 'stranger');
-    queueVisit('mimic', pick(looks), h >= WALKS_FROM && Math.random() < 0.6);
+    queueVisit('mimic', pick(looks), (h >= WALKS_FROM && Math.random() < 0.6) || lvl() >= 2);   // two days awake, every one seems to walk up
   } else if (pool.length) {
     queueVisit(pick(pool));
   }
@@ -1106,8 +1203,9 @@ function updateDoor(dt) {
 
 function queueVisit(who, as = who, fake = false) {
   const real = who !== 'mimic';
-  // under the door, in the lantern's light, people stand on two feet. a mimic gets it wrong: one, or three
-  pendingVisit = { who, as, fake, feet: real ? 2 : pick([1, 3]), t: real || fake ? 3.2 : 0.9, away: !!S.away };
+  // under the door, in the lantern's light, people stand on two feet. a mimic gets it wrong: one, or three.
+  // what you only imagine has no feet at all
+  pendingVisit = { who, as, fake, feet: who === 'phantom' ? 0 : real ? 2 : pick([1, 3]), t: real || fake ? 3.2 : 0.9, away: !!S.away };
   if (S.away) return;   // you can't hear footsteps from the trees; the snow will tell you when you're back
   if (real || fake) {
     sfx.footsteps();
@@ -1151,7 +1249,7 @@ function knockText(v) {
 }
 
 const lanternLit = () => S.lantern && S.lanternLit;
-const FEET_AT = { 1: [271], 2: [267, 276], 3: [263, 271, 279] };
+const FEET_AT = { 0: [], 1: [271], 2: [267, 276], 3: [263, 271, 279] };
 
 // The same words for everyone: you have to count the feet yourself.
 function lanternText() {
@@ -1162,7 +1260,7 @@ function knockDialogue(v) {
   return {
     id: 'knock',
     visit: v,
-    portrait: lanternLit() ? `doorFeet${v.feet || 2}` : 'door',
+    portrait: lanternLit() ? `doorFeet${v.feet ?? 2}` : 'door',
     text: knockText(v) + lanternText(),
     choices: [
       { label: 'open the door', act: () => openDoorFor(v) },
@@ -1181,6 +1279,11 @@ const anyMeat = () => S.meat + S.cooked;
 
 function openDoorFor(v) {
   doorTarget = 1;
+  if (v.who === 'phantom') {
+    doorCloseIn = 1.4;
+    say('there is no one there. no footprints in the snow. there never were.');
+    return;
+  }
   if (v.who === 'mimic') {
     if (S.saltDoor) {
       S.saltDoor = false;
@@ -1232,6 +1335,7 @@ function openDoorFor(v) {
 }
 
 function keepShut(v) {
+  if (v.who === 'phantom') { say('the knocking stops. there are no footprints in the snow, coming or going.'); return; }
   if (v.who === 'mimic') {
     S.rec.mimicsKept += 1;
     if (lanternLit()) achieve('count_feet');
@@ -1401,6 +1505,7 @@ const DEATHS = {
     : 'real visitors walk up through the snow. listen for footsteps before the knock. and there is only one stranger.') },
   hand: { text: 'She climbed in through the broken window.', hint: 'board the window before one in the morning. glass will not stop her, and fire will.' },
   handAway: { text: 'You came back to a broken window. She was already inside.', hint: 'board the window before one in the morning. a bare window lets her in, whether you are home or not.' },
+  sleep: { text: 'You lay down by the fire at dusk, just for a moment, and never got up.', hint: 'four days without sleep is more than anyone can take. sleep during the day.' },
   lost: { text: 'You lost the path in the white, and never found it again.',
     hint: "nothing you could have done. about one blizzard night in a hundred ends like this. you were very, very unlucky." },
   freeze: { text: () => (S.away ? 'You froze in the snow, a little way from the door.' : 'You froze by a fire too small to save you.'),
@@ -1443,6 +1548,7 @@ function startDawn() {
   S.hunter.near = false;
   for (const e of eyes) e.out = true;
   achieve(`night_${S.nightNo}`);
+  if (lvl() >= 3) achieve('awake_3');
   if (S.stranger === 'inside' && !S.strangerFalse) { achieve('not_alone'); if (S.nightNo >= 3) achieve('three_together'); }
   sfx.dawn();
   say('the sky outside is turning gray.');
@@ -1530,7 +1636,7 @@ function updateMessages(dt) {
 
 /* ---------------------------------------------------------------- actions */
 
-const canAct = () => mode === 'playing' && !dialog && !S.away;
+const canAct = () => mode === 'playing' && !dialog && !S.away && doze <= 0.15;   // not with your eyes shut
 
 function stoke() {
   if (!canAct() || S.cd.stoke > 0 || S.wood < 1) return;
@@ -1547,7 +1653,7 @@ function stoke() {
     spawnSmoke(160, 128); spawnSmoke(157, 124); spawnSmoke(163, 120);
     if (Math.random() < 0.4) say('the wet wood hisses and smokes. it will not burn for long.');
   }
-  S.cd.stoke = STOKE_CD * (S.hunger >= 90 ? 2 : 1) * (S.sick > 0 ? 1.3 : 1) * (S.tired && S.nightNo >= 2 ? 1.25 : 1) * (S.cold >= 60 ? 1.3 : 1);   // numb hands
+  S.cd.stoke = STOKE_CD * (S.hunger >= 90 ? 2 : 1) * (S.sick > 0 ? 1.3 : 1) * awakeMult([1, 1.25, 1.4, 1.6]) * (S.cold >= 60 ? 1.3 : 1);   // numb hands, heavy eyes
   S.deadFor = 0;
   if (!S.lit) {
     S.lit = true;
@@ -1614,6 +1720,7 @@ function updateHatch(dt) {
     if (hc.t <= 0) {
       hc.phase = 'creak';
       hc.t = 3.5;
+      hc.phantom = lvl() >= 2 && Math.random() > 1 / 3;
       sfx.creak();
       spawnDust();
       say(S.hatchBar ? 'the beam over the hatch creaks. something pushes from below.' : 'the floorboards creak near the hatch. dust puffs up between them.');
@@ -1628,13 +1735,16 @@ function updateHatch(dt) {
     }
   } else if (hc.phase === 'lift') {
     hc.p = 1 - hc.t / hc.total;
-    if (hc.t <= 0) hatchMissed();
+    if (hc.t <= 0) {
+      if (hc.phantom) { hc.phase = 'slammed'; hc.t = 0.6; hc.phantom = false; say('the hatch settles. nothing came up. maybe nothing was ever there.'); }
+      else hatchMissed();
+    }
   } else if (hc.phase === 'feeding' || hc.phase === 'taking') {
     if (hc.phase === 'taking' && hc.t <= 0.2 && S.stranger === 'inside') S.stranger = 'taken';
     if (hc.t <= 0) { hc.phase = 'idle'; hc.t = nextHatch() * 1.8; }   // fed, it stays down a long while
   } else if (hc.t <= 0) {
     hc.phase = 'idle';
-    hc.t = nextHatch();
+    hc.t = nextHatch() / (lvl() >= 2 ? 3 : 1);
   }
 }
 
@@ -1752,8 +1862,16 @@ const DAY_ACTIONS = [
       S.dayDone.sit = true; S.salt += 2;
       return 'she presses a pouch of salt into your hands. "something lives under this floor," she says. "when the boards creak, slam that hatch shut. if you go out, bar it." +2 salt';
     } },
-  { id: 'sleep', name: 'sleep', hours: 6, desc: "you haven't slept. go into the night without it and you'll be slow, and your eyes will close.", show: () => S.tired,
+  { id: 'sleep', name: 'sleep', hours: 6, desc: () => SKIP_SLEEP[Math.min(4, (S.awake || 0) + 1)], show: () => S.tired,
     act: () => { S.tired = false; return 'you sleep by the coals. no dreams. you wake to long shadows.'; } },
+];
+
+const SKIP_SLEEP = [
+  '',
+  "skip it and tonight you'll be slow and hungrier, your eyes will close now and then, and meat cooking while they're shut will burn.",
+  "you didn't sleep last night either. skip it again and you'll start hearing and seeing things that aren't there.",
+  'two days awake already. a third and you will hardly be able to tell what is real.',
+  'three days awake. if you do not sleep now, you will not live through the night.',
 ];
 
 const dayName = (a) => (typeof a.name === 'function' ? a.name() : a.name);
@@ -1765,6 +1883,7 @@ const dayClock = (hoursLeft) => clockText(((22 - hoursLeft - START_HOUR + 24) % 
 // what the next night brings, told during the day
 const NIGHT_WARNINGS = {
   2: 'Tonight will be worse. Everything comes two hours sooner: the thing in the trees and the knocking from the moment it gets dark, her at the window from eleven, and the walkers from one in the morning.',
+  4: 'The blizzard will not stop. Tonight is the same as last night: the cold, the wet wood, the long trips, and everything two hours sooner.',
   3: 'A blizzard is coming tonight. Everything still comes two hours sooner. Out in it, everything takes half again as long, and the cold can kill you: one trip chills you badly, two in a row could freeze you. The wood you bring in will be wet, and wet wood barely burns until it dries.',
 };
 
@@ -1837,6 +1956,7 @@ function doDay(id) {
 const NIGHT_START = {
   2: ['the sun is down. the second night begins. dawn is eight hours away.', 'they are already awake. tonight everything comes two hours sooner.'],
   3: ['the sun is down, and the blizzard comes with it. the third night begins.', 'out there everything takes longer, the cold bites, and the wood comes in wet.'],
+  4: ['the sun goes down on a fourth night. the blizzard has not let up.', 'the same as last night: the cold, the wet wood, the long trips. hold on.'],
 };
 
 function startNextNight() {
@@ -1852,14 +1972,19 @@ function startNextNight() {
     rec: { letIn: 0, turnedAway: 0, mimicsKept: 0, fed: 0, burned: 0, boardsLost: 0, trips: 0, cooked: 0, raw: 0, closest: 0, close: {}, slammed: 0 },
   });
   S.decay = decayTime();
+  S.awake = S.tired ? (S.awake || 0) + 1 : 0;
+  S.dozeT = dozeGap();
+  S.halT = rand(8, 14);
+  S.howlT = rand(4, 9);
   if (S.stranger === 'inside') { S.sHunger = 30; S.sPlea = 0; S.n2HintT = S.strangerFalse || n !== 2 ? -1 : 9; S.n3HintT = S.strangerFalse || n !== 3 ? -1 : 60; }
   if (S.fire === 0) S.fire = 1;
   S.lit = true;
   resetTransients();
   setMode('playing');
   for (const line of NIGHT_START[n]) say(line);
-  if (S.tired) setTimeout(() => { if (S.nightNo === n && mode === 'playing') say("you didn't sleep. your eyes are heavy."); }, 3000);
+  if (S.awake) setTimeout(() => { if (S.nightNo === n && mode === 'playing') say(AWAKE_LINES[Math.min(3, S.awake)]); }, 3000);
   save();
+  if (S.awake >= 4) die('sleep');   // a fourth day without sleep: you lie down at dusk and don't get up
 }
 
 /* ------------------------------------------------------------------ build */
@@ -2097,7 +2222,9 @@ function updateAmbient(dt) {
   cabT = Math.max(0, cabT - dt);
   flareT = Math.max(0, flareT - dt);
   doze = Math.max(0, doze - dt);
-  hunterEyes = clamp(hunterEyes + dt * (S.hunter.near && mode === 'playing' ? 0.8 : -0.8), 0, 1);
+  phantomEyes = Math.max(0, phantomEyes - dt);
+  phantomGrin = Math.max(0, phantomGrin - dt);
+  hunterEyes = clamp(hunterEyes + dt * ((S.hunter.near || phantomEyes > 0) && mode === 'playing' ? 0.8 : -0.8), 0, 1);
 
   dispR += (targetRadius() - dispR) * Math.min(1, dt * (mode === 'lost' ? 3 : 1.8));
   door += (doorTarget - door) * Math.min(1, dt * (mode === 'lost' ? (S.cause === 'hunter' ? 0.7 : 10) : 4));
@@ -2124,7 +2251,8 @@ function updateAmbient(dt) {
         id: 'dawn', portrait: S.stranger === 'inside' ? 'stranger' : 'dawn',
         text: S.stranger === 'inside'
           ? 'Gray light creeps across the floor. The eyes are gone. The stranger stands and stretches, and for the first time she smiles. "They never come in the light," she says.'
-          : S.nightNo >= 3 ? 'Gray light, and at last the snow stops falling. Three nights. Under the floor, something settles and goes still.'
+          : S.nightNo >= 4 ? 'Gray light. The snow finally stops. Four nights. You are still here.'
+          : S.nightNo === 3 ? 'Gray light, and at last the snow eases. Three nights. Under the floor, something settles and goes still.'
           : S.nightNo === 2 ? 'Gray light again. The second night is over. Under the floor, something settles and goes still.' : 'Gray light creeps across the floor. The eyes are gone. You made it through the night.',
         choices: [{ label: 'see the morning', act: () => showEnding(true) }],
       });
@@ -2868,7 +2996,7 @@ function drawCooking() {
   px.fillStyle = '#5a3a22'; px.fillRect(146, 125, 29, 1);
   const k = clamp(1 - S.cooking.t / (S.cooking.total || COOK_TIME), 0, 1);
   const lerp = (a, b) => Math.round(a + (b - a) * k);
-  const col = `rgb(${lerp(140, 84)}, ${lerp(34, 44)}, ${lerp(28, 24)})`;
+  const col = S.cooking.burnt && k > 0.5 ? '#1a0e08' : `rgb(${lerp(140, 84)}, ${lerp(34, 44)}, ${lerp(28, 24)})`;
   for (let i = 0; i < S.cooking.n; i++) {
     const x = 153 + i * 6;
     px.fillStyle = col; px.fillRect(x, 124, 4, 4);
@@ -2894,9 +3022,10 @@ function lpx(s, x, y, w, h) {
 // The thing in the trees, while it is close and you are out there with it: its eyes in the treeline,
 // and a grin that grows beneath them as it closes in. A full grin is the end. Half-pixel detail.
 function drawGrin(s, t) {
-  const show = (mode === 'playing' && S.hunter.near) || (mode === 'lost' && S.cause === 'hunter');
-  const k = clamp(S.stalk / 100, 0, 1);
-  if (!show || S.stalk < 0.8) return;
+  const fake = mode === 'playing' && phantomGrin > 0 && !(S.hunter.near && S.stalk >= 0.8);
+  const show = (mode === 'playing' && S.hunter.near) || (mode === 'lost' && S.cause === 'hunter') || fake;
+  const k = fake ? 0.55 : clamp(S.stalk / 100, 0, 1);
+  if (!show || (!fake && S.stalk < 0.8)) return;
   const dying = mode === 'lost';
   if (dying && lossT > 1.45) return;
   const wide = dying ? 1 + ease(seg(0.1, 1.3)) * 2.6 : 1;
@@ -3196,6 +3325,18 @@ function herGlow(s, gx, gy, radius, k) {
 const ease = (x) => (x < 0.5 ? 2 * x * x : 1 - (-2 * x + 2) ** 2 / 2);
 
 function drawHand(s, t) {
+  drawHandBody(s, t);
+  // two days awake, a phantom her has a faint double drifting around her; at three days, not even that
+  if (S.hand.phantom && lvl() === 2 && S.hand.phase !== 'idle') {
+    lx.save();
+    lx.globalAlpha = 0.12;
+    lx.translate(Math.cos(t * 1.7) * 2.2 * s, Math.sin(t * 1.7) * 1.6 * s);
+    drawHandBody(s, t);
+    lx.restore();
+  }
+}
+
+function drawHandBody(s, t) {
   const hd = S.hand;
   const dead = mode === 'lost' && (S.cause === 'hand' || S.cause === 'handAway');
   const ph = dead ? 'crawl' : hd.phase;
@@ -3528,7 +3669,7 @@ function drawLight() {
     if (v) {
       lx.fillStyle = 'rgba(10, 4, 4, 0.95)';
       const shift = Math.sin(t * 2) > 0 ? 1 : 0;
-      for (const fx of FEET_AT[v.feet || 2]) lpx(s, fx + shift, 110, 4, 1.5);
+      for (const fx of FEET_AT[v.feet ?? 2]) lpx(s, fx + shift, 110, 4, 1.5);
     }
   }
 
@@ -3670,7 +3811,7 @@ function drawLight() {
 
   // dozing off: your eyes close, then open again
   if (doze > 0 && mode === 'playing') {
-    const k = doze > 1.0 ? (1.4 - doze) / 0.4 : doze < 0.4 ? doze / 0.4 : 1;
+    const k = doze > dozeLen - 0.4 ? (dozeLen - doze) / 0.4 : doze < 0.4 ? doze / 0.4 : 1;
     lx.fillStyle = `rgba(0, 0, 0, ${0.92 * clamp(k, 0, 1)})`;
     lx.fillRect(0, 0, light.width, light.height);
   }
@@ -3683,7 +3824,7 @@ function drawLight() {
 // Every way to die has its own few seconds before the red screen. lossT runs from 0 when you die.
 const DEATH_LEN = {
   dark: 6.4, starve: 5.6, burn: 5.8, mimic: 5.4, hand: 5.2, handAway: 5.2, hunter: 5.6,
-  risen: 5.6, cellar: 5.2, cellarAway: 5.2, falseStranger: 5.6, freeze: 5.6, lost: 5.6,
+  risen: 5.6, cellar: 5.2, cellarAway: 5.2, falseStranger: 5.6, freeze: 5.6, lost: 5.6, sleep: 5,
 };
 const deathLen = () => DEATH_LEN[S.cause] || 4;
 const seg = (a, b) => clamp((lossT - a) / (b - a), 0, 1);   // progress 0..1 through one stretch of a death
@@ -3760,7 +3901,7 @@ function deathCamera() {
     const k = ease(seg(0.5, 2.6));
     const sway = Math.sin(lossT * 1.3) * 0.8 * seg(0.5, 1.5);
     return {
-      tf: `translateY(${(k * 4).toFixed(2)}%) rotate(${(-8 * k + sway).toFixed(2)}deg) scale(${(1 + 0.36 * k).toFixed(3)})`,
+      tf: `translateY(${(k * 4).toFixed(2)}%) rotate(${(-8 * k + sway).toFixed(2)}deg)`,   // you lean over, no zoom
       filter: `blur(${(seg(1.4, 4.6) * 2.5).toFixed(2)}px)`,
       origin: '50% 70%',
     };
@@ -4230,10 +4371,19 @@ function deathLost(s, t) {
   }
 }
 
+// No sleep: your eyelids come down slowly from the top and bottom, and don't open again.
+function deathSleep(s) {
+  const k = ease(seg(0.3, 4.2));
+  const lid = k * (light.height / 2) * 1.05;
+  lx.fillStyle = 'rgba(0, 0, 0, 1)';
+  lx.fillRect(0, 0, light.width, lid);
+  lx.fillRect(0, light.height - lid, light.width, lid);
+}
+
 const DEATH_SCENES = {
   dark: deathDark, starve: deathStarve, burn: deathBurn, mimic: deathMimic, hand: deathHand, handAway: deathHand,
   hunter: deathHunter, risen: deathRisen, cellar: deathCellar, cellarAway: deathCellar, falseStranger: deathFalseStranger,
-  freeze: deathFreeze, lost: deathLost,
+  freeze: deathFreeze, lost: deathLost, sleep: deathSleep,
 };
 
 function drawDeath(s, t) {
@@ -4290,6 +4440,7 @@ const PORTRAITS = {
     colors: { h: '#1e1c20', r: '#5a1a14', f: '#7a7064', e: '#0e0c0c', m: '#3a2a2a', c: '#2e2c30', L: '#3a1210' },
   },
   dead: { map: HOODED.map((r) => r.replace(/e/g, 'f')), colors: { ...SPR_COLORS, f: '#060303' }, bg: '#1a0505' },
+  doorFeet0: { map: [...DOOR_MAP.slice(0, 15), 'frrrrrrrrrrrrrrf'], colors: DOOR_COLORS },
   doorFeet2: { map: [...DOOR_MAP.slice(0, 15), 'frxxrrrrrrxxrrrf'], colors: DOOR_COLORS },
   doorFeet1: { map: [...DOOR_MAP.slice(0, 15), 'frrrrrrxxrrrrrrf'], colors: DOOR_COLORS },
   doorFeet3: { map: [...DOOR_MAP.slice(0, 15), 'frxxrrrxxrrrxxrf'], colors: DOOR_COLORS },
@@ -4401,7 +4552,7 @@ function syncUI() {
   if (blazing) ui.douse.style.setProperty('--cd', `${(S.blaze / 9) * 100}%`);
   ui.clock.textContent = mode === 'day' ? `day · ${dayClock(S.dayHours)} · dark at 10` : S.won ? '6:00 am · dawn' : S.lit ? `${S.nightNo > 1 ? `night ${S.nightNo} · ` : ''}${clockText(S.night)} · dawn at 6` : '';
   const [hl, hc] = hungerLabel();
-  ui.hunger.textContent = S.lit ? hl + (S.sick > 0 ? ' · sick' : '') : '';
+  ui.hunger.textContent = S.lit ? hl + (S.sick > 0 ? ' · sick' : '') + ['', ' · tired', ' · seeing things', ' · coming apart'][mode === 'playing' ? lvl() : 0] : '';
   ui.hunger.className = hc;
   const cold = blizzard() && S.lit;
   $('cold').textContent = cold ? (S.cold >= 85 ? 'freezing' : S.cold >= 60 ? 'cold' : S.cold >= 30 ? 'chilled' : 'warm') : '';
@@ -4740,7 +4891,7 @@ function devKit(night) {
     dev: true, lit: true, fire: 3, wood: 18, blood: 6, salt: 3, hunger: 20,
     boardsBuilt: true, boards: 3, glassBroken: true, lantern: true, lanternLit: true, lanternT: 60,
     stranger: 'inside', strangerFalse: false, sHunger: 20, firstVisit: false, hint: HINTS.length,
-    carry: night === 2 ? 250 : 600, final: night === 2 ? 250 : 600, met: { woodcutter: true },
+    carry: [0, 0, 250, 600, 1000][night], final: [0, 0, 250, 600, 1000][night], met: { woodcutter: true },
   });
   S.rawLife = [RAW_LIFE]; S.cookedLife = [COOKED_LIFE, COOKED_LIFE, CURED]; syncMeat();
   S.trapUses = [makeTrap(), makeTrap()]; syncTraps();
@@ -4749,13 +4900,15 @@ function devKit(night) {
 }
 
 function devStart(which) {
-  const night = which.endsWith('3') ? 3 : 2;
+  const m = /(\d)(?:a(\d))?$/.exec(which);
+  const night = +m[1], awake = +(m[2] || 0);
   newNight(true);
   S.nightNo = night - 1;
   S.won = true;
   startDay();
   devKit(night);   // after the day starts, so the kit's meat doesn't spoil over it
-  if (which.startsWith('night')) startNextNight();
+  if (awake) { S.awake = awake - 1; S.tired = true; } else S.awake = 0;
+  if (which.startsWith('night')) { if (!awake) S.tired = false; startNextNight(); }
   else renderDay();
 }
 $('devBtn').addEventListener('click', () => showTitle('dev'));

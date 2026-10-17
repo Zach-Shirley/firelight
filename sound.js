@@ -804,3 +804,30 @@ export function gasp() {
   o.stop(t + 0.4);
   setTimeout(drag, 700);
 }
+
+// Whispering, just at the edge of hearing, off to one side: a run of breathy syllables that never become words.
+export function whisper() {
+  if (!ctx || !enabled) return;
+  const t0 = ctx.currentTime + 0.05;
+  const pan = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
+  if (pan) pan.pan.value = Math.random() < 0.5 ? -0.7 : 0.7;
+  const out = ctx.createGain();
+  out.gain.value = 0.9;
+  if (pan) out.connect(pan).connect(master); else out.connect(master);
+  const n = 5 + Math.floor(Math.random() * 5);
+  for (let i = 0; i < n; i++) {
+    const at = t0 + i * (0.11 + Math.random() * 0.09);
+    const src = ctx.createBufferSource();
+    src.buffer = noiseBuf;
+    const bp = ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = 1400 + Math.random() * 1800;
+    bp.Q.value = 5;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.linearRampToValueAtTime(0.05, at + 0.03);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + 0.12 + Math.random() * 0.06);
+    src.connect(bp).connect(g).connect(out);
+    src.start(at, Math.random(), 0.25);
+  }
+}

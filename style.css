@@ -641,3 +641,4 @@ body.touch #dayList button { min-height: calc(14px * var(--s)); }
   color: #eef4ff; background: rgba(30, 40, 60, 0.9); border-color: #a8c8e8; animation: flicker 0.9s infinite;
 }
 #saltFlare .dim { color: #b8c8d8; font-size: calc(5.5px * var(--s)); }
+.title-inner .subpanel > .menu-col { overflow-y: auto; min-height: 0; flex: 1 1 auto; }

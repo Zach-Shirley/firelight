@@ -16,13 +16,14 @@ export const ACHIEVEMENTS = [
   { id: 'die_cellarAway', group: 'deaths', name: 'Open Hatch', desc: 'Come back to an open hatch.' },
   { id: 'die_falseStranger', group: 'deaths', name: 'It Waited for the Light', desc: 'Let the false stranger have her way.' },
   { id: 'die_freeze', group: 'deaths', name: 'Frostbite', desc: 'Freeze to death in the blizzard.' },
+  { id: 'die_sleep', group: 'deaths', name: 'Eyes Closed', desc: 'Go a fourth day without sleep.', later: true },
   { id: 'die_lost', group: 'deaths', name: 'Into the White', desc: 'Lose the path in the blizzard for good. About one blizzard night in a hundred.', hidden: true, hint: 'something very unlucky.' },
 
   // surviving
   { id: 'night_1', group: 'nights', name: 'First Light', desc: 'Survive the first night.' },
   { id: 'night_2', group: 'nights', name: 'Second Dawn', desc: 'Survive the second night.' },
   { id: 'night_3', group: 'nights', name: 'After the Storm', desc: 'Survive the blizzard on the third night.' },
-  { id: 'night_4', group: 'nights', name: 'Fourth Dawn', desc: 'Survive the fourth night.', later: true },
+  { id: 'night_4', group: 'nights', name: 'Fourth Dawn', desc: 'Survive the fourth night.' },
   { id: 'night_5', group: 'nights', name: 'Blood Moon', desc: 'Survive the fifth night.', later: true },
 
   // playing well
@@ -39,6 +40,7 @@ export const ACHIEVEMENTS = [
   { id: 'full_shed', group: 'feats', name: 'Every Log in the Forest', desc: 'Fill the woodshed to all 100 logs.' },
   { id: 'well_stocked', group: 'feats', name: 'Well Stocked', desc: "Hold on to 200 points' worth at a single dawn." },
   { id: 'salt_flare', group: 'feats', name: 'Salt on the Embers', desc: 'Throw salt on a dying fire and drive the dark back.', hidden: true, hint: 'something nobody told you you could do.' },
+  { id: 'awake_3', group: 'feats', name: 'Three Days Awake', desc: 'Survive a night after three days without sleep.' },
   { id: 'four_figures', group: 'feats', name: 'Four Figures', desc: 'Score 1,000 or more in one run.' },
 ];
 
