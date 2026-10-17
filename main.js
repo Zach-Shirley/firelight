@@ -6,7 +6,7 @@ import * as sfx from './sound.js';
 import { ACHIEVEMENTS, createStore } from './achievements.js';
 import { computeScore, qualifies, insertScore, cleanInitials, sanitizeBoard } from './score.js';
 
-const VERSION = '0.30';   // one step per commit to the repository
+const VERSION = '0.31';   // one step per commit to the repository
 const W = 320, H = 180;
 const FIRE = { x: 160, y: 136 };          // base of the flames
 const LIGHT_Y = 130;                       // centre of the light pool
@@ -744,6 +744,8 @@ function updateBlaze(dt) {
 // It flares blue-white, the eyes scatter, and the fire catches again.
 const saltFlareReady = () => mode === 'playing' && S.lit && !S.away && !dialog && S.fire <= 1 && S.dread >= 45 && S.salt >= 2;
 let flareT = 0;
+let blueT = 0;        // seconds the fire burns blue after salt (it fades back over the last two)
+const BLUE = () => clamp(blueT / 2, 0, 1);
 
 function saltFlare() {
   if (!saltFlareReady()) return;
@@ -754,6 +756,7 @@ function saltFlare() {
   S.dread = Math.max(0, S.dread - 70);
   for (const e of eyes) e.out = true;
   flareT = 1.4;
+  blueT = 10;
   shake = 0.3;
   sfx.hiss();
   sfx.gust();
@@ -2221,6 +2224,7 @@ function updateAmbient(dt) {
   trapWreck = Math.max(0, trapWreck - dt);
   cabT = Math.max(0, cabT - dt);
   flareT = Math.max(0, flareT - dt);
+  blueT = Math.max(0, blueT - dt);
   doze = Math.max(0, doze - dt);
   phantomEyes = Math.max(0, phantomEyes - dt);
   phantomGrin = Math.max(0, phantomGrin - dt);
@@ -2525,7 +2529,7 @@ function drawCoals() {
   for (let i = 0; i < 9; i++) {
     const f = Math.sin(S.time * (3 + i) + i * 2) * 0.5 + 0.5;
     if (f * glow < 0.25) continue;
-    px.fillStyle = f * glow > 0.7 ? '#ff7a2a' : f * glow > 0.45 ? '#c8401a' : '#6e1e10';
+    px.fillStyle = blueT > 0 ? (f * glow > 0.7 ? '#8ac0ff' : f * glow > 0.45 ? '#3a6ad8' : '#1a2a6e') : f * glow > 0.7 ? '#ff7a2a' : f * glow > 0.45 ? '#c8401a' : '#6e1e10';
     px.fillRect(152 + ((i * 5) % 16), 136 + (i % 3), 2, 1);
   }
 }
@@ -2535,17 +2539,19 @@ function drawFire() {
     const t = p.life / p.max;
     if (p.ember) {
       if (t > 0.85 && Math.random() < 0.5) continue;
-      px.fillStyle = t < 0.5 ? '#ffb347' : '#e8551c';
+      px.fillStyle = blueT > 0 && Math.random() < BLUE() ? (t < 0.5 ? '#b8dcff' : '#5a8ae8') : (t < 0.5 ? '#ffb347' : '#e8551c');
       px.fillRect(Math.round(p.x), Math.round(p.y), 1, 1);
       continue;
     }
     if (S.stove) continue;   // the flames are inside the iron box
-    px.fillStyle = t < 0.18 ? '#fff3b0' : t < 0.42 ? '#ffd35a' : t < 0.68 ? '#ff9a2e' : t < 0.88 ? '#e8551c' : '#a8281a';
+    px.fillStyle = blueT > 0 && Math.random() < BLUE()
+      ? (t < 0.18 ? '#f0f8ff' : t < 0.42 ? '#b8dcff' : t < 0.68 ? '#6aa8f0' : t < 0.88 ? '#3a6ad8' : '#2a3a98')   // salt: a cold blue fire
+      : (t < 0.18 ? '#fff3b0' : t < 0.42 ? '#ffd35a' : t < 0.68 ? '#ff9a2e' : t < 0.88 ? '#e8551c' : '#a8281a');
     const s = t < 0.5 ? 2 : 1;
     px.fillRect(Math.round(p.x), Math.round(p.y), s, s);
   }
   if (S.fire > 0 && !S.stove) {
-    px.fillStyle = '#fff3b0';
+    px.fillStyle = blueT > 0 ? '#e8f4ff' : '#fff3b0';
     const w = FLAME_W[S.fire];
     px.fillRect(FIRE.x - w + 1, FIRE.y - 1, w * 2 - 1, 2);
   }
@@ -3579,9 +3585,11 @@ function drawLight() {
     lx.globalCompositeOperation = 'lighter';
     const k = S.fire > 0 ? 0.08 + S.fire * 0.04 : 0.06;
     g = lx.createRadialGradient(0, 0, 0, 0, 0, r * s * 0.9);
-    g.addColorStop(0, `rgba(255, 150, 60, ${k})`);
-    g.addColorStop(0.5, `rgba(220, 90, 30, ${k * 0.5})`);
-    g.addColorStop(1, 'rgba(200, 60, 20, 0)');
+    const bl = BLUE();
+    const mix = (a, b) => Math.round(a + (b - a) * bl);
+    g.addColorStop(0, `rgba(${mix(255, 120)}, ${mix(150, 170)}, ${mix(60, 255)}, ${k})`);
+    g.addColorStop(0.5, `rgba(${mix(220, 70)}, ${mix(90, 110)}, ${mix(30, 220)}, ${k * 0.5})`);
+    g.addColorStop(1, 'rgba(0, 0, 0, 0)');
     lx.fillStyle = g;
     lx.fillRect(-r * s, -r * s, r * s * 2, r * s * 2);
   }
