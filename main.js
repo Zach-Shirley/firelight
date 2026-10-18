@@ -6,7 +6,7 @@ import * as sfx from './sound.js';
 import { ACHIEVEMENTS, createStore } from './achievements.js';
 import { computeScore, qualifies, insertScore, cleanInitials, sanitizeBoard } from './score.js';
 
-const VERSION = '0.47';   // one step per commit to the repository
+const VERSION = '0.48';   // one step per commit to the repository
 const W = 320, H = 180;
 const FIRE = { x: 160, y: 136 };          // base of the flames
 const LIGHT_Y = 130;                       // centre of the light pool
@@ -4711,6 +4711,7 @@ function startDeath(cause) {
   if (cause === 'guest' || cause === 'goblins') {
     // where they come from: every corner one is in
     deathEyes = (cause === 'goblins' ? S.goblins : settled()).map((g) => GOB_CORNERS[g.corner || pick(Object.keys(GOB_CORNERS))]);
+    while (deathEyes.length < (cause === 'goblins' ? 3 : 1)) deathEyes.push(GOB_CORNERS[pick(Object.keys(GOB_CORNERS))]);
   }
   if (cause === 'freeze') {
     // frost crystals that grow in from every edge
@@ -4967,6 +4968,7 @@ function tallThing(s, t, cx, feet, h, o = {}) {
   limbSeg(s, cx, sh - u, nx, ny, 1.8 * u, pal);
   const hr = 3.2 * u, hcx = nx + Math.sin(tilt) * hr, hcy = ny - Math.cos(tilt) * hr;
   const at = (fx, fy) => [hcx + fx * Math.cos(tilt) - fy * Math.sin(tilt), hcy + fx * Math.sin(tilt) + fy * Math.cos(tilt)];
+  { const [ex, ey] = at(0, -0.8 * hr), p = lx.getTransform().transformPoint(new DOMPoint(ex * s, ey * s)); tallThing.eyesAt = [p.x / s, p.y / s]; }
   const st = 0.5;
   for (let y = -hr * 1.4; y <= hr * 1.4; y += st) {
     for (let x = -hr * 1.4; x <= hr * 1.4; x += st) {
@@ -5075,13 +5077,22 @@ function deathHunter(s, t) {
   lx.restore();
   throughWindow(s, () => {
     const x = lerp(40, 84, k), y = 62;
-    lx.fillStyle = 'rgba(140, 10, 8, 0.9)';
-    lpx(s, 40, y, x - 40, 2);                 // the smear it leaves in the snow
-    lx.fillStyle = 'rgba(6, 3, 3, 0.95)';
-    lpx(s, x - 5, y - 2, 6, 3);                  // what it is dragging
-    lpx(s, x + 1, y - 7, 3, 8);                  // and the thing dragging it, hunched
-    lpx(s, x + 2, y - 9, 3, 2);
-    lx.fillStyle = 'rgba(255, 190, 80, 0.9)'; lpx(s, x + 3, y - 8.5, 0.5, 0.5);
+    for (let i = 40; i < x - 6; i++) {         // the smear it leaves in the snow, fading back where it started
+      lx.fillStyle = `rgba(120, 8, 6, ${0.35 + 0.5 * (i - 40) / Math.max(1, x - 46)})`;
+      lpx(s, i, y + (hash(i) > 0.7 ? 0.5 : 0), 1, 1 + (hash(i + 3) > 0.5 ? 0.5 : 0));
+    }
+    const pal = { black: 'rgba(6, 3, 3, 0.97)', rim: 'rgba(70, 70, 92, 0.6)' };
+    const st = Math.sin(lossT * 9);
+    // what it is dragging: a body on its back, one arm trailing in the snow
+    tube(s, [[x - 7, y - 0.6], [x - 3, y - 1.2], [x, y - 1.4]], [1.8, 2.4, 2], pal);
+    tube(s, [[x - 7, y - 0.8], [x - 9.5, y + 0.4]], [0.9, 0.7], pal);
+    // and the thing dragging it, bent double, one long arm back to the ankle
+    tube(s, [[x + 1.5 + st * 0.8, y + 1], [x + 2, y - 3]], [0.9, 1.1], pal);
+    tube(s, [[x + 3.2 - st * 0.8, y + 1], [x + 2.6, y - 3]], [0.9, 1.1], pal);
+    tube(s, [[x + 2.2, y - 3], [x + 3.4, y - 6.5], [x + 5.2, y - 7.6]], [1.6, 2.2, 1.6], pal);
+    tube(s, [[x + 3.6, y - 6.4], [x + 1.4, y - 3.6], [x - 0.2, y - 1.4]], [0.8, 0.9, 0.6], pal);
+    tube(s, [[x + 5.2, y - 7.6], [x + 6.4, y - 7.2]], [2, 1.6], pal);
+    lx.fillStyle = 'rgba(255, 190, 80, 0.9)'; lpx(s, x + 6.1, y - 7.8, 0.5, 0.5);
   });
 }
 
@@ -5156,7 +5167,8 @@ function deathFalseStranger(s, t) {
   // two red eyes in the shadow's head
   if (lossT > 1.8) {
     const a = seg(1.8, 2.4);
-    const hx = lerp(232, 160, bend), hy = lerp(36, 70, bend), sz = lerp(1, 4, bend);
+    // on the shadow's head, then coming down to you as it bends over
+    const hx = lerp(tallThing.eyesAt[0], 160, bend), hy = lerp(tallThing.eyesAt[1], 70, bend), sz = lerp(1, 4, bend);
     eyePair(s, hx, hy, sz, 1, true, a);
   }
 }
