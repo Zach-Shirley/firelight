@@ -6,7 +6,7 @@ import * as sfx from './sound.js';
 import { ACHIEVEMENTS, createStore } from './achievements.js';
 import { computeScore, qualifies, insertScore, cleanInitials, sanitizeBoard } from './score.js';
 
-const VERSION = '0.53';   // one step per commit to the repository
+const VERSION = '0.54';   // one step per commit to the repository
 const W = 320, H = 180;
 const FIRE = { x: 160, y: 136 };          // base of the flames
 const LIGHT_Y = 130;                       // centre of the light pool
@@ -3817,7 +3817,7 @@ function drawBelow(s, t) {
   if (ph !== 'lift' && ph !== 'feeding' && ph !== 'taking' && ph !== 'open') return;
   const { x, y, w } = HATCH;
   const k = ph === 'lift' ? hc.p : 1;
-  const pale = 'rgba(150, 156, 132, 0.95)', shade = 'rgba(92, 98, 80, 0.95)', nail = 'rgba(20, 16, 14, 1)';
+  const nail = 'rgba(20, 16, 14, 1)';
   // a sickly glow from under the floor so you can see them in the dark
   const gx = x + w / 2, gy = y + 2;
   const gr = (14 + k * 10) * s;
@@ -3834,16 +3834,18 @@ function drawBelow(s, t) {
   }
   // fingers curling up over the front edge, more of them as it lifts
   const n = ph === 'open' ? 8 : Math.ceil(2 + k * 4);
+  const fingers = [];
   for (let i = 0; i < n; i++) {
     const fx = x + 2 + (i * 2.4) % (w - 3);
     const len = (2 + k * 3 + (i % 3)) * (ph === 'open' ? 1.6 : 1);
     const wig = Math.sin(t * 7 + i) * 0.4;
-    for (let j = 0; j < len; j += 0.5) {
-      const curl = j > len * 0.6 ? (j - len * 0.6) * 0.5 : 0;
-      lx.fillStyle = j > len - 0.8 ? nail : (j % 2 < 0.5 ? pale : shade);
-      lpx(s, fx + wig + curl * 0.3, y + 1 - j + curl, 0.9, 0.6);
-    }
+    // up out of the gap to a knuckle, then hooked forward over the edge
+    fingers.push([[fx, y + 1.5], [fx + wig, y + 1 - len * 0.75], [fx + wig + 0.9, y + 1 - len * 0.75 + 1.3]]);
   }
+  for (const f of fingers) tubePass(s, f, [1, 0.9, 0.6], PALE_PAL.rim, 0.35);
+  for (const f of fingers) tubePass(s, f, [1, 0.9, 0.6], PALE_PAL.black, 0);
+  lx.fillStyle = nail;
+  for (const f of fingers) lpx(s, f[2][0] - 0.3, f[2][1] - 0.2, 0.6, 0.6);
   // feeding: a long pale arm up the wall to the meat rack, and back down with it
   if (ph === 'feeding' || ph === 'taking') {
     const T = (ph === 'feeding' ? 2.4 : 2.6) - hc.t;
@@ -3851,27 +3853,22 @@ function drawBelow(s, t) {
     const tx = ph === 'feeding' ? 200 : 190, ty = ph === 'feeding' ? 50 : 122;
     const bx = x + w / 2, by = y + 2;
     const hx = lerp(bx, tx, ext), hy = lerp(by, ty, ext);
-    limb(s, bx, by, hx, hy, ph === 'feeding' ? 10 : -8, 2.2, PALE_PAL);
+    // taking: a second arm hooks your ankle. both arms' outlines go down before either fill, so they merge
+    const arms = [limbPath(bx, by, hx, hy, ph === 'feeding' ? 10 : -8, 2.2)];
+    if (ph === 'taking') arms.push(limbPath(bx - 4, by + 1, lerp(bx - 4, 185, ext), lerp(by + 1, 127, ext), -4, 2));
+    for (const a of arms) tubePass(s, a.pts, a.widths, PALE_PAL.rim, 0.45);
+    for (const a of arms) tubePass(s, a.pts, a.widths, PALE_PAL.black, 0);
     claw(s, hx, hy, Math.atan2(ty - by, tx - bx), T > 1.1 ? 0.15 : 0.45, T > 1.1 ? 3.5 : 0.8, 6, PALE_PAL);
     if (ph === 'feeding' && T > 1.1 && hc.took) {
       lx.fillStyle = 'rgba(126, 28, 24, 0.95)'; lpx(s, hx - 2, hy - 1, 4, 3);
-    }
-    if (ph === 'taking') {
-      limb(s, bx - 4, by, lerp(bx - 4, 186, ext), lerp(by, 126, ext), 8, 2, PALE_PAL);
     }
   }
   // when it comes up, an arm and a swollen pale hand reaching across the floor toward the fire
   if (ph === 'open' && !dead) {
     const reach = Math.min(1, lossT * 0.6);
     const hx = x - 4 - reach * 40, hy = y + 4 - reach * 6;
-    for (let j = 0; j <= 1; j += 0.02) {
-      lx.fillStyle = pale;
-      lpx(s, x + 4 + (hx - x - 4) * j, y + 2 + (hy - y - 2) * j, 2.4, 2.4);
-    }
-    for (let f = 0; f < 4; f++) {
-      lx.fillStyle = pale; lpx(s, hx - 3, hy - 1.5 + f * 1.2, 3, 0.8);
-      lx.fillStyle = nail; lpx(s, hx - 4, hy - 1.5 + f * 1.2, 1, 0.8);
-    }
+    limb(s, x + 4, y + 2, hx, hy, -4, 2.4, PALE_PAL);
+    claw(s, hx, hy, Math.PI, 0.4, 1.4, 5, PALE_PAL);
   }
 }
 
@@ -3915,14 +3912,17 @@ function limbSeg(s, ax, ay, bx, by, w, pal = HER) {
 
 // shoulder to hand with the elbow pushed out to one side by `bend`: thick at the shoulder, a knob at the elbow,
 // thin at the wrist, all in one stroke
-function limb(s, ax, ay, bx, by, bend, w = 1.6, pal = HER) {
+function limbPath(ax, ay, bx, by, bend, w = 1.6) {
   const mx = (ax + bx) / 2, my = (ay + by) / 2;
   const len = Math.hypot(bx - ax, by - ay) || 1;
   const ex = mx + (-(by - ay) / len) * bend, ey = my + ((bx - ax) / len) * bend;
-  const pts = [[ax, ay], [ex, ey], [bx, by]], widths = [w, w * 1.25, w * 0.75];
-  tubePass(s, pts, widths, pal.rim, 0.45);
-  tubePass(s, pts, widths, pal.black, 0);
-  return { ex, ey };
+  return { ex, ey, pts: [[ax, ay], [ex, ey], [bx, by]], widths: [w, w * 1.25, w * 0.75] };
+}
+function limb(s, ax, ay, bx, by, bend, w = 1.6, pal = HER) {
+  const p = limbPath(ax, ay, bx, by, bend, w);
+  tubePass(s, p.pts, p.widths, pal.rim, 0.45);
+  tubePass(s, p.pts, p.widths, pal.black, 0);
+  return { ex: p.ex, ey: p.ey };
 }
 
 // four long fingers fanned around `dir`; curl closes them into a fist
