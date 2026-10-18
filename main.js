@@ -6,7 +6,7 @@ import * as sfx from './sound.js';
 import { ACHIEVEMENTS, createStore } from './achievements.js';
 import { computeScore, qualifies, insertScore, cleanInitials, sanitizeBoard } from './score.js';
 
-const VERSION = '0.57';   // one step per commit to the repository
+const VERSION = '0.58';   // one step per commit to the repository
 const W = 320, H = 180;
 const FIRE = { x: 160, y: 136 };          // base of the flames
 const LIGHT_Y = 130;                       // centre of the light pool
@@ -5327,7 +5327,9 @@ function drawJumpScare(s, t) {
   } else if (c === 'mimic' || c === 'risen' || c === 'falseStranger' || c === 'ash') {
     tallThing(s, t, 160, 420, 360, { pal: c === 'mimic' ? MIMIC_IN_PAL : RISEN_PAL, tilt: 0.25, mouth: 1, eyes: c === 'mimic' ? 'rgba(235, 235, 255, 1)' : 'rgba(230, 40, 20, 1)' });
   } else if (c === 'cellar' || c === 'cellarAway') {
-    claw(s, 160, 150, -Math.PI / 2, 0.5, 1.2, 70, PALE_PAL);
+    // a swollen pale forearm up out of the floor, the hand spread over your face
+    limb(s, 146, 240, 160, 124, 6, 15, PALE_PAL);
+    claw(s, 160, 112, -Math.PI / 2, 0.42, 0.5, 58, PALE_PAL);
   } else if (c === 'guest' || c === 'goblins' || c === 'flood') {
     drawGoblin(s, 166, 196, 12, 1, 1);
   } else if (c === 'dark') {
