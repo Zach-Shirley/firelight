@@ -121,6 +121,23 @@ The day also dries every wet log and spoils any meat that isn't cured. The day s
 ![The day](docs/day.jpg)
 ![Something under the floor](docs/hatch.jpg)
 
+## Difficulty and scares
+
+Pick a difficulty for each run; each has its own leaderboard.
+
+| | |
+| --- | --- |
+| **Normal** | The night as it was meant to be |
+| **Hard** | A quarter less wood, 30% fewer catches, hungrier, meat goes bad sooner, a smaller woodshed (70). The grin takes three seconds; she and the hatch are quicker; more of the knocks are mimics |
+| **Insane** | About half the wood and catches, much hungrier, a 50-log woodshed that loses some logs to damp each day. But the trader comes every night (from 11 pm), charges a jar of blood less, and sells an **iron trap** that never wears out or breaks |
+
+**Scares** (on the title screen) is separate from difficulty:
+- **Eerie** keeps the dread and no jump scares.
+- **Terrifying** adds:
+  - a thin rising whine whenever something is about to kill you;
+  - a lunge at the moment it does: its face, much too close, for a third of a second;
+  - when you only just make it back with the grin nearly full, its face filling the window as the door shuts.
+
 ## Building
 
 Everything you build costs something you could have kept. **Build in the room itself:** a small amber ember glows over each spot where you could build something right now:
@@ -374,7 +391,7 @@ They're stored in this browser for now (`achievements.js`). Each unlock keeps it
 
 Open the game once with `?dev` on the address (https://firelight-topaz.vercel.app/?dev) and the title menu gets a **playtest** button, remembered in that browser. It starts you at the day before night 2 or 3, or straight into night 2 or 3, with a basic kit: boarded window, two traps (three on night 3), the lantern, the stranger, some food and wood, and on night 3 a woodshed and the drying rack. Playtest runs don't count toward the stats or the leaderboard.
 
-The version is in the bottom-right corner (v0.38 is the 38th commit; the number counts every commit, docs included), so you can tell a refresh picked up the latest build.
+The version is in the bottom-right corner (v0.39 is the 39th commit; the number counts every commit, docs included), so you can tell a refresh picked up the latest build.
 
 ## Future ideas
 

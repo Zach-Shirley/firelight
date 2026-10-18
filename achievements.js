@@ -45,6 +45,8 @@ export const ACHIEVEMENTS = [
   { id: 'awake_3', group: 'feats', name: 'Three Days Awake', desc: 'Survive a night after three days without sleep.' },
   { id: 'not_tonight', group: 'feats', name: 'Not Tonight', desc: 'Stop a goblin at the salted doorway.' },
   { id: 'nowhere_to_hide', group: 'feats', name: 'Nowhere to Hide', desc: 'Let a goblin in with every corner lit.' },
+  { id: 'hard_win', group: 'nights', name: 'A Hard Winter', desc: 'Survive all four nights on hard.' },
+  { id: 'insane_win', group: 'nights', name: 'Madness', desc: 'Survive all four nights on insane.' },
   { id: 'four_figures', group: 'feats', name: 'Four Figures', desc: 'Score 1,000 or more in one run.' },
 ];
 

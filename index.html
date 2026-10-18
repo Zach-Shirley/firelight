@@ -92,9 +92,20 @@
           <button id="newBtn">new night</button>
           <button id="boardBtn">best nights</button>
           <button id="achBtn">achievements</button>
+          <button id="scareBtn" title="eerie: no jump scares. terrifying: a whine when something is about to kill you, a lunge when it does.">scares: eerie</button>
           <button id="howBtn">how to play</button>
           <button id="titleFullBtn">fullscreen</button>
           <button id="devBtn" class="hidden">playtest</button>
+        </div>
+
+        <div id="diffPanel" class="subpanel hidden">
+          <h2>how hard a winter?</h2>
+          <div class="diff-list">
+            <button data-diff="normal"><span class="name">normal</span><span class="desc"></span></button>
+            <button data-diff="hard"><span class="name">hard</span><span class="desc"></span></button>
+            <button data-diff="insane"><span class="name">insane</span><span class="desc"></span></button>
+          </div>
+          <button class="backBtn">back</button>
         </div>
 
         <div id="achPanel" class="subpanel hidden">
@@ -138,6 +149,7 @@
 
         <div id="boardPanel" class="subpanel hidden">
           <h2>best nights</h2>
+          <div class="board-tabs"><button data-board="normal">normal</button><button data-board="hard">hard</button><button data-board="insane">insane</button></div>
           <ol id="boardList" class="board"></ol>
           <p id="boardTally" class="tally"></p>
           <p class="keys">only nights survived to dawn are scored. kept on this computer, like an arcade cabinet.</p>

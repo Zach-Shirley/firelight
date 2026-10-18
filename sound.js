@@ -899,3 +899,48 @@ export function recede() {
     o.stop(t + 2.5);
   }
 }
+
+// Terrifying: the jolt of a jump scare, a harsh noise burst over a crushed, dissonant chord.
+export function jolt(strength = 1) {
+  if (!ctx || !enabled) return;
+  noiseShape('highpass', [[0, 800], [0.4, 300]], [[0.01, 0.6 * strength], [0.45, 0.0001]], 0.5);
+  const t = ctx.currentTime;
+  [233, 247, 349, 370].forEach((f) => {
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.type = 'sawtooth';
+    o.frequency.setValueAtTime(f, t);
+    o.frequency.exponentialRampToValueAtTime(f * 0.7, t + 0.6);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.08 * strength, t + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.7);
+    o.connect(g).connect(master);
+    o.start(t);
+    o.stop(t + 0.75);
+  });
+}
+
+// Terrifying: a thin, rising whine while something is about to kill you.
+let shrill = null, shrillGain = null, shrillOn = false, shrillSince = 0;
+export function setShrill(on) {
+  if (!ctx) return;
+  if (!shrill) {
+    shrill = ctx.createOscillator();
+    shrill.type = 'sine';
+    shrill.frequency.value = 1800;
+    const vib = ctx.createOscillator();
+    const vibAmt = ctx.createGain();
+    vib.frequency.value = 7;
+    vibAmt.gain.value = 18;
+    vib.connect(vibAmt).connect(shrill.frequency);
+    vib.start();
+    shrillGain = ctx.createGain();
+    shrillGain.gain.value = 0;
+    shrill.connect(shrillGain).connect(master);
+    shrill.start();
+  }
+  const t = ctx.currentTime;
+  if (on && !shrillOn) { shrillSince = t; shrill.frequency.setValueAtTime(1500, t); shrill.frequency.linearRampToValueAtTime(3200, t + 2); }
+  if (on !== shrillOn) shrillGain.gain.setTargetAtTime(on && enabled ? 0.035 : 0, t, on ? 0.15 : 0.05);
+  shrillOn = on;
+}
