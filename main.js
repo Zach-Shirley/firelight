@@ -6,7 +6,7 @@ import * as sfx from './sound.js';
 import { ACHIEVEMENTS, createStore } from './achievements.js';
 import { computeScore, qualifies, insertScore, cleanInitials, sanitizeBoard } from './score.js';
 
-const VERSION = '0.58';   // one step per commit to the repository
+const VERSION = '0.59';   // one step per commit to the repository
 const W = 320, H = 180;
 const FIRE = { x: 160, y: 136 };          // base of the flames
 const LIGHT_Y = 130;                       // centre of the light pool
@@ -5347,7 +5347,12 @@ function drawWindowScare(s, t) {
   lx.beginPath(); lx.rect(45 * s, 35 * s, 32 * s, 32 * s); lx.clip();
   lx.fillStyle = 'rgba(0, 0, 0, 0.9)'; lx.fillRect(45 * s, 35 * s, 32 * s, 32 * s);
   eyePair(s, 61, 46, 2.6, 1, true, 1);
-  for (let x = 48; x < 75; x += 2) { lx.fillStyle = 'rgba(235, 225, 200, 1)'; lpx(s, x, 56 + Math.abs(x - 61) * -0.15, 1.4, 4); }
+  // the same grin as in the trees, close enough to fill the glass: curved up at the corners, the mouth open
+  for (let x = 47; x <= 75; x += 1.4) {
+    const u = (x - 61) / 14, top = 52 + 4 * (1 - u * u), gap = 5 * (1 - u * u * 0.85);
+    lx.fillStyle = 'rgba(14, 0, 0, 1)'; lpx(s, x, top, 1.4, gap);
+    lx.fillStyle = 'rgba(235, 225, 200, 1)'; lpx(s, x + 0.15, top, 1.1, 1.6); lpx(s, x + 0.15, top + gap - 1.2, 1.1, 1.2);
+  }
   lx.restore();
 }
 
