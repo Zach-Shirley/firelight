@@ -6,7 +6,7 @@ import * as sfx from './sound.js';
 import { ACHIEVEMENTS, createStore } from './achievements.js';
 import { computeScore, qualifies, insertScore, cleanInitials, sanitizeBoard } from './score.js';
 
-const VERSION = '0.45';   // one step per commit to the repository
+const VERSION = '0.46';   // one step per commit to the repository
 const W = 320, H = 180;
 const FIRE = { x: 160, y: 136 };          // base of the flames
 const LIGHT_Y = 130;                       // centre of the light pool
@@ -3815,7 +3815,7 @@ function drawBelow(s, t) {
   if (ph !== 'lift' && ph !== 'feeding' && ph !== 'taking' && ph !== 'open') return;
   const { x, y, w } = HATCH;
   const k = ph === 'lift' ? hc.p : 1;
-  const pale = 'rgba(196, 200, 184, 0.95)', shade = 'rgba(120, 126, 112, 0.95)', nail = 'rgba(20, 16, 14, 1)';
+  const pale = 'rgba(150, 156, 132, 0.95)', shade = 'rgba(92, 98, 80, 0.95)', nail = 'rgba(20, 16, 14, 1)';
   // a sickly glow from under the floor so you can see them in the dark
   const gx = x + w / 2, gy = y + 2;
   const gr = (14 + k * 10) * s;
@@ -4678,7 +4678,7 @@ const MIMIC_PAL = { black: 'rgba(3, 3, 6, 0.98)', rim: 'rgba(40, 52, 78, 0.8)', 
 const MIMIC_IN_PAL = { black: 'rgba(22, 15, 15, 0.99)', rim: 'rgba(120, 62, 34, 0.95)', nail: 'rgba(10, 6, 6, 1)' };   // in the firelight
 const RISEN_PAL = { black: 'rgba(24, 16, 18, 0.99)', rim: 'rgba(130, 40, 24, 0.95)', nail: 'rgba(60, 8, 6, 1)' };
 const SHADOW_PAL = { black: 'rgba(0, 0, 0, 1)', rim: 'rgba(0, 0, 0, 1)', nail: 'rgba(0, 0, 0, 1)' };
-const PALE_PAL = { black: 'rgba(96, 104, 84, 0.96)', rim: 'rgba(28, 32, 24, 0.95)', nail: 'rgba(22, 18, 14, 1)' };
+const PALE_PAL = { black: 'rgba(74, 80, 64, 0.96)', rim: 'rgba(132, 140, 112, 0.55)', nail: 'rgba(22, 18, 14, 1)' };
 
 // sounds, each fired once when lossT passes its time
 const DEATH_CUES = {
