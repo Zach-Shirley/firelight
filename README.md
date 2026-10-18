@@ -137,7 +137,7 @@ Pick a difficulty for each run; each has its own leaderboard.
 **Scares** (on the title screen) is separate from difficulty:
 - **Eerie** keeps the dread and no jump scares.
 - **Terrifying** adds:
-  - a thin rising whine whenever something is about to kill you;
+  - a grinding, rising screech whenever something is about to kill you;
   - a lunge at the moment it does: its face, much too close, for a third of a second;
   - when you only just make it back with the grin nearly full, its face filling the window as the door shuts.
 
@@ -395,7 +395,7 @@ They're stored in this browser for now (`achievements.js`). Each unlock keeps it
 
 Open the game once with `?dev` on the address (https://firelight-topaz.vercel.app/?dev) and the title menu gets a **playtest** button, remembered in that browser. Pick a difficulty, then start at the day before a night or straight into night 2, 3 or 4 (optionally a few days awake), with a basic kit (the axe included): boarded window, two traps (three on night 3), the lantern, the stranger, some food and wood, and on night 3 a woodshed and the drying rack. Playtest runs don't count toward the stats or the leaderboard.
 
-The version is in the bottom-right corner (v0.41 is the 41st commit; the number counts every commit, docs included), so you can tell a refresh picked up the latest build.
+The version is in the bottom-right corner (v0.42 is the 42nd commit; the number counts every commit, docs included), so you can tell a refresh picked up the latest build.
 
 ## Future ideas
 

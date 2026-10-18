@@ -920,27 +920,54 @@ export function jolt(strength = 1) {
   });
 }
 
-// Terrifying: a thin, rising whine while something is about to kill you.
-let shrill = null, shrillGain = null, shrillOn = false, shrillSince = 0;
+// Terrifying: a grinding, rising screech while something is about to kill you, like a bow dragged across a string:
+// two sawtooth tones a semitone apart, a breathy noise under them, through a filter that climbs, with a fast,
+// uneven tremolo so it never settles into a note.
+let shrill = null, shrillOn = false;
 export function setShrill(on) {
   if (!ctx) return;
   if (!shrill) {
-    shrill = ctx.createOscillator();
-    shrill.type = 'sine';
-    shrill.frequency.value = 1800;
-    const vib = ctx.createOscillator();
-    const vibAmt = ctx.createGain();
-    vib.frequency.value = 7;
-    vibAmt.gain.value = 18;
-    vib.connect(vibAmt).connect(shrill.frequency);
-    vib.start();
-    shrillGain = ctx.createGain();
-    shrillGain.gain.value = 0;
-    shrill.connect(shrillGain).connect(master);
-    shrill.start();
+    const out = ctx.createGain();
+    out.gain.value = 0;
+    out.connect(master);
+    const bp = ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = 1100;
+    bp.Q.value = 3;
+    const trem = ctx.createGain();
+    trem.gain.value = 0.6;
+    bp.connect(trem).connect(out);
+    const lfo = ctx.createOscillator();
+    const lfoAmt = ctx.createGain();
+    lfo.type = 'square';
+    lfo.frequency.value = 13;
+    lfoAmt.gain.value = 0.4;
+    lfo.connect(lfoAmt).connect(trem.gain);
+    lfo.start();
+    const oscs = [740, 784].map((f) => {
+      const o = ctx.createOscillator();
+      o.type = 'sawtooth';
+      o.frequency.value = f;
+      o.connect(bp);
+      o.start();
+      return o;
+    });
+    const n = ctx.createBufferSource();
+    n.buffer = noiseBuf;
+    n.loop = true;
+    const ng = ctx.createGain();
+    ng.gain.value = 0.5;
+    n.connect(ng).connect(bp);
+    n.start();
+    shrill = { out, bp, oscs };
   }
   const t = ctx.currentTime;
-  if (on && !shrillOn) { shrillSince = t; shrill.frequency.setValueAtTime(1500, t); shrill.frequency.linearRampToValueAtTime(3200, t + 2); }
-  if (on !== shrillOn) shrillGain.gain.setTargetAtTime(on && enabled ? 0.035 : 0, t, on ? 0.15 : 0.05);
+  if (on && !shrillOn) {
+    // climbing for as long as it lasts
+    shrill.oscs.forEach((o, i) => { o.frequency.setValueAtTime(i ? 784 : 740, t); o.frequency.linearRampToValueAtTime(i ? 1568 : 1480, t + 2.2); });
+    shrill.bp.frequency.setValueAtTime(1100, t);
+    shrill.bp.frequency.linearRampToValueAtTime(3200, t + 2.2);
+  }
+  if (on !== shrillOn) shrill.out.gain.setTargetAtTime(on && enabled ? 0.07 : 0, t, on ? 0.12 : 0.04);
   shrillOn = on;
 }
