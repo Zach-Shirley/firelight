@@ -6,7 +6,7 @@ import * as sfx from './sound.js';
 import { ACHIEVEMENTS, createStore } from './achievements.js';
 import { computeScore, qualifies, insertScore, cleanInitials, sanitizeBoard } from './score.js';
 
-const VERSION = '0.56';   // one step per commit to the repository
+const VERSION = '0.57';   // one step per commit to the repository
 const W = 320, H = 180;
 const FIRE = { x: 160, y: 136 };          // base of the flames
 const LIGHT_Y = 130;                       // centre of the light pool
@@ -5248,8 +5248,9 @@ function deathBloodHour(s, t) {
   const r = ease(seg(1.2, 3.6));
   if (r > 0) {
     const hx = lerp(270, 175, r), hy = lerp(108, 182, r);
-    limb(s, 276, 100, hx, hy, -20 * r, 2 + 4 * r, MIMIC_PAL);
-    claw(s, hx, hy, Math.PI * 0.7, 0.45, 1.2, 6 + 18 * r, MIMIC_PAL);
+    const pal = { black: 'rgba(4, 0, 0, 0.98)', rim: 'rgba(160, 22, 14, 0.85)', nail: 'rgba(30, 0, 0, 1)' };   // rimmed in the moon's red
+    limb(s, 276, 100, hx, hy, -20 * r, 2 + 4 * r, pal);
+    claw(s, hx, hy, Math.PI * 0.7, 0.45, 1.2, 6 + 18 * r, pal);
   }
 }
 
