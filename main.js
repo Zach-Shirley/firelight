@@ -6,7 +6,7 @@ import * as sfx from './sound.js';
 import { ACHIEVEMENTS, createStore } from './achievements.js';
 import { computeScore, qualifies, insertScore, cleanInitials, sanitizeBoard } from './score.js';
 
-const VERSION = '0.44';   // one step per commit to the repository
+const VERSION = '0.45';   // one step per commit to the repository
 const W = 320, H = 180;
 const FIRE = { x: 160, y: 136 };          // base of the flames
 const LIGHT_Y = 130;                       // centre of the light pool
@@ -3956,11 +3956,15 @@ function claw(s, hx, hy, dir, spread, curl, len = 5, pal = HER) {
 function drawHerHead(s, t, cx, cy, sc, eyeOpen = 1) {
   // shoulders, hunched and too narrow
   const bodyTo = Math.max(11 * sc, 72 - (cy + 7 * sc));   // at the window, down past the sill (clipped there)
-  for (let y = 0; y < bodyTo; y += 0.5) {
-    const half = (3 + (Math.min(y, 11 * sc) / sc) * 0.84) * sc;
-    lx.fillStyle = HER.rim; lpx(s, cx - half - 0.5, cy + 7 * sc + y, half * 2 + 1, 0.6);
-    lx.fillStyle = HER.black; lpx(s, cx - half, cy + 7 * sc + y, half * 2, 0.6);
-  }
+  // a thin neck, hunched bony shoulders, and a narrow body hanging below them: one set of strokes, rims first
+  const shY = cy + 8.5 * sc;
+  const parts = [
+    [[[cx, cy + 5 * sc], [cx, shY]], [2.2 * sc, 2.6 * sc]],
+    [[[cx - 7 * sc, shY + 3 * sc], [cx - 3 * sc, shY + 0.2 * sc], [cx + 3 * sc, shY + 0.2 * sc], [cx + 7 * sc, shY + 3 * sc]], [2.8 * sc, 3.4 * sc, 3.4 * sc, 2.8 * sc]],
+    [[[cx, shY + 1.5 * sc], [cx, shY + 6 * sc], [cx, cy + 7 * sc + bodyTo]], [9 * sc, 7.5 * sc, 7 * sc]],
+  ];
+  for (const [pts, ws] of parts) tubePass(s, pts, ws, HER.rim, 0.5);
+  for (const [pts, ws] of parts) tubePass(s, pts, ws, HER.black, 0);
   // the skull, wide at the brow and tapering to a point at the chin
   const hh = 17 * sc;
   for (let y = 0; y < hh; y += 0.5) {
@@ -4945,14 +4949,9 @@ function tallThing(s, t, cx, feet, h, o = {}) {
     const lift = side * step;
     limb(s, cx + side * 1.7 * u, hip, cx + side * (2.6 + lift * 0.8) * u, feet - Math.max(0, lift) * 1.5 * u, -side * 1.6 * u, 2.2 * u, pal);
   }
-  // the body: sloped shoulders, a sunken waist, ribs that show through
-  for (let y = sh - 1.2 * u; y < hip + 1.5 * u; y += 0.5) {
-    const k = (y - sh) / (hip - sh);
-    const half = u * (k < 0 ? 4.2 + k * 9 : 1.6 + 3.2 * Math.cos(Math.min(1, k / 0.8) * Math.PI / 2) ** 1.4 + Math.max(0, k - 0.8) * 5);
-    if (half <= 0) continue;
-    lx.fillStyle = pal.rim; lpx(s, cx - half - 0.5, y, half * 2 + 1, 0.5);
-    lx.fillStyle = pal.black; lpx(s, cx - half, y, half * 2, 0.5);
-  }
+  // the body as one stroke: narrow hips, a sunken waist, a deep cage of a chest, then a sloped bar of shoulders
+  tube(s, [[cx, hip + 1.2 * u], [cx, hip - (hip - sh) * 0.45], [cx, sh + 0.8 * u]], [3.4 * u, 2.4 * u, 6.4 * u], pal);
+  tube(s, [[cx - 4 * u, sh + 0.9 * u], [cx, sh - 0.4 * u], [cx + 4 * u, sh + 0.9 * u]], [2.2 * u, 2.6 * u, 2.2 * u], pal);
   // arms hanging past the knees, fingers almost on the floor
   const reach = o.reach ?? 0.9;
   for (const side of [-1, 1]) {
