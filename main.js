@@ -6,7 +6,7 @@ import * as sfx from './sound.js';
 import { ACHIEVEMENTS, createStore } from './achievements.js';
 import { computeScore, qualifies, insertScore, cleanInitials, sanitizeBoard } from './score.js';
 
-const VERSION = '0.55';   // one step per commit to the repository
+const VERSION = '0.56';   // one step per commit to the repository
 const W = 320, H = 180;
 const FIRE = { x: 160, y: 136 };          // base of the flames
 const LIGHT_Y = 130;                       // centre of the light pool
@@ -3129,12 +3129,6 @@ function drawDoor() {
     px.fillStyle = '#060a14'; for (let x = 258; x < 290; x += 5) px.fillRect(x, 70 + ((x * 7) % 9), 3, 30);
     px.fillStyle = '#9aa4b8'; px.fillRect(257, 102, 34, 10);
     px.fillStyle = C.snow; for (const f of snow) px.fillRect(Math.round(f.x + 212), Math.round(f.y + 30), 1, 1);
-    if (figure > 0) {
-      px.fillStyle = '#020101';
-      px.fillRect(268, 54, 12, 58);
-      px.fillRect(266, 66, 16, 30);
-      px.fillRect(270, 51, 8, 4);
-    }
   }
   const w = Math.max(3, Math.round(34 * (1 - door * 0.85)));
   const x0 = 291 - w;
@@ -4605,8 +4599,10 @@ function drawLight() {
 
   // the tall thing in the doorway
   if (figure > 0 && door > 0.3) {
-    lx.fillStyle = `rgba(255, 255, 255, ${Math.min(1, figure)})`;
-    lpx(s, 271, 58, 2, 1); lpx(s, 276, 58, 2, 1);
+    // stopped dead at the salt line: too tall for the door, head bent under the lintel, then gone
+    asLayer(Math.min(1, figure), () => inDoorway(s, () => tallThing(s, t, 274, 111, 60, {
+      pal: MIMIC_PAL, tilt: 1.2, reach: 0.8, mouth: 0.6, eyes: 'rgba(235, 235, 255, 0.95)',
+    })));
   }
 
   drawHand(s, t);
