@@ -662,3 +662,33 @@ body.touch #dayList button { min-height: calc(14px * var(--s)); }
 #swat::after { content: ''; position: absolute; left: 0; bottom: 0; height: calc(1px * var(--s)); width: var(--cd, 100%); background: #e0a050; }
 .dev-diff { display: block; font-size: calc(6px * var(--s)); color: var(--ink-dim); margin-bottom: calc(3px * var(--s)); }
 .dev-diff select { font: inherit; font-size: calc(6px * var(--s)); background: var(--panel-solid); color: var(--ink); border: calc(0.5px * var(--s)) solid var(--edge); }
+
+/* the death lab: the scene on the left, its panel on the right (under it on a narrow screen) */
+body.lab { padding-right: 300px; }
+body.lab #stage #hud, body.lab #stage #menu, body.lab #stage #actions, body.lab #stage #message, body.lab #stage #toast,
+body.lab #stage #spots, body.lab #stage #spotCard, body.lab #stage #away, body.lab #stage #dialogue,
+body.lab #stage #slam, body.lab #stage #swat, body.lab #stage #strike, body.lab #stage #douse, body.lab #stage #saltFlare { display: none !important; }
+#lab {
+  position: fixed; top: 0; right: 0; bottom: 0; width: 300px; z-index: 50;
+  display: flex; flex-direction: column; gap: 8px; padding: 12px 12px 16px;
+  background: var(--panel-solid); border-left: 1px solid var(--edge); font-size: 18px; overflow-y: auto; overflow-x: hidden;
+}
+#lab.hidden { display: none !important; }
+#lab h2 { margin: 0; font-size: 28px; font-weight: normal; color: var(--ember); letter-spacing: 1px; }
+#lab h3 { margin: 8px 0 2px; font-size: 16px; font-weight: normal; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 1px; }
+#lab .lab-note { margin: 0; font-size: 15px; color: var(--ink-dim); }
+#lab button { font-size: 18px; border-width: 1px; border-radius: 3px; padding: 3px 8px; }
+#lab button.on { border-color: var(--ember); color: #fff3d6; }
+#labList { scrollbar-color: var(--edge) transparent; flex: 1 1 auto; min-height: 120px; overflow-y: auto; display: flex; flex-direction: column; gap: 3px; padding-right: 4px; }
+#labList > * { flex: none; }
+#labList button { text-align: left; }
+.lab-now { display: flex; justify-content: space-between; gap: 8px; }
+#labTime { color: var(--ink-dim); white-space: nowrap; }
+#labScrub { width: 100%; accent-color: var(--ember); }
+.lab-row { display: flex; gap: 6px; }
+.lab-row button { flex: 1; }
+.lab-btn { margin-top: calc(3px * var(--s)); }
+@media (max-width: 760px) {
+  body.lab { padding-right: 0; padding-bottom: 46vh; }
+  #lab { top: auto; left: 0; width: auto; height: 46vh; border-left: 0; border-top: 1px solid var(--edge); }
+}

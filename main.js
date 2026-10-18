@@ -6,7 +6,7 @@ import * as sfx from './sound.js';
 import { ACHIEVEMENTS, createStore } from './achievements.js';
 import { computeScore, qualifies, insertScore, cleanInitials, sanitizeBoard } from './score.js';
 
-const VERSION = '0.66';   // one step per commit to the repository
+const VERSION = '0.67';   // one step per commit to the repository
 const W = 320, H = 180;
 const FIRE = { x: 160, y: 136 };          // base of the flames
 const LIGHT_Y = 130;                       // centre of the light pool
@@ -227,6 +227,7 @@ function load() {
 }
 
 function save() {
+  if (lab) return;   // the death lab never touches the save
   try { localStorage.setItem(SAVE_KEY, JSON.stringify(S)); } catch (e) { /* ignore */ }
 }
 
@@ -245,7 +246,7 @@ function loadStats() {
 
 function recordNight(won) {
   const st = loadStats();
-  if (S.recorded || window.__simulating || S.dev) return st;   // simulated and playtest nights don't count
+  if (S.recorded || window.__simulating || S.dev || lab) return st;   // simulated and playtest nights don't count
   S.recorded = true;
   st.nights += 1;
   if (won) st.dawns += 1;
@@ -338,6 +339,7 @@ let heartTimer = 0;
 let hunterEyes = 0;        // 0..1 fade of the eyes in the treeline
 let dawnT = 0;
 let lossT = 0;
+let lab = null;           // the death lab, while it's open: { sc, t, playing, speed, fright, savedFright, sound, acc, rng }
 let eyeSpawn = 0.5;
 let buildRefresh = '';
 let animT = 0;             // animation clock; runs at half speed while a dialogue pauses the night
@@ -2117,7 +2119,7 @@ function closeCallScare() {
 }
 
 function achieve(id) {
-  if (window.__simulating || S.dev) return;
+  if (window.__simulating || S.dev || lab) return;
   const a = achievements.unlock(id);
   if (a) toasts.push(a);
 }
@@ -2793,7 +2795,7 @@ function choose(i) {
 /* ------------------------------------------------------------------ logic */
 
 function update(dt) {
-  if (mode === 'playing' && !portraitBlock) updateGame(dt);
+  if (mode === 'playing' && !portraitBlock && !lab) updateGame(dt);   // in the death lab the night stands still
   updateAmbient(dt);
 }
 
@@ -2875,7 +2877,7 @@ function updateAmbient(dt) {
   if (mode === 'lost') {
     lossT += dt;
     updateDeath(dt);
-    if (lossT > deathLen()) showEnding(false);
+    if (lossT > deathLen() && !lab) showEnding(false);
   }
 }
 
@@ -5933,7 +5935,7 @@ function devStart(which) {
 }
 $('devBtn').addEventListener('click', () => showTitle('dev'));
 light.addEventListener('pointerdown', (e) => {
-  if (mode !== 'playing' && mode !== 'day') return;
+  if (lab || (mode !== 'playing' && mode !== 'day')) return;
   const r = light.getBoundingClientRect();
   const lx0 = ((e.clientX - r.left) / r.width) * W, ly0 = ((e.clientY - r.top) / r.height) * H;
   const out = TORCHES.find((tc) => S.torches && S.torches[tc.id] === 'out' && Math.abs(lx0 - tc.x) < 7 && Math.abs(ly0 - tc.y) < 9);
@@ -5954,6 +5956,198 @@ $('scareBtn').addEventListener('click', () => {
 });
 syncFright();
 document.querySelectorAll('[data-dev]').forEach((b) => b.addEventListener('click', () => devStart(b.dataset.dev)));
+
+/* --------------------------------------------------------------- death lab */
+
+// The death lab (the playtest menu, or ?lab in the address): every death and scare on its own in a quiet lit cabin,
+// to play, pause and scrub. Each scene is set up fresh and run forward in fixed steps from its own fixed seed, so
+// scrubbing back and forth shows the same frames. Nothing in the lab saves, counts toward stats or unlocks anything.
+const LAB_DT = 1 / 60;
+const LAB_CAUSES = ['dark', 'starve', 'burn', 'mimic', 'hand', 'handAway', 'hunter', 'risen', 'cellar', 'cellarAway',
+  'falseStranger', 'freeze', 'guest', 'goblins', 'bloodHour', 'flood', 'ash', 'sleep', 'lost'];
+
+function seeded(str) {
+  let a = 0;
+  for (const ch of str) a = (Math.imul(a, 31) + ch.charCodeAt(0)) | 0;
+  return () => {   // mulberry32
+    a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// the room as it is when each one really happens
+const labAt = (n, hour) => { S.nightNo = n; S.night = hour * HOUR; };
+const labGob = (corner) => ({ corner, t: 60, since: 0, act: null });
+const labAway = () => { S.away = { kind: 'wood', t: 3, total: TRIPS.wood.time }; };
+const labBroken = () => { S.glassBroken = true; S.boards = 0; };
+const LAB_SETUP = {
+  dark: () => { S.dread = 100; },
+  starve: () => { S.hunger = 100; },
+  hand: labBroken, handAway: labBroken,
+  hunter: labAway,
+  risen: () => { S.stranger = 'dead'; },
+  cellar: () => labAt(2, 3), cellarAway: () => labAt(2, 3),
+  falseStranger: () => { S.stranger = 'inside'; S.strangerFalse = true; },
+  freeze: () => { labAt(3, 3); S.cold = 100; },
+  guest: () => { labAt(4, 3); S.fire = 0; S.goblins = [labGob('fl')]; },
+  goblins: () => { labAt(4, 3); S.goblins = ['bl', 'fl', 'fr'].map(labGob); },
+  bloodHour: () => labAt(5, 5.3),
+  flood: () => { labAt(5, 7.3); S.floodFrom = 'door'; door = doorTarget = 1; },
+  ash: () => labAt(5, 2),
+  sleep: () => labAt(2, 0),
+  lost: () => { labAt(3, 2); labAway(); },
+};
+
+function labDeath(id, cause, label, group = 'deaths', extra = null) {
+  return { id, group, label, len: DEATH_LEN[cause], go: () => die(cause), setup: () => { LAB_SETUP[cause]?.(); extra?.(); } };
+}
+
+const LAB_SCENES = [
+  ...LAB_CAUSES.map((c) => labDeath(c, c, c)),
+  ...[['door', () => { door = doorTarget = 1; }], ['window', labBroken], ['cabinet', () => { S.shed = true; }], ['hatch', null]]
+    .map(([from, open]) => labDeath(`flood-${from}`, 'flood', `flood from the ${from}`, 'variants', () => { door = doorTarget = 0; open?.(); S.floodFrom = from; })),
+  ...[['fl', 'fl', 'fl'], ['bl', 'bl', 'fr'], ['bl', 'fl', 'fr']]
+    .map((cs, i) => labDeath(`goblins-${i + 1}`, 'goblins', `goblins from ${i + 1} corner${i ? 's' : ''}`, 'variants', () => { S.goblins = cs.map(labGob); })),
+  ...LAB_CAUSES.map((c) => Object.assign(labDeath(`scare-${c}`, c, c, 'jump scares'), { len: 0.6, scare: true })),
+  { id: 'window', group: 'other scares', label: 'close call at the window', len: 1, scare: true,
+    go: () => { windowScareT = 0.32; shake = 0.4; sfx.jolt(0.6); sfx.heartbeat(1); } },
+  { id: 'salt', group: 'other scares', label: 'the mimic at the salt line', len: 2.8,
+    setup: () => { S.saltDoor = true; },
+    go: () => { S.saltDoor = false; doorTarget = 1; figure = 1.2; doorCloseIn = 1.3; sfx.scream(); } },
+];
+
+// Set the scene up from scratch and run it to `t` seconds in: silently, unless it starts from the top.
+function labLoad(sc, t = 0) {
+  const rnd = Math.random;
+  lab.rng = seeded(sc.id);
+  Math.random = lab.rng;
+  sfx.setEnabled(false);
+  try {
+    S = Object.assign(freshState(), { dev: true, lit: true, fire: 3, wood: 12, night: 1.5 * HOUR, sound: lab.sound });
+    resetTransients();
+    jumpT = windowScareT = cabT = flareT = blueT = phantomEyes = phantomGrin = flameAcc = 0;
+    setMode('playing');
+    fright = sc.scare ? 'terrifying' : lab.fright;
+    sc.setup?.();
+    for (let i = 0; i < 60; i++) update(LAB_DT);   // a second for the light and the door to settle
+    sfx.setEnabled(lab.sound && t <= 0);
+    sc.go();
+    sfx.setEnabled(false);
+    lab.sc = sc;
+    lab.t = 0;
+    lab.acc = 0;
+    t = clamp(t, 0, sc.len);
+    while (lab.t + LAB_DT / 2 < t) { update(LAB_DT); lab.t += LAB_DT; }
+  } finally {
+    Math.random = rnd;
+    sfx.setEnabled(lab.sound);
+  }
+  syncLab();
+}
+
+const labDone = () => lab.t >= lab.sc.len - 1e-6;
+
+function labFrame(dt) {
+  if (!lab.playing) return;
+  lab.acc += dt * lab.speed;
+  const rnd = Math.random;
+  Math.random = lab.rng;
+  try {
+    while (lab.acc >= LAB_DT && !labDone()) { update(LAB_DT); lab.t += LAB_DT; lab.acc -= LAB_DT; }
+  } finally { Math.random = rnd; }
+  if (labDone()) { lab.playing = false; lab.acc = 0; }
+  syncLab();
+}
+
+function labStart(sc) { labLoad(sc); lab.playing = true; syncLab(); }
+
+function labPlay() {
+  if (lab.playing) lab.playing = false;
+  else if (labDone()) labStart(lab.sc);
+  else lab.playing = true;
+  syncLab();
+}
+
+function labSeek(t) { lab.playing = false; labLoad(lab.sc, t); }
+
+function syncLab() {
+  if (!lab || !lab.sc) return;
+  const { sc } = lab;
+  $('labName').textContent = `${sc.group === 'jump scares' ? 'jump scare: ' : ''}${sc.label}`;
+  $('labTime').textContent = `${lab.t.toFixed(2)} / ${sc.len.toFixed(2)} s`;
+  const scrub = $('labScrub');
+  scrub.max = sc.len;
+  scrub.value = lab.t;
+  $('labPlay').textContent = lab.playing ? 'pause' : labDone() ? 'replay' : 'play';
+  document.querySelectorAll('#labList button').forEach((b) => b.classList.toggle('on', b.dataset.scene === sc.id));
+  document.querySelectorAll('[data-speed]').forEach((b) => b.classList.toggle('on', +b.dataset.speed === lab.speed));
+  $('labScare').textContent = `scares: ${lab.fright}`;
+  $('labSound').textContent = lab.sound ? 'sound on' : 'sound off';
+}
+
+function openLab() {
+  sfx.initAudio();
+  lab = { sc: null, t: 0, playing: false, speed: 1, fright, savedFright: fright, sound: S.sound, acc: 0, rng: Math.random };
+  ui.title.classList.add('hidden');
+  ui.ending.classList.add('hidden');
+  ui.day.classList.add('hidden');
+  document.body.classList.add('lab');
+  $('lab').classList.remove('hidden');
+  resize();
+  labStart(LAB_SCENES[0]);
+}
+
+function closeLab() {
+  fright = lab.savedFright;
+  lab = null;
+  document.body.classList.remove('lab');
+  $('lab').classList.add('hidden');
+  // back to the player's own night, exactly as it was saved
+  S = load() || freshState();
+  if (S.ended) S = Object.assign(freshState(), { sound: S.sound });
+  resetTransients();
+  jumpT = windowScareT = 0;
+  sfx.setEnabled(S.sound);
+  if (new URLSearchParams(location.search).has('lab')) history.replaceState(null, '', location.pathname);
+  resize();
+  showTitle(devMode ? 'dev' : 'menu');
+}
+
+function labKey(e, k) {
+  if (k === ' ') { e.preventDefault(); labPlay(); }
+  else if (k === 'r') labStart(lab.sc);
+  else if (k === 'arrowleft' || k === ',') { e.preventDefault(); labSeek(lab.t - LAB_DT); }
+  else if (k === 'arrowright' || k === '.') { e.preventDefault(); labSeek(lab.t + LAB_DT); }
+  else if (k === 'escape') closeLab();
+}
+
+{
+  const list = $('labList');
+  let group = '';
+  for (const sc of LAB_SCENES) {
+    if (sc.group !== group) {
+      group = sc.group;
+      const h = document.createElement('h3');
+      h.textContent = group;
+      list.appendChild(h);
+    }
+    const b = document.createElement('button');
+    b.dataset.scene = sc.id;
+    b.textContent = sc.label;
+    b.addEventListener('click', () => labStart(sc));
+    list.appendChild(b);
+  }
+  $('labPlay').addEventListener('click', labPlay);
+  $('labRestart').addEventListener('click', () => labStart(lab.sc));
+  $('labScrub').addEventListener('input', (e) => labSeek(+e.target.value));
+  document.querySelectorAll('[data-speed]').forEach((b) => b.addEventListener('click', () => { lab.speed = +b.dataset.speed; syncLab(); }));
+  $('labScare').addEventListener('click', () => { lab.fright = lab.fright === 'terrifying' ? 'eerie' : 'terrifying'; labStart(lab.sc); });
+  $('labSound').addEventListener('click', () => { lab.sound = !lab.sound; sfx.setEnabled(lab.sound); syncLab(); });
+  $('labExit').addEventListener('click', closeLab);
+  $('labBtn').addEventListener('click', openLab);
+}
 $('version').textContent = `v${VERSION}`;
 for (const sp of SPOTS) {
   const b = document.createElement('button');
@@ -5976,6 +6170,7 @@ window.addEventListener('keydown', (e) => {
   if (e.target instanceof HTMLInputElement) return;
   if (e.repeat) return;
   const k = e.key.toLowerCase();
+  if (lab) { labKey(e, k); return; }
   if (mode === 'title') {
     if (k === 'escape' && ui.titleMenu.classList.contains('hidden')) showTitle('menu');
     return;
@@ -6012,8 +6207,12 @@ const touch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in windo
 let portraitBlock = false;
 
 function resize() {
-  const vw = window.visualViewport ? visualViewport.width : innerWidth;
-  const vh = window.visualViewport ? visualViewport.height : innerHeight;
+  let vw = window.visualViewport ? visualViewport.width : innerWidth;
+  let vh = window.visualViewport ? visualViewport.height : innerHeight;
+  if (lab) {   // the lab's panel sits beside the scene on a wide screen, under it on a narrow one
+    const p = $('lab').getBoundingClientRect();
+    if (p.top > 1) vh -= p.height; else vw -= p.width;
+  }
   // whole-number scales keep pixels crisp; below 2x (small phones) a fractional scale is better than tiny
   const raw = Math.min(vw / W, vh / H);
   const s = raw >= 2 ? Math.floor(raw) : Math.max(0.75, raw);
@@ -6022,7 +6221,7 @@ function resize() {
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
   light.width = Math.round(W * s * dpr);
   light.height = Math.round(H * s * dpr);
-  portraitBlock = touch && vh > vw;
+  portraitBlock = touch && vh > vw && !lab;
   $('rotate').classList.toggle('hidden', !portraitBlock);
 }
 window.addEventListener('resize', resize);
@@ -6040,12 +6239,13 @@ buildResBar();
 sfx.setEnabled(S.sound);
 resize();
 showTitle('menu');
+if (new URLSearchParams(location.search).has('lab')) openLab();
 
 let last = performance.now();
 function frame(now) {
   const dt = Math.min(0.1, (now - last) / 1000);
   last = now;
-  update(dt);
+  if (lab) labFrame(dt); else update(dt);
   drawPixels();
   drawLight();
   syncUI();
@@ -6076,6 +6276,7 @@ window.__firelight = {
   visit: (who, as, fake) => queueVisit(who, as, fake),
   die: (cause) => die(cause),
   dev: (which) => devStart(which),
+  lab: { open: () => openLab(), close: () => closeLab(), scenes: LAB_SCENES.map((sc) => sc.id), load: (id, t) => labLoad(LAB_SCENES.find((sc) => sc.id === id), t), get t() { return lab && lab.t; } },
   get lossT() { return lossT; },
   choose,
   newNight: () => newNight(true),
