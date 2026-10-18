@@ -6,7 +6,7 @@ import * as sfx from './sound.js';
 import { ACHIEVEMENTS, createStore } from './achievements.js';
 import { computeScore, qualifies, insertScore, cleanInitials, sanitizeBoard } from './score.js';
 
-const VERSION = '0.65';   // one step per commit to the repository
+const VERSION = '0.66';   // one step per commit to the repository
 const W = 320, H = 180;
 const FIRE = { x: 160, y: 136 };          // base of the flames
 const LIGHT_Y = 130;                       // centre of the light pool
@@ -138,7 +138,7 @@ function freshState() {
     wet: [],                                     // seconds until each wet log is dry (wet logs are used up first)
     smoke: 0,                                    // 0..1 smoke from wet wood, collecting under the roof (looks only)
     rack: false,                                 // drying rack
-    rackT: 105,                                  // seconds until the rack smokes the next piece of meat (two hours)
+    rackT: 105,                                  // unused since the rack stopped smoking meat; kept so old saves load
     fur: 0,
     coat: false,
     insulated: false,
@@ -1123,8 +1123,8 @@ function updateCold(dt) {
 
 function addWet(n) { for (let i = 0; i < n; i++) S.wet.push(DRY_TIME); }
 
-// wet logs dry in the house (three times faster on the drying rack, eight at a time); the rack also smokes
-// meat so it keeps; the smoke under the roof thins out
+// frozen logs thaw in the house (three times faster on the drying rack, eight at a time); the smoke under the
+// roof thins out
 function updateWet(dt) {
   if (S.wet.length > S.wood + S.shedWood) S.wet.length = S.wood + S.shedWood;   // used up first
   const heat = (0.3 + S.fire * 0.3) * (S.stove ? 1.3 : 1);   // out: barely dries; roaring: half again as fast

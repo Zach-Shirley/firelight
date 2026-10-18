@@ -79,7 +79,7 @@ Make it to dawn and you choose: **end here** and bank your score, or **rest thro
 | Sit with the stranger | 1 | Only if she's alive; she gives you salt and warns you about the floor |
 | Sleep | 6 | Skip it and the night gets worse; see **No sleep** below. Sleeping resets the count |
 
-The day also dries every wet log and spoils any meat that isn't cured. The day screen warns you what the next night brings.
+The day also thaws every frozen log and spoils any meat that isn't cured. The day screen warns you what the next night brings.
 
 **Night 2** keeps what you have and what is broken: resources, traps, the lantern, the boards, the broken window, and the stranger alive, gone or buried. Everything that hunts you behaves as if it were **two hours later**: the thing in the trees and the knocking start as soon as it's dark, she comes to the window from 11 pm, the walkers from 1 am, the fire burns faster and the mimic knocks more often. The day screen and the start of night 2 both warn you.
 
@@ -185,7 +185,7 @@ Click an ember for a card with what it does and what it costs. The **build** but
 | **Woodshed** | 25 logs, 1 s outside each | A shed against the outside wall that holds 100 more logs. **You build it a bit at a time**: each trip carries out the wood you have and builds it in log by log, and you can run back any time without losing what's built. That's also how you spend a pile that's getting too tall. Once it stands, a **small cabinet appears in the right wall** with a candle beside it: it opens straight onto the shed. Click it to look in. Wood moves on its own: extra logs go into the shed, the pile restocks from it a few logs at a time when it runs low, and the cabinet swings open while they do. The wood count shows what's in the shed |
 | Corner torches (up to 4) | 2 wood each | An iron sconce in each corner of the room, where the eyes like to sit. Once you have a woodshed, its candle lights the back-right corner and that torch isn't offered (build it first and you keep both). Burns all night with a faint warm glow, and nothing opens its eyes inside it. The first time you light a corner, now and then a rat bolts out of the shadows |
 | Cure meat | 1 salt | Rubs salt into 2 cooked meat so it never goes bad |
-| **Drying rack** | 12 wood | Beside the fire. Dries wet wood three times faster (eight logs at a time), and slowly **smokes cooked meat** so it never goes bad, one piece every couple of hours while the fire burns. Smoked meat counts as cured |
+| **Drying rack** | 12 wood | Beside the fire. Thaws frozen logs three times faster, eight at a time. (It no longer smokes meat; salt-cure it instead) |
 | Fur clothes | coat 6, trousers 5, hat 4, socks 3 fur | Each slows how fast you get cold; the whole set makes you all but immune |
 | Fur curtains | 5 fur | Over the window; click the window to open or shut them (see night 3) |
 | Insulate the walls | 6 fur | The house stays warmer for a given fire. (Six fur is also 18 points at dawn; whether insulation is worth it is up to you) |
@@ -414,7 +414,7 @@ They're stored in this browser for now (`achievements.js`). Each unlock keeps it
 
 Open the game once with `?dev` on the address (https://firelight-topaz.vercel.app/?dev) and the title menu gets a **playtest** button, remembered in that browser. Pick a difficulty, then start at the day before a night or straight into night 2, 3 or 4 (optionally a few days awake), with a basic kit (the axe included): boarded window, two traps (three on night 3), the lantern, the stranger, some food and wood, and on night 3 a woodshed and the drying rack. Playtest runs don't count toward the stats or the leaderboard.
 
-The version is in the bottom-right corner (v0.65 is the 65th commit; the number counts every commit, docs included), so you can tell a refresh picked up the latest build.
+The version is in the bottom-right corner (v0.66 is the 66th commit; the number counts every commit, docs included), so you can tell a refresh picked up the latest build.
 
 ## Future ideas
 
