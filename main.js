@@ -6,7 +6,7 @@ import * as sfx from './sound.js';
 import { ACHIEVEMENTS, createStore } from './achievements.js';
 import { computeScore, qualifies, insertScore, cleanInitials, sanitizeBoard } from './score.js';
 
-const VERSION = '0.63';   // one step per commit to the repository
+const VERSION = '0.64';   // one step per commit to the repository
 const W = 320, H = 180;
 const FIRE = { x: 160, y: 136 };          // base of the flames
 const LIGHT_Y = 130;                       // centre of the light pool
@@ -5265,10 +5265,11 @@ function deathBloodHour(s, t) {
 function deathGoblins(s) {
   lx.fillStyle = `rgba(0, 0, 0, ${0.5 * seg(0, 2)})`;
   lx.fillRect(0, 0, light.width, light.height);
-  const k = ease(seg(0.3, 3.6));
   deathEyes.forEach((c, i) => {
+    // each one a little behind the last and a different size, so they come as a pack and not as copies
+    const k = ease(seg(0.3 + i * 0.25, 3.6 + i * 0.15));
     const tx = 160 + (i - (deathEyes.length - 1) / 2) * 62;
-    drawGoblin(s, lerp(c.x, tx, k), lerp(c.y + 6, 178, k), lerp(1, 6, k), c.x < tx ? 1 : -1, 1);
+    drawGoblin(s, lerp(c.x, tx, k), lerp(c.y + 6, 178, k), lerp(1, 6 - (i % 3) * 0.7, k), c.x < tx ? 1 : -1, 1);
   });
 }
 
