@@ -6,7 +6,7 @@ import * as sfx from './sound.js';
 import { ACHIEVEMENTS, createStore } from './achievements.js';
 import { computeScore, qualifies, insertScore, cleanInitials, sanitizeBoard } from './score.js';
 
-const VERSION = '0.49';   // one step per commit to the repository
+const VERSION = '0.50';   // one step per commit to the repository
 const W = 320, H = 180;
 const FIRE = { x: 160, y: 136 };          // base of the flames
 const LIGHT_Y = 130;                       // centre of the light pool
@@ -589,8 +589,10 @@ function updateBloodMoon(dt) {
   // the blood hour: the moon goes dark, the torches die and won't catch
   if (bloodHour() && !S.bloodSaid) {
     S.bloodSaid = true;
+    const had = TORCHES.some((tc) => S.torches[tc.id] === true);
     for (const tc of TORCHES) if (S.torches[tc.id] === true) S.torches[tc.id] = 'out';
     sfx.recede();
+    if (had) { sfx.hiss(); say("the red moon goes black. every torch in the cabin gutters out at once, and they won't catch again. not until four."); }
     if (S.stranger === 'inside' && !S.strangerFalse) say('the stranger grips your arm. "don\'t open anything. not the door, not the slot. not for anyone."');
   }
   // half past four: they're gathering
