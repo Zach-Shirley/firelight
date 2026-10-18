@@ -6,7 +6,7 @@ import * as sfx from './sound.js';
 import { ACHIEVEMENTS, createStore } from './achievements.js';
 import { computeScore, qualifies, insertScore, cleanInitials, sanitizeBoard } from './score.js';
 
-const VERSION = '0.59';   // one step per commit to the repository
+const VERSION = '0.60';   // one step per commit to the repository
 const W = 320, H = 180;
 const FIRE = { x: 160, y: 136 };          // base of the flames
 const LIGHT_Y = 130;                       // centre of the light pool
@@ -4096,16 +4096,22 @@ function drawHandBody(s, t) {
     const pull = (hd.jerk || 0) > 0 ? -0.7 : 0;
     const by = g.board[0] + pull;
     const wx = g.x + 5;
-    limbSeg(s, wx - 2 * out, g.y + 0.5, wx + 2 * out, g.y + 0.5, 2.4 * out + 0.4);
+    // the forearm and every finger outlined first, then all filled, so the hand reads as one hand
+    const parts = [[[[wx - 2 * out, g.y + 0.5], [wx + 2 * out, g.y + 0.5]], [2.4 * out + 0.4, 2.4 * out + 0.4]]];
+    const tips = [];
     if (out > 0.25) {
       for (let i = 0; i < 4; i++) {
         const kx = wx - 3.3 + i * 2.2;
         const len = (2.5 + hd.p * 2.2 + (i === 1 || i === 2 ? 0.8 : 0)) * out;
-        limbSeg(s, kx, g.y + 1, kx + 0.3, by + 0.5, 0.9);                 // knuckles over the board's top edge
-        limbSeg(s, kx + 0.3, by + 0.5, kx + 0.6, by + 0.5 + len, 0.8);    // fingers down its face
-        lx.fillStyle = HER.nail; lpx(s, kx + 0.35, by + 0.5 + len, 0.6, 0.8);
+        // knuckles over the board's top edge, then the finger down its face
+        parts.push([[[kx, g.y + 1], [kx + 0.3, by + 0.5], [kx + 0.6, by + 0.5 + len]], [0.9, 0.9, 0.7]]);
+        tips.push([kx + 0.35, by + 0.5 + len]);
       }
     }
+    for (const [pts, ws] of parts) tubePass(s, pts, ws, HER.rim, 0.45);
+    for (const [pts, ws] of parts) tubePass(s, pts, ws, HER.black, 0);
+    lx.fillStyle = HER.nail;
+    for (const [x, y] of tips) lpx(s, x, y, 0.6, 0.8);
     return;
   }
 
