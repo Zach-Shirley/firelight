@@ -17,7 +17,7 @@ export const ACHIEVEMENTS = [
   { id: 'die_falseStranger', group: 'deaths', name: 'It Waited for the Light', desc: 'Let the false stranger have her way.' },
   { id: 'die_freeze', group: 'deaths', name: 'Frostbite', desc: 'Freeze to death in the blizzard.' },
   { id: 'die_guest', group: 'deaths', name: 'Company', desc: 'Let the fire die with a goblin in the corner.' },
-  { id: 'die_goblins', group: 'deaths', name: 'Full House', desc: 'Let four goblins in at once.' },
+  { id: 'die_goblins', group: 'deaths', name: 'Full House', desc: 'Let three goblins in at once.' },
   { id: 'die_sleep', group: 'deaths', name: 'Eyes Closed', desc: 'Go a fourth day without sleep.', later: true },
   { id: 'die_lost', group: 'deaths', name: 'Into the White', desc: 'Lose the path in the blizzard for good. About one blizzard night in a hundred.', hidden: true, hint: 'something very unlucky.' },
 

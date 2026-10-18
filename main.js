@@ -6,7 +6,7 @@ import * as sfx from './sound.js';
 import { ACHIEVEMENTS, createStore } from './achievements.js';
 import { computeScore, qualifies, insertScore, cleanInitials, sanitizeBoard } from './score.js';
 
-const VERSION = '0.39';   // one step per commit to the repository
+const VERSION = '0.40';   // one step per commit to the repository
 const W = 320, H = 180;
 const FIRE = { x: 160, y: 136 };          // base of the flames
 const LIGHT_Y = 130;                       // centre of the light pool
@@ -79,7 +79,7 @@ const ui = {
   endRecap: $('endRecap'), endTally: $('endTally'), boardTally: $('boardTally'),
   day: $('day'), dayHours: $('dayHours'), dayList: $('dayList'), dayLog: $('dayLog'), dayNight: $('dayNight'),
   dayBtn: $('dayBtn'), endRunBtn: $('endRunBtn'), slam: $('slam'),
-  douse: $('douse'), saltFlare: $('saltFlare'),
+  douse: $('douse'), saltFlare: $('saltFlare'), swat: $('swat'),
   initials: $('initials'), initialsInput: $('initialsInput'), endBoard: $('endBoard'), retry: $('retryBtn'),
 };
 
@@ -129,6 +129,11 @@ function freshState() {
     shedBuilt: 0,                                // logs built into the woodshed so far (it needs PILE_CAP)
     blaze: 0,
     cold: 0,                                     // 0 warm .. 100 frozen (blizzard nights only)
+    room: 0,                                     // how cold the house is, 0..100 (blizzard nights only)
+    snowPile: 0,                                 // snow drifted in under the window, 0..1
+    curtains: false,                             // fur curtains over the window
+    curtainsShut: false,
+    hat: false, pants: false, socks: false,      // fur clothes (the coat is S.coat)
     coldSaid: 0,
     wet: [],                                     // seconds until each wet log is dry (wet logs are used up first)
     smoke: 0,                                    // 0..1 smoke from wet wood, collecting under the roof (looks only)
@@ -390,8 +395,8 @@ const HOUR_LINES_4 = {
   1: "eleven o'clock. the blizzard has not stopped since last night.",
   2: 'midnight. snow is piled to the sill.',
   3: 'one in the morning. the cold is in the walls now.',
-  4: 'two in the morning. the trees are gone in the white.',
-  5: 'three in the morning. you have been here a long time.',
+  4: 'two in the morning. the wind drops. everything is suddenly, completely still. you can see the trees again, and things are moving in them.',
+  5: 'three in the morning. the wind comes back all at once.',
   6: 'four in the morning. almost.',
   7: 'the last hour of the fourth night. hold on.',
 };
@@ -538,22 +543,44 @@ function updateNight(dt) {
 
 /* --------------------------------------------------------- night 4: the goblins */
 
-// The guests who never knock. From night 4, each time you come back in from a trip, one of them may slip in at
-// your heels: a small hunchbacked thing that settles in a dark corner (one to a corner) and climbs the wall to steal
-// meat and blood while the fire is low or you're out. A salted doorway stops one at the threshold (the salt goes).
-// Light its corner and it moves; with every corner lit it can't settle and leaves when the door next opens. Throw
-// salt at one and it bolts. Let the fire die with one settled in, and it comes for you. Let four in, and they all do.
+// Small, rowdy, nimble things. From night 4 they come in two ways: at your heels when you come back from a trip, and,
+// once there's a woodshed, through the cabinet in the wall from the shed, where they nest among the logs (the
+// fuller the shed, the more often). A salted doorway or cabinet stops one (the salt goes); a plank across the
+// cabinet keeps them out of it for good (and you out of the shed, until you take it off). Each one snatches
+// something on the way in and hides in a dark corner (several can share one). Every so often one goes for the rack:
+// up one side, slipping, across, and up the other; swat it before it gets there and it runs out the door. Light its
+// corner and it moves; with nowhere dark left it pinches a torch out. Three inside at once, or the fire dying with
+// one in the corner, and they come for you.
 const GOB_CORNERS = { bl: { x: 12, y: 54 }, br: { x: 291, y: 56 }, fl: { x: 16, y: 160 }, fr: { x: 304, y: 160 } };
+const GOB_MAX = 3;
 const GOB_STEAL = () => rand(20, 30);
+const GOB_CLIMB = 2.6;      // the whole climb to the rack; you can swat it until it grabs, at 2.0 s
 const goblinNight = () => S.nightNo >= 4;
 const cornerLit = (id) => (S.torches && S.torches[id] === true) || (id === 'br' && S.shed);
-const freeCorners = () => Object.keys(GOB_CORNERS).filter((id) => !cornerLit(id) && !S.goblins.some((g) => g.corner === id));
+const darkCorners = () => Object.keys(GOB_CORNERS).filter((id) => !cornerLit(id));
 const settled = () => S.goblins.filter((g) => g.corner);
+const gobChance = (base) => base * (calm() ? 2 : 1);   // in the dead calm they're everywhere
+
+// one gets in: through the door at your heels, or through the cabinet from the woodshed
+function goblinEnter(via) {
+  const free = darkCorners();
+  const g = { corner: free.length ? pick(free) : null, t: 60, since: 0, act: null };   // a minute watching you first
+  S.goblins.push(g);
+  fx.push({ kind: 'gobIn', x: via === 'cabinet' ? CABINET.x + 10 : 274, y: via === 'cabinet' ? CABINET.y + 20 : 104, life: 0, max: 0.45 });
+  if (via === 'cabinet') cabT = 0.8;
+  sfx.scuttle();
+  if (!g.corner) { achieve('nowhere_to_hide'); g.corner = snuffTorch(); }
+  const took = goblinSteal(g, true);
+  say(via === 'cabinet'
+    ? `the cabinet doors bang open and something small drops out of the woodshed${took ? `, snatches ${took} off the rack` : ''} and is gone into a corner.`
+    : `something brushed past your legs as you came in${took ? ` and snatched ${took} off the rack on its way to a corner` : ''}.`);
+  if (S.goblins.length >= GOB_MAX) die('goblins');
+}
 
 // rolled once each time you come back in
 function goblinEntry(panicked) {
   if (!goblinNight() || mode !== 'playing') return;
-  if (Math.random() >= 0.1 + (panicked ? 0.05 : 0)) return;
+  if (Math.random() >= gobChance(0.1 + (panicked ? 0.05 : 0))) return;
   if (S.saltDoor) {
     S.saltDoor = false;
     sfx.scream();
@@ -561,41 +588,69 @@ function goblinEntry(panicked) {
     say('something small stops dead at the salt line behind you, and shrieks. the salt is scattered.');
     return;
   }
-  const free = freeCorners();
-  // a minute in its corner before it tries the rack again: it is watching to see if you noticed
-  const g = { corner: free.length ? pick(free) : null, t: 60, since: 0, act: null };
-  S.goblins.push(g);
-  fx.push({ kind: 'gobIn', x: 274, y: 104, life: 0, max: 0.45 });
-  sfx.scuttle();
-  if (!g.corner) {
-    achieve('nowhere_to_hide');
-    g.corner = snuffTorch();   // nowhere dark to hide: it makes somewhere
-  }
-  const took = goblinSteal(g);
-  say(`something brushed past your legs as you came in${took ? ` and snatched ${took} off the rack on its way to a corner` : ''}.`);
-  if (S.goblins.length >= 4) die('goblins');
+  goblinEnter('door');
 }
 
-// it pinches out a torch and takes that corner (relighting costs 1 wood)
-function snuffTorch() {
-  const lit = TORCHES.filter((tc) => S.torches && S.torches[tc.id] === true && !S.goblins.some((g) => g.corner === tc.id));
+// the nest in the woodshed: every so often one tries the cabinet
+function updateCabinetGoblins(dt) {
+  if (!goblinNight() || !S.shed) return;
+  S.cabGobT = (S.cabGobT ?? 35) - dt;
+  if (S.cabGobT > 0) return;
+  S.cabGobT = rand(30, 45);
+  if (Math.random() >= gobChance(0.15 + Math.min(0.45, S.shedWood / 150))) return;
+  if (S.cabBar) { if (Math.random() < 0.4 && !S.away) { sfx.scratch(); say('something scratches at the plank over the cabinet, and gives up.'); } return; }
+  if (S.saltCab) {
+    S.saltCab = false;
+    sfx.scream();
+    achieve('not_tonight');
+    if (!S.away) say('the cabinet doors rattle. something shrieks at the salt and scrabbles back into the woodshed. the salt is scattered.');
+    return;
+  }
+  goblinEnter('cabinet');
+}
+
+// it pinches out a torch (relighting is free: carry it to the fire and back)
+function snuffTorch(who = 'goblin') {
+  const lit = TORCHES.filter((tc) => S.torches && S.torches[tc.id] === true);
   if (!lit.length) return null;
   const tc = pick(lit);
   S.torches[tc.id] = 'out';
   sfx.hiss();
-  say(`something leaps up the wall and pinches out the torch in ${tc.name}.`);
+  say(who === 'wind' ? `a gust through the window blows out the torch in ${tc.name}.` : `something leaps up the wall and pinches out the torch in ${tc.name}.`);
   return tc.id;
 }
 
-// one thing off the rack or the shelf: cured meat first, then cooked, raw, then blood. returns what, or ''
-function goblinSteal(g) {
+// one thing off the rack or the shelf: cured meat first, then cooked, raw, then blood. at once on the way in;
+// otherwise it climbs for it, and you have until it gets there to swat it
+function goblinSteal(g, now = false) {
   const what = STEAL_ORDER.find(([, has]) => has());
   if (!what) return '';
-  what[2]();
-  g.act = { t: 0, to: what[3] };
-  sfx.scratch();
-  return what[0] === 'blood' ? 'a jar of blood' : `a piece of ${what[0]}`;
+  if (now) {
+    what[2]();
+    g.act = { t: GOB_CLIMB - 0.6, to: what[3], done: true };   // just the drop back down
+    sfx.scratch();
+    return what[0] === 'blood' ? 'a jar of blood' : `a piece of ${what[0]}`;
+  }
+  g.act = { t: 0, to: what[3], done: false };
+  sfx.scuttle();
+  return what[0];
 }
+
+// swat it off the wall before it reaches the rack: it runs out the door
+function swatGoblin() {
+  if (mode !== 'playing' || S.away || dialog || doze > 0.15) return;
+  const g = S.goblins.find((x) => x.act && !x.act.done);
+  if (!g) return;
+  S.goblins.splice(S.goblins.indexOf(g), 1);
+  sfx.thump(0.8);
+  sfx.scream();
+  sfx.scuttle();
+  fx.push({ kind: 'gobOut', from: { x: 205, y: 70 }, life: 0, max: 0.6 });
+  doorTarget = 0.8; doorCloseIn = 0.6;
+  if (blizzard()) S.room = Math.min(100, S.room + 4);
+  say('you swat it off the wall. it hits the floor, shrieks, and bolts out the door.');
+}
+const climbing = () => S.goblins && S.goblins.some((g) => g.act && !g.act.done);
 
 // unsettled ones slip out whenever the door opens
 function goblinsLeave() {
@@ -614,27 +669,42 @@ const STEAL_ORDER = [
 ];
 
 function updateGoblins(dt) {
+  updateCabinetGoblins(dt);
+  if (mode !== 'playing') return;
+  // the wind through a broken window with the curtains open puts a torch out now and then
+  if (blizzard() && !calm() && S.glassBroken && !S.curtainsShut && S.boards === 0) {
+    S.gustT = (S.gustT ?? 40) - dt;
+    if (S.gustT <= 0) { S.gustT = rand(35, 55); if (TORCHES.some((tc) => S.torches[tc.id] === true)) { sfx.gust(); snuffTorch('wind'); } }
+  }
   if (!S.goblins || !S.goblins.length) return;
   for (const g of S.goblins) {
     g.since += dt;
-    if (g.act) { g.act.t += dt; if (g.act.t >= 2.2) g.act = null; }
-    // its corner got lit: it moves to another, or puts a torch out and takes that corner
-    if (g.corner && cornerLit(g.corner)) {
-      const free = freeCorners();
-      g.corner = free.length ? pick(free) : null;
-      sfx.scuttle();
-      if (!g.corner) { achieve('nowhere_to_hide'); g.corner = snuffTorch(); }
-      if (g.corner) say('something scuttles along the wall, out of the light, into another corner.');
+    if (g.act) {
+      g.act.t += dt;
+      if (!g.act.done && g.act.t >= 2.0) {
+        // it made it to the rack
+        g.act.done = true;
+        const item = STEAL_ORDER.find(([, has]) => has());
+        if (item) { item[2](); sfx.scratch(); if (!S.away) say(`it reaches the ${item[3] === 'blood' ? 'shelf' : 'meat rack'} and drops back down with ${item[0] === 'blood' ? 'a jar of blood' : `a piece of ${item[0]}`}.`); else S.gobTook = (S.gobTook || 0) + 1; }
+      }
+      if (g.act.t >= GOB_CLIMB) g.act = null;
     }
-    if (!g.corner) continue;
+    // its corner got lit: it moves to another dark one, or puts a torch out
+    if (g.corner && cornerLit(g.corner)) {
+      const free = darkCorners();
+      g.corner = free.length ? pick(free) : snuffTorch();
+      sfx.scuttle();
+      if (g.corner && free.length) say('something scuttles along the wall, out of the light, into another corner.');
+    }
+    if (!g.corner || g.act) continue;
+    // every so often, one of them snuffs a torch just because it can
+    if (Math.random() < dt / 40 && TORCHES.some((tc) => S.torches[tc.id] === true)) { const id = snuffTorch(); if (id) g.corner = id; }
     const bold = g.since > 2 * HOUR;
     if (bold || S.fire <= 2 || S.away) g.t -= dt;
     if (g.t <= 0) {
       g.t = bold ? rand(10, 15) : GOB_STEAL();
-      const took = goblinSteal(g);
-      if (!took) continue;
-      if (!S.away) say(`something climbs the wall to the ${g.act.to === 'blood' ? 'shelf' : 'meat rack'} and back down with ${took}.`);
-      else S.gobTook = (S.gobTook || 0) + 1;
+      const what = goblinSteal(g);
+      if (what && !S.away) say('something is climbing the wall toward the meat rack.');
     }
   }
   // the fire is out and one is settled in: it doesn't wait for the dark
@@ -689,7 +759,7 @@ function drawGoblins(s, t) {
   if (!S.goblins || !S.goblins.length) return;
   for (const g of S.goblins) {
     if (!g.corner) {
-      // in plain view, skittering along the walls between the lit corners
+      // in plain view, skittering along the walls between the lit corners (it leaves when the door opens)
       const k = (t * 0.35 + S.goblins.indexOf(g) * 0.37) % 1;
       const x = 20 + 280 * (k < 0.5 ? k * 2 : 2 - k * 2), y = 112;
       drawGoblin(s, x, y, 1, k < 0.5 ? 1 : -1, 0.95);
@@ -697,10 +767,16 @@ function drawGoblins(s, t) {
     }
     const c = GOB_CORNERS[g.corner];
     if (g.act) {
-      // up the wall to the rack or the shelf, and back to its corner
-      const tx = g.act.to === 'blood' ? 192 : 205, ty = g.act.to === 'blood' ? 64 : 52;
-      const k = g.act.t / 2.2, e = k < 0.5 ? ease(k * 2) : ease(2 - k * 2);
-      drawGoblin(s, lerp(c.x, tx, e), lerp(c.y + 6, ty, e), 0.9, tx > c.x ? 1 : -1, 0.95);
+      // up one side of the rack, a slip, across, and up the other side; then back down to its corner
+      const T = g.act.t, ty = g.act.to === 'blood' ? 64 : 52;
+      let x, y, face = 1;
+      if (T < 0.45) { const k = ease(T / 0.45); x = lerp(c.x, 196, k); y = lerp(c.y + 6, 112, k); face = c.x < 196 ? 1 : -1; }
+      else if (T < 0.95) { const k = ease((T - 0.45) / 0.5); x = 196; y = lerp(112, 78, k); }
+      else if (T < 1.2) { const k = (T - 0.95) / 0.25; x = 196; y = lerp(78, 104, k * k); }               // it slips
+      else if (T < 1.5) { const k = ease((T - 1.2) / 0.3); x = lerp(196, 216, k); y = 106; }
+      else if (T < 2.0) { const k = ease((T - 1.5) / 0.5); x = 216; y = lerp(106, ty, k); face = -1; }
+      else { const k = ease((T - 2.0) / (GOB_CLIMB - 2.0)); x = lerp(216, c.x, k); y = lerp(ty, c.y + 6, k); face = c.x < 216 ? -1 : 1; }
+      drawGoblin(s, x, y, 0.9, face, 0.95);
       continue;
     }
     // in its corner only its eyes show, small and dim and low, blinking out of rhythm
@@ -816,21 +892,40 @@ function updateHunter(dt) {
 // Out in the blizzard you get cold fast; by the fire you warm back up, faster the bigger it is.
 // One trip chills you badly; two in a row could kill you.
 const COLD_OUT = 6.5;                       // per second outside: one blizzard trip takes you most of the way
-const WARMING = [1.2, 0.4, -1.2, -2.2, -3]; // per second inside, by fire level (negative warms you)
 const DRY_TIME = 60;                        // seconds for a wet log to dry by a burning fire (faster by a big one)
 
+// How cold the house is follows the fire: only a fire burning or roaring keeps it warm. A broken window lets the
+// wind in (less through boards, none through shut curtains), insulation helps, and every time the door opens the
+// cold rushes in.
+const ROOM_FROM_FIRE = [92, 72, 45, 18, 4];
+function roomTarget() {
+  let t = ROOM_FROM_FIRE[S.fire] * (S.stove ? 0.85 : 1);
+  if (S.glassBroken && !S.curtainsShut && !calm()) t += S.boards > 0 ? 6 : 16;
+  if (S.insulated) t -= 12;
+  return clamp(t, 0, 100);
+}
+// fur clothes: each piece slows how fast you get cold; the whole set makes you all but immune
+const FUR_WEAR = { coat: 0.35, pants: 0.2, hat: 0.2, socks: 0.15 };
+const furMult = () => 1 - Object.entries(FUR_WEAR).reduce((a, [k, v]) => a + (S[k] ? v : 0), 0);
+// night 4, from 2 to 3 am: the storm drops to a dead calm
+const calm = () => S.nightNo >= 4 && clockHour() === 4;
+
 function updateCold(dt) {
-  if (!blizzard()) { S.cold = 0; return; }
+  if (!blizzard()) { S.cold = 0; S.room = 0; return; }
+  const target = roomTarget();
+  S.room += (target - S.room) * Math.min(1, dt * 0.35);
   let rate;
   if (S.away) {
-    rate = COLD_OUT * (S.coat ? 0.75 : 1);
+    rate = COLD_OUT * furMult();
+  } else if (S.cold > S.room) {
+    rate = -(2.2 + (S.cold - S.room) * 0.04) * (S.stove ? 1.2 : 1);   // warming back up by the fire
   } else {
-    rate = WARMING[S.fire];
-    if (rate < 0) rate *= (S.stove ? 1.2 : 1) * (S.insulated ? 1.15 : 1);
-    else rate *= S.insulated ? 0.7 : 1;
-    if (S.glassBroken && S.boards === 0) rate += 0.5;
+    rate = (S.room - S.cold) * 0.05 * (0.4 + 0.6 * furMult());        // the house's cold seeping into you
   }
   S.cold = clamp(S.cold + rate * dt, 0, 100);
+  // snow drifts in under a broken window while the house is cold, and melts when it's warm
+  if (S.glassBroken && !S.curtainsShut && S.room > 30) S.snowPile = Math.min(1, S.snowPile + dt / 140);
+  else if (S.room < 15) S.snowPile = Math.max(0, S.snowPile - dt / 60);
   if (S.cold < 50) S.coldSaid = 0;
   if (S.cold >= 60 && S.coldSaid < 1) { S.coldSaid = 1; sfx.shiver(0.7); say("you're shaking with cold. your hands are slow and you're burning through food."); }
   if (S.cold >= 85 && S.coldSaid < 2) { S.coldSaid = 2; sfx.shiver(1); say("you can't feel your hands. get to the fire."); }
@@ -848,14 +943,6 @@ function updateWet(dt) {
   const heat = (0.3 + S.fire * 0.3) * (S.stove ? 1.3 : 1);   // out: barely dries; roaring: half again as fast
   S.wet = S.wet.map((t, i) => t - dt * heat * (S.rack && i < 8 ? 3 : 1)).filter((t) => t > 0);
   S.smoke = Math.max(0, S.smoke - dt / 30);
-  if (S.rack && S.fire >= 1) {
-    S.rackT -= dt;
-    if (S.rackT <= 0) {
-      S.rackT = 2 * HOUR;
-      const i = S.cookedLife.findIndex((l) => l < CURED / 2);
-      if (i >= 0) { S.cookedLife[i] = CURED; say('a strip of meat on the rack is smoked through. it will keep now.'); }
-    }
-  }
 }
 
 const wetInPile = () => Math.min(S.wet.length, S.wood);
@@ -912,10 +999,11 @@ function addWood(n) {
 
 // With a woodshed, the pile restocks itself from the shed whenever it runs low.
 function restockPile() {
-  if (!S.shed || S.shedWood <= 0 || S.wood > PILE_CAP - 5) return;   // a few logs at a time, not one per stoke
+  if (!S.shed || S.cabBar || S.shedWood <= 0 || S.wood > PILE_CAP - 5) return;   // a few logs at a time, not one per stoke
   const n = Math.min(S.shedWood, PILE_CAP - S.wood);
   S.shedWood -= n;
   S.wood += n;
+  if (blizzard()) addWet(n);   // in the blizzard the woodshed's logs come in frozen too
   cabT = 1.4;
   sfx.thump(0.3);
 }
@@ -1115,6 +1203,7 @@ function startTrip(kind) {
 // out and back in: the door swings open for a moment and shuts behind you (it doesn't change the trip time)
 function swingDoor() {
   goblinsLeave();
+  if (blizzard()) S.room = Math.min(100, S.room + 8);   // the cold rushes in
   if (pendingVisit || dialog) return;
   doorTarget = 0.8;
   doorCloseIn = 0.5;
@@ -1219,7 +1308,7 @@ function finishTrip(kind) {
   const n = Math.max(1, Math.round((S.axe ? pick([5, 6, 6, 6, 7]) : pick([3, 4, 4, 4, 5])) * D().wood));   // the same forest all night; more with a real axe
   addWood(n);
   if (blizzard()) addWet(n);
-  parts.push(blizzard() ? `+${n} wet wood` : `+${n} wood`);
+  parts.push(blizzard() ? `+${n} frozen wood` : `+${n} wood`);
   // traps are checked on the way back
   const caught = checkTraps();
   if (caught.m) parts.push(`+${caught.m} raw meat from the traps`);
@@ -1267,7 +1356,7 @@ function updateHand(dt) {
     if (hd.t <= 0) {
       if (S.boards > 0) {
         hd.phase = 'reach';
-        hd.total = hd.t = Math.max(3.2, 5.5 - (hour() - 3) * 0.45) * (blizzard() ? 0.7 : 1) * (S.nails ? 1.35 : 1) * D().quick;   // nails make her work longer
+        hd.total = hd.t = Math.max(3.2, 5.5 - (hour() - 3) * 0.45) * (blizzard() ? 0.7 : 1) * (S.nails ? 1.35 : 1) * D().quick * (S.curtainsShut ? 0.6 : 1);   // through shut curtains you see her late   // nails make her work longer
         hd.beat = 0;
         say('a long black hand punches through a gap in the boards and takes hold.');
       } else {
@@ -1746,7 +1835,7 @@ const DEATHS = {
   hand: { text: 'She climbed in through the broken window.', hint: 'board the window before one in the morning. glass will not stop her, and fire will.' },
   handAway: { text: 'You came back to a broken window. She was already inside.', hint: 'board the window before one in the morning. a bare window lets her in, whether you are home or not.' },
   guest: { text: 'The fire went out, and the thing in the corner came for you.', hint: 'something got in behind you when you came back from a trip. salt the doorway to keep them out, throw salt at one to drive it off, or light its corner. and never let the fire die with one inside.' },
-  goblins: { text: 'Four of them, one in every corner. They were bold enough.', hint: 'each time you come back in, one may follow you. salt the doorway, and drive them out before there are four.' },
+  goblins: { text: 'Three of them. That was enough for them to be bold.', hint: 'they follow you in from your trips and come through the woodshed cabinet. salt or plank the cabinet, salt the doorway, swat them off the wall, and drive them out before there are three.' },
   sleep: { text: 'You lay down by the fire at dusk, just for a moment, and never got up.', hint: 'four days without sleep is more than anyone can take. sleep during the day.' },
   lost: { text: 'You lost the path in the white, and never found it again.',
     hint: "nothing you could have done. about one blizzard night in a hundred ends like this. you were very, very unlucky." },
@@ -1911,7 +2000,7 @@ function stoke() {
     S.smoke = Math.min(1, S.smoke + 0.35);
     sfx.sputter();
     spawnSmoke(160, 128); spawnSmoke(157, 124); spawnSmoke(163, 120);
-    if (Math.random() < 0.4) say('the wet wood hisses and smokes. it will not burn for long.');
+    if (Math.random() < 0.4) say('the frozen wood hisses and smokes. it will not burn for long.');
   }
   S.cd.stoke = STOKE_CD * (S.hunger >= 90 ? 2 : 1) * (S.sick > 0 ? 1.3 : 1) * awakeMult([1, 1.25, 1.4, 1.6]) * (S.cold >= 60 ? 1.3 : 1);   // numb hands, heavy eyes
   S.deadFor = 0;
@@ -2144,7 +2233,7 @@ const dayClock = (hoursLeft) => clockText(((22 - hoursLeft - START_HOUR + 24) % 
 const NIGHT_WARNINGS = {
   2: 'Tonight will be worse. Everything comes two hours sooner: the thing in the trees and the knocking from the moment it gets dark, her at the window from eleven, and the walkers from one in the morning.',
   4: 'The blizzard will not stop. And there are tracks in the snow by the woodshed, small ones, like a child walking on its knuckles. Tonight, things may follow you in when you come back from a trip. Salt keeps them out of a doorway. They hate the light.',
-  3: 'A blizzard is coming tonight. Everything still comes two hours sooner. Out in it, everything takes half again as long, and the cold can kill you: one trip chills you badly, two in a row could freeze you. The wood you bring in will be wet, and wet wood barely burns until it dries.',
+  3: 'A blizzard is coming tonight. Everything still comes two hours sooner. Out in it, everything takes half again as long, and the cold can kill you: one trip chills you badly, two in a row could freeze you. The wood you bring in will be frozen, even from the woodshed, and frozen wood barely burns until it thaws. Only a big fire keeps the house warm.',
 };
 
 function startDay() {
@@ -2221,7 +2310,7 @@ function doDay(id) {
 // hours "later"; night 3 is the blizzard.
 const NIGHT_START = {
   2: ['the sun is down. the second night begins. dawn is eight hours away.', 'they are already awake. tonight everything comes two hours sooner.'],
-  3: ['the sun is down, and the blizzard comes with it. the third night begins.', 'out there everything takes longer, the cold bites, and the wood comes in wet.'],
+  3: ['the sun is down, and the blizzard comes with it. the third night begins.', 'out there everything takes longer and the wood comes in frozen. only a big fire keeps the house warm. you can barely see out of the window.'],
   4: ['the sun goes down on a fourth night. the blizzard has not let up.', 'something small has been at the woodshed. when you come back in, close the door behind you fast.'],
 };
 
@@ -2269,12 +2358,24 @@ const BUILDS = [
     desc: () => `a shed against the outside wall that holds ${shedCap()} more logs, so the pile never topples. it takes ${PILE_CAP} logs, built in a second each outside. you carry out what wood you have and build log by log; run back any time and what you built stays.`,
     show: () => !S.shed, cost: () => ({}), ok: () => S.wood >= 1, costText: 'the wood you carry',
     done: () => { startTrip('shed'); } },
-  { id: 'rack', name: 'drying rack', desc: 'a frame by the fire. dries wet wood three times faster, eight logs at a time, and slowly smokes cooked meat so it never goes bad: one piece every couple of hours while the fire burns.',
+  { id: 'rack', name: 'drying rack', desc: 'a frame by the fire. thaws frozen wood three times faster, eight logs at a time.',
     show: () => !S.rack, cost: () => ({ wood: 12 }),
     done: () => { S.rack = true; say('you lash a drying rack together beside the fire.'); } },
-  { id: 'coat', name: 'fur coat', desc: 'you get cold outside a third more slowly. (fur is also worth 3 points each at dawn.)',
-    show: () => !S.coat && (S.fur > 0 || blizzard()), cost: () => ({ fur: 4 }),
+  { id: 'coat', name: 'fur coat', desc: 'you get cold 35% more slowly. with the hat, the trousers and the socks, the cold can hardly touch you. (fur is also worth 3 points each at dawn.)',
+    show: () => !S.coat && (S.fur > 0 || blizzard()), cost: () => ({ fur: 6 }),
     done: () => { S.coat = true; say('you stitch the pelts into a rough coat. it stinks, and it is warm.'); } },
+  { id: 'pants', name: 'fur trousers', desc: 'you get cold 20% more slowly.',
+    show: () => !S.pants && (S.fur > 0 || blizzard()), cost: () => ({ fur: 5 }),
+    done: () => { S.pants = true; say('you sew fur trousers. you look ridiculous. you are warm.'); } },
+  { id: 'hat', name: 'fur hat', desc: 'you get cold 20% more slowly.',
+    show: () => !S.hat && (S.fur > 0 || blizzard()), cost: () => ({ fur: 4 }),
+    done: () => { S.hat = true; say('you sew a fur hat with flaps over the ears.'); } },
+  { id: 'socks', name: 'fur socks', desc: 'you get cold 15% more slowly.',
+    show: () => !S.socks && (S.fur > 0 || blizzard()), cost: () => ({ fur: 3 }),
+    done: () => { S.socks = true; say('you pull on fur socks. your toes come back.'); } },
+  { id: 'curtains', name: 'fur curtains', desc: 'heavy curtains for the window. shut, they keep the wind out and the house far warmer, but you can\'t see out at all, and you can barely see her when she comes. click the window to open or shut them.',
+    show: () => !S.curtains && (S.fur > 0 || blizzard()), cost: () => ({ fur: 5 }),
+    done: () => { S.curtains = true; S.curtainsShut = true; say('you hang fur curtains over the window and draw them shut. the wind stops.'); } },
   { id: 'insulate', name: 'insulate the walls', desc: 'stuff fur into the cracks between the logs. the house loses heat more slowly and the fire warms you a little faster.',
     show: () => !S.insulated && (S.fur > 0 || blizzard()), cost: () => ({ fur: 6 }),
     done: () => { S.insulated = true; say('you pack fur into every crack in the walls. the draft eases.'); } },
@@ -2301,9 +2402,18 @@ const BUILDS = [
     id: `torch_${tc.id}`, name: () => (S.torches && S.torches[tc.id] === 'out' ? `relight the torch in ${tc.name}` : `a torch in ${tc.name}`),
     desc: 'an iron sconce and a torch that burns all night. a faint glow, and nothing opens its eyes inside it.',
     show: () => !(S.torches && S.torches[tc.id] === true) && !(tc.id === 'br' && S.shed && !(S.torches && S.torches.br)),   // the woodshed's candle already lights that corner
-    cost: () => ({ wood: S.torches && S.torches[tc.id] === 'out' ? 1 : 2 }),
+    cost: () => (S.torches && S.torches[tc.id] === 'out' ? {} : { wood: 2 }),   // relighting one is free: carry it to the fire and back
     done: () => lightTorch(tc),
   })),
+  { id: 'saltCab', name: 'salt the woodshed cabinet', desc: 'a line of salt inside the cabinet. the next thing that comes through it from the woodshed shrieks and goes back. one use.',
+    show: () => goblinNight() && S.shed && !S.saltCab && !S.cabBar && S.salt > 0, cost: () => ({ salt: 2 }),
+    done: () => { S.saltCab = true; say('you pour a line of salt across the cabinet floor.'); } },
+  { id: 'barCab', name: 'nail a plank over the cabinet', desc: 'nothing gets in from the woodshed, ever. but you can\'t get at your wood either, until you take it off (free).',
+    show: () => goblinNight() && S.shed && !S.cabBar, cost: () => ({ wood: 3 }),
+    done: () => { S.cabBar = true; say('you nail a plank across the cabinet doors.'); } },
+  { id: 'unbarCab', name: 'take the plank off the cabinet', desc: 'so you can get at the woodshed again. so can they.', costText: 'free',
+    show: () => S.cabBar, cost: () => ({}),
+    done: () => { S.cabBar = false; say('you pry the plank off the cabinet.'); } },
   { id: 'saltTrap', name: 'salt a trap', desc: () => `rub salt into a trap. a salted trap catches meat far more often, for as long as it lasts; when it breaks, the salt goes with it. (${saltedTraps()} of ${S.traps} salted)`,
     show: () => S.traps > saltedTraps() && S.salt > 0, cost: () => ({ salt: 1 }),
     done: () => { syncTraps(); S.trapSalt[S.trapSalt.indexOf(false)] = true; say('you rub salt into the jaws of a trap. the smell will carry.'); } },
@@ -2316,7 +2426,7 @@ const BUILDS = [
 ];
 
 const canAfford = (cost) => Object.entries(cost).every(([k, n]) => S[k] >= n);
-const costText = (cost) => Object.entries(cost).map(([k, n]) => `${n} ${k}`).join(', ');
+const costText = (cost) => Object.entries(cost).map(([k, n]) => `${n} ${k}`).join(', ') || 'free';
 
 function build(id) {
   const b = BUILDS.find((x) => x.id === id);
@@ -2360,15 +2470,15 @@ function toggleBuild(force) {
 // Each spot in the room where something can be built. A small amber ember shows over it whenever you could
 // build something there right now; click it for a card with what it is, what it does and what it costs.
 const SPOTS = [
-  { id: 'window', x: 61, y: 29, builds: ['boards', 'saltWin'] },
+  { id: 'window', x: 61, y: 29, builds: ['boards', 'saltWin', 'curtains'] },
   { id: 'door', x: 274, y: 44, builds: ['saltDoor'] },
   { id: 'traps', x: 244, y: 100, builds: ['trap', 'saltTrap'] },   // on the traps by the door
   { id: 'lantern', x: 240, y: 52, builds: ['lantern'] },
   { id: 'hatch', x: 220, y: 109, builds: ['bar', 'saltHatch'] },
   { id: 'fire', x: 136, y: 94, builds: ['rack'] },
   { id: 'meat', x: 207, y: 34, builds: ['cure'] },
-  { id: 'shed', x: 307, y: 72, builds: ['shed'] },
-  { id: 'bedroll', x: 252, y: 121, builds: ['coat'] },
+  { id: 'shed', x: 307, y: 72, builds: ['shed', 'saltCab', 'barCab', 'unbarCab'] },
+  { id: 'bedroll', x: 252, y: 121, builds: ['coat', 'pants', 'hat', 'socks'] },
   { id: 'walls', x: 22, y: 64, builds: ['insulate'] },
   ...TORCHES.map((tc) => ({ id: `torch_${tc.id}`, x: tc.x, y: tc.y - 7, builds: [`saltGob_${tc.id}`, `torch_${tc.id}`] })),
 ];
@@ -2962,7 +3072,7 @@ let cabT = 0;          // seconds it stays open by itself
 function drawCabinet() {
   if (!S.shed) return;
   const { x, y, w, h } = CABINET;
-  cabOpen += ((cabT > 0 || cabHeld ? 1 : 0) - cabOpen) * 0.18;
+  cabOpen += ((!S.cabBar && (cabT > 0 || cabHeld) ? 1 : 0) - cabOpen) * 0.18;
   R('#2a1b10', x - 1, y - 1, w + 2, h + 2);                 // the frame
   R('#0c0806', x, y, w, h);                                 // the dark inside, through to the shed
   const n = Math.min(20, Math.ceil(S.shedWood / 5));        // log ends, one per five logs
@@ -2975,6 +3085,8 @@ function drawCabinet() {
   R('#3b2717', x, y, dw, h); R('#3b2717', x + w - dw, y, dw, h);
   R('#2a1b10', x + dw - 1, y, 1, h); R('#2a1b10', x + w - dw, y, 1, h);
   if (dw > 4) { R('#8a7a5a', x + dw - 3, y + 11, 1, 2); R('#8a7a5a', x + w - dw + 2, y + 11, 1, 2); }
+  if (S.cabBar) { R('#4a3220', x - 2, y + 9, w + 4, 4); R('#5a3e28', x - 2, y + 9, w + 4, 1); R('#8a8a8a', x - 1, y + 10, 1, 1); R('#8a8a8a', x + w, y + 10, 1, 1); }
+  if (S.saltCab) { px.fillStyle = '#d8d4cc'; for (let i = 0; i < w; i += 2) px.fillRect(x + i, y + h - 1, 1, 1); }
   // the candle on its little shelf
   R('#2a1b10', x + 7, y - 4, 7, 2);
   R('#d8ccb0', x + 9, y - 9, 3, 5);
@@ -3228,6 +3340,32 @@ function drawVisitor() {
   drawWoodcutter(272, 111);
 }
 
+// fur curtains on a rod over the window: drawn shut across it, or bunched at the sides
+function drawCurtains() {
+  if (!S.curtains) return;
+  R('#2a1b10', 40, 33, 42, 1);
+  if (S.curtainsShut) {
+    for (let x = 42; x < 80; x++) {
+      const fold = (x % 5 === 0) ? '#4a3626' : (x % 5 === 2 ? '#7a5e46' : '#6a5240');
+      R(fold, x, 34, 1, 35);
+    }
+    R('#3a2a1e', 60, 34, 1, 35);
+  } else {
+    for (const x0 of [40, 77]) { R('#6a5240', x0, 34, 5, 36); R('#4a3626', x0 + 2, 34, 1, 36); }
+  }
+}
+
+// snow drifted in under a broken window
+function drawSnowPile() {
+  if (!(S.snowPile > 0.02)) return;
+  const h = Math.round(S.snowPile * 5);
+  for (let i = 0; i < 40; i++) {
+    const x = 41 + i;
+    const hh = Math.max(0, Math.round(h * Math.sin((i / 40) * Math.PI) + (hash(i) - 0.5)));
+    if (hh > 0) R(i % 4 === 0 ? '#c8d0dc' : '#e8ecf4', x, 112 - hh, 1, hh + 1);
+  }
+}
+
 function drawBoards() {
   if (!S.boardsBuilt) return;
   const rows = [[37, 5], [48, 6], [59, 5]];
@@ -3281,6 +3419,8 @@ function drawPixels() {
   px.drawImage(bg, 0, 0);
   drawWindowSnow();
   drawBoards();
+  drawCurtains();
+  drawSnowPile();
   drawDoor();
   drawVisitor();
   drawTrader();
@@ -3345,6 +3485,15 @@ function lpx(s, x, y, w, h) {
 
 // The thing in the trees, while it is close and you are out there with it: its eyes in the treeline,
 // and a grin that grows beneath them as it closes in. A full grin is the end. Half-pixel detail.
+// How much of the treeline you can see: all of it normally; nothing through shut curtains; in the blizzard only a
+// flicker (10%) once every three seconds on normal and hard, and nothing on insane. The 2 am calm on night 4 clears it.
+function treelineView(t) {
+  if (S.curtainsShut) return 0;
+  if (!blizzard() || calm() || mode !== 'playing') return 1;
+  if (S.diff === 'insane') return 0;
+  return t % 3 < 0.35 ? 0.1 : 0;
+}
+
 function drawGrin(s, t) {
   const fake = mode === 'playing' && phantomGrin > 0 && !(S.hunter.near && S.stalk >= 0.8);
   const show = (mode === 'playing' && S.hunter.near) || (mode === 'lost' && S.cause === 'hunter') || fake;
@@ -3354,7 +3503,8 @@ function drawGrin(s, t) {
   if (dying && lossT > 1.45) return;
   const wide = dying ? 1 + ease(seg(0.1, 1.3)) * 2.6 : 1;
   const red = dying ? seg(0.2, 1.0) : 0;
-  const a = clamp(0.35 + 0.65 * k, 0, 1);
+  const a = clamp(0.35 + 0.65 * k, 0, 1) * (dying ? 1 : treelineView(t));
+  if (a <= 0.01) return;
   const cx = 55.5, ey = 56;
 
   // its eyes, where they always shine in the treeline, opening a little wider
@@ -3649,6 +3799,14 @@ function herGlow(s, gx, gy, radius, k) {
 const ease = (x) => (x < 0.5 ? 2 * x * x : 1 - (-2 * x + 2) ** 2 / 2);
 
 function drawHand(s, t) {
+  if (S.curtainsShut && S.hand.phase !== 'idle' && mode === 'playing') {
+    // behind the curtains: only a faint red outline of her
+    lx.save();
+    lx.globalAlpha = 0.22;
+    drawHandBody(s, t);
+    lx.restore();
+    return;
+  }
   drawHandBody(s, t);
   // two days awake, a phantom her has a faint double drifting around her; at three days, not even that
   if (S.hand.phantom && lvl() === 2 && S.hand.phase !== 'idle') {
@@ -3779,8 +3937,8 @@ function spawnBoardFall(row) {
 
 function updateFx(dt) {
   // wind blows snow in through the broken window: a little through boards, a lot through a bare frame
-  if (S.glassBroken && (mode === 'playing' || mode === 'dawn')) {
-    const rate = S.boards > 0 ? 4 : 11;
+  if (S.glassBroken && !S.curtainsShut && (mode === 'playing' || mode === 'dawn')) {
+    const rate = (S.boards > 0 ? 4 : 11) * (blizzard() && !calm() ? 2 : 1);
     if (Math.random() < rate * dt) fx.push({ kind: 'flake', x: rand(46, 76), y: rand(36, 66), vx: rand(20, 42), vy: rand(3, 12), life: 0, max: rand(1.6, 3.2), ph: rand(0, 6) });
   }
   for (const f of fx) {
@@ -4042,6 +4200,75 @@ function drawLight() {
     }
   }
 
+  // the blizzard: a white-out beyond the window, snow driving past
+  if (blizzard() && !calm() && !S.curtainsShut && mode === 'playing') {
+    lx.save();
+    lx.beginPath(); lx.rect(45 * s, 35 * s, 32 * s, 32 * s); lx.clip();
+    lx.fillStyle = 'rgba(200, 208, 220, 0.55)';
+    lx.fillRect(45 * s, 35 * s, 32 * s, 32 * s);
+    lx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+    for (let i = 0; i < 18; i++) {
+      const y = 35 + hash(i) * 32, x = 45 + ((hash(i + 9) * 40 + t * (60 + hash(i + 4) * 40)) % 44) - 6;
+      lpx(s, x, y, 4 + hash(i + 2) * 5, 0.5);
+    }
+    lx.restore();
+  }
+  // snow drifted under the window, pale even in the dark
+  if (S.snowPile > 0.02) {
+    const h = S.snowPile * 5;
+    lx.fillStyle = 'rgba(225, 232, 244, 0.55)';
+    for (let i = 0; i < 40; i++) {
+      const hh = h * Math.sin((i / 40) * Math.PI);
+      if (hh > 0.4) lpx(s, 41 + i, 112 - hh, 1, hh + 1);
+    }
+  }
+  // the fur curtains, just visible
+  if (S.curtains) {
+    lx.save();
+    lx.globalCompositeOperation = 'destination-out';
+    lx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+    if (S.curtainsShut) lpx(s, 42, 34, 38, 35);
+    else { lpx(s, 40, 34, 5, 36); lpx(s, 77, 34, 5, 36); }
+    lx.restore();
+  }
+  // frost creeping in from the corners as the house gets cold
+  if (blizzard() && S.room > 35 && mode === 'playing') {
+    const k = clamp((S.room - 35) / 60, 0, 1);
+    // a pale glaze in each corner, and branching frost growing out of it along both walls
+    for (const [cx0, cy0, dx, dy] of [[0, 0, 1, 1], [W, 0, -1, 1], [0, H, 1, -1], [W, H, -1, -1]]) {
+      const gr = (20 + 50 * k) * s;
+      const gz = lx.createRadialGradient(cx0 * s, cy0 * s, 0, cx0 * s, cy0 * s, gr);
+      gz.addColorStop(0, `rgba(210, 225, 245, ${0.28 * k})`);
+      gz.addColorStop(1, 'rgba(210, 225, 245, 0)');
+      lx.fillStyle = gz;
+      lx.fillRect(cx0 * s - gr, cy0 * s - gr, gr * 2, gr * 2);
+      lx.fillStyle = `rgba(230, 240, 252, ${0.5 * k})`;
+      for (let i = 0; i < 34; i++) {
+        const along = hash(i + cx0 + cy0) * (24 + 40 * k), onX = i % 2 === 0;
+        let x = cx0 + (onX ? along * dx : 0), y = cy0 + (onX ? 0 : along * dy);
+        const ang = (onX ? Math.PI / 2 : 0) + (hash(i * 7) - 0.5) * 0.9;
+        const len = (5 + hash(i * 3 + cy0) * 18) * k;
+        for (let d = 0; d < len; d += 0.75) {
+          x += Math.cos(ang) * dx * 0.75; y += Math.sin(ang) * dy * 0.75;
+          lpx(s, x, y, 0.5, 0.5);
+          if (Math.round(d * 4) % 6 === 0) { lpx(s, x + dx, y, 0.5, 0.5); lpx(s, x, y + dy, 0.5, 0.5); }
+        }
+      }
+    }
+  }
+  // your breath, when you're cold
+  if (blizzard() && S.cold >= 50 && !S.away && mode === 'playing') {
+    const k = (t % 2.4) / 2.4;
+    if (k < 0.7) {
+      const r = (4 + k * 14) * s, by = (172 - k * 18) * s;
+      const g2 = lx.createRadialGradient(160 * s, by, 0, 160 * s, by, r);
+      g2.addColorStop(0, `rgba(230, 236, 245, ${0.25 * (1 - k / 0.7)})`);
+      g2.addColorStop(1, 'rgba(230, 236, 245, 0)');
+      lx.fillStyle = g2;
+      lx.fillRect(160 * s - r, by - r, r * 2, r * 2);
+    }
+  }
+
   // smoke from wet wood, collecting under the roof and drifting over the top of the window (looks only)
   if (S.smoke > 0.02) {
     lx.save();
@@ -4106,8 +4333,9 @@ function drawLight() {
 
   // the hunter's eyes, shining in the treeline
   // (while you're out and it is closing in, its eyes are part of its face instead; see drawGrin)
-  if (hunterEyes > 0.02 && !(S.stalk > 0.8 && (S.hunter.near || mode === 'lost'))) {
-    const blink = Math.sin(t * 0.9) > 0.95 ? 0.15 : 1;
+  const view = treelineView(t);
+  if (hunterEyes > 0.02 && view > 0 && !(S.stalk > 0.8 && (S.hunter.near || mode === 'lost'))) {
+    const blink = (Math.sin(t * 0.9) > 0.95 ? 0.15 : 1) * view;
     lx.fillStyle = `rgba(255, 190, 80, ${hunterEyes * blink})`;
     lpx(s, 52, 56, 2, 1); lpx(s, 57, 56, 2, 1);
     const glow = lx.createRadialGradient(55.5 * s, 56.5 * s, 0, 55.5 * s, 56.5 * s, 6 * s);
@@ -4815,7 +5043,7 @@ function drawWindowScare(s, t) {
 }
 
 function drawDeath(s, t) {
-  if (windowScareT > 0 && mode === 'playing') drawWindowScare(s, t);
+  if (windowScareT > 0 && mode === 'playing' && !S.curtainsShut) drawWindowScare(s, t);
   if (mode === 'ended' && !S.won) {
     lx.fillStyle = '#000';
     lx.fillRect(0, 0, light.width, light.height);
@@ -4934,7 +5162,7 @@ const ICONS = {
     colors: { g: '#7a8290', b: '#6a0a0a', R: '#b02020', k: '#8a6a4a' },
   },
 };
-const RES_VALUE = { wood: () => `${S.wood}/${PILE_CAP}${wetInPile() ? ` · ${wetInPile()} wet` : ''}${S.shed ? ` · shed ${S.shedWood}` : ''}`, cured: () => curedCount(), cooked: () => S.cooked - curedCount(), raw: () => S.meat, blood: () => S.blood, salt: () => S.salt, fur: () => S.fur };
+const RES_VALUE = { wood: () => `${S.wood}/${PILE_CAP}${wetInPile() ? ` · ${wetInPile()} frozen` : ''}${S.shed ? ` · shed ${S.shedWood}` : ''}`, cured: () => curedCount(), cooked: () => S.cooked - curedCount(), raw: () => S.meat, blood: () => S.blood, salt: () => S.salt, fur: () => S.fur };
 const resCounts = {};
 
 function buildResBar() {
@@ -5007,7 +5235,10 @@ function syncUI() {
   const lifting = S.hatch.phase === 'lift' && mode === 'playing' && !S.away && !dialog;
   ui.slam.classList.toggle('hidden', !lifting);
   if (lifting) ui.slam.style.setProperty('--cd', `${(1 - S.hatch.p) * 100}%`);
-  const reaching = S.hand.phase === 'reach' && mode === 'playing' && !S.away && !dialog;
+  const reaching = S.hand.phase === 'reach' && mode === 'playing' && !S.away && !dialog && !S.curtainsShut;   // behind the curtains, no warning
+  const swatting = climbing() && mode === 'playing' && !S.away && !dialog;
+  ui.swat.classList.toggle('hidden', !swatting);
+  if (swatting) { const g = S.goblins.find((x) => x.act && !x.act.done); ui.swat.style.setProperty('--cd', `${(1 - g.act.t / 2.0) * 100}%`); }
   ui.strike.classList.toggle('hidden', !reaching);
   if (reaching) ui.strike.style.setProperty('--cd', `${(1 - S.hand.p) * 100}%`);
 
@@ -5267,6 +5498,12 @@ ui.wood.addEventListener('click', () => startTrip('wood'));
 ui.build.addEventListener('click', () => toggleBuild());
 ui.strike.addEventListener('click', strikeHand);
 ui.slam.addEventListener('click', slamHatch);
+ui.swat.addEventListener('click', swatGoblin);
+// each quick-time button sits right by what it's for
+const placeAt = (el, x, y) => { el.style.left = `${(x / W) * 100}%`; el.style.top = `${(y / H) * 100}%`; };
+placeAt(ui.strike, 61, 72);
+placeAt(ui.slam, HATCH.x + HATCH.w / 2, HATCH.y - 16);
+placeAt(ui.swat, 207, 78);
 ui.douse.addEventListener('click', douse);
 ui.saltFlare.addEventListener('click', saltFlare);
 ui.dayBtn.addEventListener('click', startDay);
@@ -5362,7 +5599,13 @@ $('devBtn').addEventListener('click', () => showTitle('dev'));
 light.addEventListener('pointerdown', (e) => {
   if (mode !== 'playing' && mode !== 'day') return;
   const r = light.getBoundingClientRect();
-  if (cabinetHit(((e.clientX - r.left) / r.width) * W, ((e.clientY - r.top) / r.height) * H)) { cabHeld = !cabHeld; sfx.creak(); }
+  const lx0 = ((e.clientX - r.left) / r.width) * W, ly0 = ((e.clientY - r.top) / r.height) * H;
+  if (cabinetHit(lx0, ly0)) { cabHeld = !cabHeld; sfx.creak(); }
+  else if (S.curtains && mode === 'playing' && lx0 >= 40 && lx0 <= 82 && ly0 >= 30 && ly0 <= 72) {
+    S.curtainsShut = !S.curtainsShut;
+    sfx.tap();
+    say(S.curtainsShut ? 'you draw the curtains shut.' : 'you pull the curtains open.');
+  }
 });
 $('achBtn').addEventListener('click', () => showTitle('ach'));
 function syncFright() { $('scareBtn').textContent = `scares: ${fright}`; }
@@ -5411,7 +5654,7 @@ window.addEventListener('keydown', (e) => {
   else if (dialog) { if (k >= '1' && k <= '9') choose(Number(k) - 1); }
   else if (k === 'x') douse();
   else if (k === 'n') toggleMusic();
-  else if (k === 'f' || k === ' ') { e.preventDefault(); if (S.hatch.phase === 'lift') slamHatch(); else strikeHand(); }
+  else if (k === 'f' || k === ' ') { e.preventDefault(); if (S.hatch.phase === 'lift') slamHatch(); else if (S.hand.phase === 'reach') strikeHand(); else swatGoblin(); }
   else if (k === 'r') runBack();
   else if (k === 'b') toggleBuild();
   else if (panelOpen) return;

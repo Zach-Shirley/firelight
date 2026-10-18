@@ -89,13 +89,15 @@ The day also dries every wet log and spoils any meat that isn't cured. The day s
 | **The thing under the floor** | There is a cellar hatch in the room. The floorboards creak and dust puffs up, then the lid lifts and pale fingers curl out, with eyes in the gap. It sits right under the meat rack. **Slam the hatch** (F/Space). **Bar it** with a beam (4 wood): slam it in time and the beam stays whole; miss, and the beam breaks instead of it getting out. With no beam, a long pale arm comes up the wall and strips **half your meat** off the rack, then stays down a long while. No meat, and it takes **the stranger**: one sharp breath and she's gone. No stranger, and it takes you. While you're out, nobody is there to slam it |
 | **Fur** | From night 2, traps now and then catch a pelt. Fur makes a coat or insulation, or keep it: 3 points each at dawn |
 
-**Night 4: the goblins.** The blizzard again, and now things follow you in.
+**Night 4: the goblins.** The blizzard again, and now they come in, two ways.
 
-- **Getting in.** Each time you come back from a trip there's about a 1 in 10 chance (more if you ran back in a hurry) that a small hunchbacked goblin slips in at your heels. Its shadow crumbles through the door, it scuttles, and **it snatches something off the rack on its way to a corner**, where it watches you for a minute before it tries again.
-- **A salted doorway** stops one at the threshold; the salt goes.
-- **In the house.** It settles in a dark corner, one to a corner, where all you see is two small, dim eyes. While the fire is low or you're out, it climbs the wall to the meat rack or the shelf and takes one thing: cured meat first, then cooked, raw, then blood. Never salt. After two hours it gets bolder and steals faster.
-- **Getting rid of one.** Throw salt into its corner (1 salt, from the ember there) and it bolts out the door. Or light its corner with a torch and it moves to another dark one. With every corner lit, **it leaps up and pinches out a torch** and takes that corner (relighting costs 1 wood).
-- **How they kill you.** Let the fire die with one settled in and it comes for you. Let **four** in at once, one in every corner, and they all do.
+- **At your heels** when you come back from a trip (about 1 in 10), and **through the woodshed cabinet**: they nest among the logs, and the fuller the shed, the more often one tries it. Salt the doorway or the cabinet (one use each), or nail a plank over the cabinet (3 wood): nothing gets through it, but you can't get at your wood either until you take it off.
+- **From 2 to 3 am the storm drops dead.** The window clears, you can see the treeline again, and the goblins come twice as often.
+- **Each one snatches something** the moment it's in and hides in a dark corner (several can share one). Every so often one goes for the rack: up one side, a slip, across, and up the other. **Swat it** (the button under the rack, or F) before it gets there and it bolts out the door.
+- **Light its corner** and it moves. With nowhere dark left it pinches a torch out, and the wind through a bare window blows torches out too; relighting is free.
+- **Three inside at once**, or the fire dying with one in a corner, and they come for you.
+
+
 
 **The woodcutter's axe.** He'll sell his spare for 3 meat, once. Every wood trip then brings back 5–7 logs instead of 3–5.
 
@@ -112,11 +114,12 @@ The day also dries every wet log and spoils any meat that isn't cured. The day s
 
 | | |
 | --- | --- |
-| **The cold** | See *What can kill you*. You can't chain trips any more: go out, come back, warm up by a big fire, then go again |
-| **Trips take half again as long** | Wood runs, building the shed, everything outside. The four-second grin doesn't change, so you're exposed longer. Now and then (about 1 trip in 25) you **lose the path for a moment** in the white: a gust, a thump, and a couple of extra seconds out there |
-| **Wet wood** | Everything you bring in is wet (the woodcutter's isn't). Wet logs show dark and frosted on top of the pile, and the count reads e.g. "18/25 · 6 wet". They dry in about a minute by a burning fire: faster by a roaring one or the stove, much slower by a dying one. Stoking uses dry wood first; with only wet logs left the fire takes it but burns half as long, hisses and pops, and smoke collects under the roof and drifts over the top of the window. The smoke is only for show |
-| **She is quicker in the cold** | Her pull on a board is about 30% faster, so there's less time to burn her back |
-| **The stranger** | She knows this weather. (Her story comes in a later version) |
+| **The house gets cold** | Only a fire burning or roaring keeps the house warm: at flickering it's chilly, at smoldering it's freezing, and you slowly take on the house's cold. A broken window lets the wind in (less through boards, none through shut curtains), insulation helps, and every time the door opens the cold rushes in. You can see it: frost glazing in from the corners, snow drifting in under the window, your breath. Your own cold is in the top left |
+| **You can barely see out** | The window is a white-out. On normal and hard, if the thing in the trees is close, its eyes show for a moment once every three seconds, very faintly. On insane, never. Listen for its howl, and for the falling howl when it leaves |
+| **Trips take half again as long** | Wood runs, building the shed, everything outside, and now and then you lose the path for a moment in the white |
+| **Frozen logs** | Everything you bring in is frozen, even from the woodshed (the woodcutter's isn't). Frozen logs show dark and rimed on top of the pile ("18/25 · 6 frozen") and thaw in about a minute by a good fire; the drying rack thaws them three times faster. Stoking uses thawed wood first; a frozen log burns half as long and hisses |
+| **She is quicker in the cold** | Her pull on a board is about 30% faster |
+| **Fur** | Clothes slow how fast you get cold, and the set makes you all but immune: **coat** (6 fur, 35%), **trousers** (5, 20%), **hat** (4, 20%), **socks** (3, 15%). **Fur curtains** (5 fur) over the window: click the window to open or shut them. Shut, the wind stays out and the house is far warmer, but you can't see the treeline at all, she is only a faint outline, there's no warning to burn her, and she has less time before she gets a board. Fur is also 3 points each at dawn, so every piece you wear costs you score |
 
 ![The day](docs/day.jpg)
 ![Something under the floor](docs/hatch.jpg)
@@ -164,8 +167,9 @@ Click an ember for a card with what it does and what it costs. The **build** but
 | Corner torches (up to 4) | 2 wood each | An iron sconce in each corner of the room, where the eyes like to sit. Once you have a woodshed, its candle lights the back-right corner and that torch isn't offered (build it first and you keep both). Burns all night with a faint warm glow, and nothing opens its eyes inside it. The first time you light a corner, now and then a rat bolts out of the shadows |
 | Cure meat | 1 salt | Rubs salt into 2 cooked meat so it never goes bad |
 | **Drying rack** | 12 wood | Beside the fire. Dries wet wood three times faster (eight logs at a time), and slowly **smokes cooked meat** so it never goes bad, one piece every couple of hours while the fire burns. Smoked meat counts as cured |
-| Fur coat | 4 fur | You get cold outside a third more slowly |
-| Insulate the walls | 6 fur | The house loses heat more slowly and the fire warms you a little faster. (Six fur is also 18 points at dawn; whether insulation is worth it is up to you) |
+| Fur clothes | coat 6, trousers 5, hat 4, socks 3 fur | Each slows how fast you get cold; the whole set makes you all but immune |
+| Fur curtains | 5 fur | Over the window; click the window to open or shut them (see night 3) |
+| Insulate the walls | 6 fur | The house stays warmer for a given fire. (Six fur is also 18 points at dawn; whether insulation is worth it is up to you) |
 | Salt the doorway / the sill | 2 salt each | One use each; see night 2 |
 | Salt a trap | 1 salt | A salted trap catches meat and blood twice as often (and fur, from night 2), for as long as it lasts; the salt goes when the trap breaks. You can see the white flecks on it |
 | Salt around the hatch (night 2) | 2 salt | One use: the next time it would get out, it touches the salt and drops back down. Spent before the beam |
@@ -391,7 +395,7 @@ They're stored in this browser for now (`achievements.js`). Each unlock keeps it
 
 Open the game once with `?dev` on the address (https://firelight-topaz.vercel.app/?dev) and the title menu gets a **playtest** button, remembered in that browser. It starts you at the day before night 2 or 3, or straight into night 2 or 3, with a basic kit: boarded window, two traps (three on night 3), the lantern, the stranger, some food and wood, and on night 3 a woodshed and the drying rack. Playtest runs don't count toward the stats or the leaderboard.
 
-The version is in the bottom-right corner (v0.39 is the 39th commit; the number counts every commit, docs included), so you can tell a refresh picked up the latest build.
+The version is in the bottom-right corner (v0.40 is the 40th commit; the number counts every commit, docs included), so you can tell a refresh picked up the latest build.
 
 ## Future ideas
 

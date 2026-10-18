@@ -652,3 +652,11 @@ body.touch #dayList button { min-height: calc(14px * var(--s)); }
 .board-tabs { display: flex; gap: calc(2px * var(--s)); margin-bottom: calc(2px * var(--s)); }
 .board-tabs button { font-size: calc(5.5px * var(--s)); padding: 0 calc(4px * var(--s)); }
 .board-tabs button.on { border-color: var(--ember); color: #ffcf6a; }
+
+/* ---- quick-time buttons beside what they're for (positioned from main.js); smaller so they fit there */
+#strike, #slam, #swat { font-size: calc(6.5px * var(--s)); padding: calc(0.5px * var(--s)) calc(5px * var(--s)) calc(1.5px * var(--s)); white-space: nowrap; z-index: 30; }
+#swat {
+  position: absolute; transform: translateX(-50%);
+  color: #fff3d6; background: rgba(60, 40, 20, 0.92); border-color: #e0a050; animation: flicker 0.4s infinite;
+}
+#swat::after { content: ''; position: absolute; left: 0; bottom: 0; height: calc(1px * var(--s)); width: var(--cd, 100%); background: #e0a050; }
