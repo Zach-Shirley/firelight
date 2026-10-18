@@ -6,7 +6,7 @@ import * as sfx from './sound.js';
 import { ACHIEVEMENTS, createStore } from './achievements.js';
 import { computeScore, qualifies, insertScore, cleanInitials, sanitizeBoard } from './score.js';
 
-const VERSION = '0.48';   // one step per commit to the repository
+const VERSION = '0.49';   // one step per commit to the repository
 const W = 320, H = 180;
 const FIRE = { x: 160, y: 136 };          // base of the flames
 const LIGHT_Y = 130;                       // centre of the light pool
@@ -5054,7 +5054,8 @@ function deathHand(s, t) {
     // her hands planted on the floor out to either side, stepping forward
     const stepK = Math.sin(lossT * 9 + (side > 0 ? Math.PI : 0));
     const handX = hx + side * (14 + 120 * k), handY = lerp(120, 200, k) + stepK * 2 * (1 - k);
-    limb(s, hx + side * 4 * sc, hy + 9 * sc, handX, handY, side * -(10 + 30 * k), 1.8 + 3 * k);
+    // arms as thick as her shoulders, so they read as hers and not as wires
+    limb(s, hx + side * 4 * sc, hy + 9 * sc, handX, handY, side * -(10 + 30 * k), 1.8 * sc);
     claw(s, handX, handY, Math.PI / 2 - side * 0.3, 0.45, 2.2, 6 + 10 * k);
   }
   drawHerHead(s, t, hx, hy, sc, 1);
