@@ -6,7 +6,7 @@ import * as sfx from './sound.js';
 import { ACHIEVEMENTS, createStore } from './achievements.js';
 import { computeScore, qualifies, insertScore, cleanInitials, sanitizeBoard } from './score.js';
 
-const VERSION = '0.60';   // one step per commit to the repository
+const VERSION = '0.61';   // one step per commit to the repository
 const W = 320, H = 180;
 const FIRE = { x: 160, y: 136 };          // base of the flames
 const LIGHT_Y = 130;                       // centre of the light pool
@@ -4124,7 +4124,8 @@ function drawHandBody(s, t) {
     const hx = sx + (tx - sx) * ext, hy = sy + (ty - sy) * ext;
     herGlow(s, 61, 52, 22, 0.5);
     throughWindow(s, () => drawHerHead(s, t, 63, 47, 1.05, 1));
-    limb(s, sx, sy, hx, hy, -14 * Math.sin(Math.PI * Math.min(1, ext * 1.1)), 2.3);
+    // even at full stretch the elbow keeps a crook, so it reads as an arm and not a pole
+    limb(s, sx, sy, hx, hy, -14 * Math.sin(Math.PI * Math.min(1, ext * 1.1)) - 7 * ext, 2.8);
     const closed = T >= 1.15;
     const dir = Math.atan2(ty - sy, tx - sx);
     if (closed && hd.got > 0) {
