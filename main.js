@@ -6,7 +6,7 @@ import * as sfx from './sound.js';
 import { ACHIEVEMENTS, createStore } from './achievements.js';
 import { computeScore, qualifies, insertScore, cleanInitials, sanitizeBoard } from './score.js';
 
-const VERSION = '0.46';   // one step per commit to the repository
+const VERSION = '0.47';   // one step per commit to the repository
 const W = 320, H = 180;
 const FIRE = { x: 160, y: 136 };          // base of the flames
 const LIGHT_Y = 130;                       // centre of the light pool
@@ -1394,9 +1394,9 @@ function swingDoor() {
 
 function runBack() {
   if (!S.away || mode !== 'playing') return;
-  if (S.away.kind !== 'drag') closeCallScare();
-  swingDoor();
   if (S.away.kind === 'drag') { say("you can't leave her here. you keep dragging."); return; }
+  closeCallScare();
+  swingDoor();
   if (S.away.kind === 'shed') {
     const back = S.away.logs - S.away.placed;   // logs only leave the pile as they go into the walls
     S.away = null;
@@ -2609,7 +2609,7 @@ const BUILDS = [
   ...TORCHES.map((tc) => ({
     id: `torch_${tc.id}`, name: () => (S.torches && S.torches[tc.id] === 'out' ? `relight the torch in ${tc.name}` : `a torch in ${tc.name}`),
     desc: 'an iron sconce and a torch that burns all night. a faint glow, and nothing opens its eyes inside it.',
-    show: () => !(S.torches && S.torches[tc.id] === true) && !(tc.id === 'br' && S.shed && !(S.torches && S.torches.br)),   // the woodshed's candle already lights that corner
+    show: () => !(S.torches && S.torches[tc.id] === true) && !(tc.id === 'br' && S.shed && !(S.torches && S.torches.br)) && !bloodHour(),   // the woodshed's candle already lights that corner; nothing catches in the blood hour
     cost: () => (S.torches && S.torches[tc.id] === 'out' ? {} : { wood: 2 }),   // relighting one is free: carry it to the fire and back
     done: () => lightTorch(tc),
   })),
