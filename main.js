@@ -6,7 +6,7 @@ import * as sfx from './sound.js';
 import { ACHIEVEMENTS, createStore } from './achievements.js';
 import { computeScore, qualifies, insertScore, cleanInitials, sanitizeBoard } from './score.js';
 
-const VERSION = '0.50';   // one step per commit to the repository
+const VERSION = '0.51';   // one step per commit to the repository
 const W = 320, H = 180;
 const FIRE = { x: 160, y: 136 };          // base of the flames
 const LIGHT_Y = 130;                       // centre of the light pool
@@ -3893,7 +3893,9 @@ function tubePass(s, pts, widths, color, pad) {
   lx.fillStyle = color;
   for (let k = 0; k < pts.length - 1; k++) {
     const [ax, ay] = pts[k], [bx, by] = pts[k + 1];
-    const n = Math.max(1, Math.ceil(Math.hypot(bx - ax, by - ay) * 2));
+    // circles every half pixel on thin strokes, further apart on thick ones (the edge stays smooth either way)
+    const gap = Math.max(0.5, Math.min(widths[k], widths[k + 1]) * 0.3);
+    const n = Math.max(1, Math.ceil(Math.hypot(bx - ax, by - ay) / gap));
     for (let i = 0; i <= n; i++) {
       const f = i / n, w = widths[k] + (widths[k + 1] - widths[k]) * f;
       lx.beginPath();
