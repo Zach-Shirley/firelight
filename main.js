@@ -6,7 +6,7 @@ import * as sfx from './sound.js';
 import { ACHIEVEMENTS, createStore } from './achievements.js';
 import { computeScore, qualifies, insertScore, cleanInitials, sanitizeBoard } from './score.js';
 
-const VERSION = '0.51';   // one step per commit to the repository
+const VERSION = '0.52';   // one step per commit to the repository
 const W = 320, H = 180;
 const FIRE = { x: 160, y: 136 };          // base of the flames
 const LIGHT_Y = 130;                       // centre of the light pool
@@ -5122,8 +5122,15 @@ function deathRisen(s, t) {
 // Pale arms come up out of the hatch and across the floor, one reaches you, and it pulls you down
 // (deathCamera dives into the hole).
 function deathCellar(s, t) {
-  const { x, y, w } = HATCH;
+  const { x, y, w, h } = HATCH;
   const k = seg(0.2, 1.6);
+  // the hatch thrown open: a black hole in the floor with a sick light at its lip
+  lx.fillStyle = 'rgba(0, 0, 0, 0.96)';
+  lpx(s, x, y, w, h);
+  lx.fillStyle = 'rgba(170, 190, 120, 0.6)';
+  lpx(s, x - 0.5, y - 0.3, w + 1, 0.8);
+  lx.fillStyle = 'rgba(150, 170, 110, 0.18)';
+  lpx(s, x, y + 0.6, w, 1.2);
   for (let i = 0; i < 3; i++) {
     const bx = x + 4 + i * 6, by = y + 4;
     const sway = Math.sin(t * 2.2 + i * 2) * 3;
