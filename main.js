@@ -6,7 +6,7 @@ import * as sfx from './sound.js';
 import { ACHIEVEMENTS, createStore } from './achievements.js';
 import { computeScore, qualifies, insertScore, cleanInitials, sanitizeBoard } from './score.js';
 
-const VERSION = '0.54';   // one step per commit to the repository
+const VERSION = '0.55';   // one step per commit to the repository
 const W = 320, H = 180;
 const FIRE = { x: 160, y: 136 };          // base of the flames
 const LIGHT_Y = 130;                       // centre of the light pool
@@ -962,11 +962,14 @@ function drawGoblins(s, t) {
       drawGoblin(s, x, y, 0.9, face, 0.95, true, T >= 0.45 && T < 0.95 || T >= 1.5 && T < 2.0 ? 'climb' : 'run');
       continue;
     }
-    // in its corner only its eyes show, small and dim and low, blinking out of rhythm
-    const blink = Math.sin(t * 1.3 + c.x) > 0.93 ? 0 : 1;
+    // in its corner only its eyes show, small and dim and low, blinking out of rhythm; more than one in a
+    // corner sit a little apart, so you can count the pairs
+    const j = S.goblins.filter((o) => o.corner === g.corner && !o.act).indexOf(g);
+    const ex = c.x + (c.x < 160 ? 1 : -1) * j * 4, ey = c.y - (j % 2) * 2.5 + j * 1.5;
+    const blink = Math.sin(t * 1.3 + c.x + j * 2.1) > 0.93 ? 0 : 1;
     lx.fillStyle = `rgba(200, 210, 160, ${0.55 * blink})`;
-    lpx(s, c.x - 1.5, c.y, 0.8, 0.6);
-    lpx(s, c.x + 0.7, c.y, 0.8, 0.6);
+    lpx(s, ex - 1.5, ey, 0.8, 0.6);
+    lpx(s, ex + 0.7, ey, 0.8, 0.6);
   }
 }
 
