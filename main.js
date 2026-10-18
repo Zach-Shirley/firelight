@@ -6,7 +6,7 @@ import * as sfx from './sound.js';
 import { ACHIEVEMENTS, createStore } from './achievements.js';
 import { computeScore, qualifies, insertScore, cleanInitials, sanitizeBoard } from './score.js';
 
-const VERSION = '0.62';   // one step per commit to the repository
+const VERSION = '0.63';   // one step per commit to the repository
 const W = 320, H = 180;
 const FIRE = { x: 160, y: 136 };          // base of the flames
 const LIGHT_Y = 130;                       // centre of the light pool
@@ -5298,6 +5298,13 @@ function deathLost(s, t) {
       tube(s, [[cx + 4.4 * u, feet - 19.6 * u], [cx + 4.8 * u, feet - 15 * u]], [2.6 * u, 2.4 * u], pal);
       tube(s, [[cx, feet - 21.5 * u], [cx + 0.3 * u, feet - 24.4 * u]], [5 * u, 4.4 * u], pal);                  // hooded head, bowed
     });
+  }
+  // and snow driving past in front of you, so you are in it and not pasted on it
+  lx.fillStyle = `rgba(255, 255, 255, ${0.6 + 0.3 * k})`;
+  for (let i = 90; i < 120; i++) {
+    const y = hash(i) * H;
+    const x = ((hash(i + 7) * (W + 60) + lossT * (260 + hash(i + 3) * 160)) % (W + 60)) - 30;
+    lpx(s, x, y, 8 + hash(i + 5) * 14, 0.6);
   }
 }
 
