@@ -6,7 +6,7 @@ import * as sfx from './sound.js';
 import { ACHIEVEMENTS, createStore } from './achievements.js';
 import { computeScore, qualifies, insertScore, cleanInitials, sanitizeBoard } from './score.js';
 
-const VERSION = '0.42';   // one step per commit to the repository
+const VERSION = '0.43';   // one step per commit to the repository
 const W = 320, H = 180;
 const FIRE = { x: 160, y: 136 };          // base of the flames
 const LIGHT_Y = 130;                       // centre of the light pool
@@ -233,7 +233,7 @@ function save() {
 const CAUSE_NAMES = {
   dark: 'the dark', starve: 'hunger', burn: 'the fire', mimic: 'the mimic', hand: 'her, at the window', handAway: 'her, at the window',
   hunter: 'the thing in the trees', risen: "the stranger's body", falseStranger: 'the false stranger',
-  cellar: 'the thing under the floor', cellarAway: 'the thing under the floor', freeze: 'the cold', lost: 'the white', sleep: 'no sleep', guest: 'a goblin', goblins: 'the goblins',
+  cellar: 'the thing under the floor', cellarAway: 'the thing under the floor', freeze: 'the cold', lost: 'the white', sleep: 'no sleep', guest: 'a goblin', goblins: 'the goblins', bloodHour: 'the blood hour', flood: 'the swarm', ash: 'her ash',
 };
 
 function loadStats() {
@@ -359,9 +359,9 @@ function resetTransients() {
 
 const clockHour = () => Math.min(NIGHT_HOURS - 1, Math.floor(S.night / HOUR));
 // from the second night everything that hunts you behaves as if it were two hours later
-const hour = () => Math.min(NIGHT_HOURS - 1, clockHour() + (S.nightNo >= 2 ? 2 : 0));
-const LAST_NIGHT = 4;   // night 4: the blizzard again, and the goblins
-const blizzard = () => S.nightNo >= 3;   // nights 3 (and later 4): the blizzard
+const hour = () => Math.min(NIGHT_HOURS - 1, clockHour() + (S.nightNo >= 5 ? 3 : S.nightNo >= 2 ? 2 : 0));
+const LAST_NIGHT = 5;   // night 5: the blood moon, and the end
+const blizzard = () => S.nightNo === 3 || S.nightNo === 4;   // nights 3 and 4: the blizzard
 
 function clockText(night) {
   const total = START_HOUR * 60 + Math.floor((night / HOUR) * 60);
@@ -401,6 +401,16 @@ const HOUR_LINES_4 = {
   7: 'the last hour of the fourth night. hold on.',
 };
 
+const HOUR_LINES_5 = {
+  1: "eleven o'clock. the moon is huge and red, and everything is awake.",
+  2: 'midnight. in the red light you can see footprints all the way around the cabin.',
+  3: 'one in the morning. they are all out there tonight. all of them.',
+  4: 'two in the morning.',
+  5: 'three in the morning. the moon goes dark. the blood hour. open nothing.',
+  6: 'four in the morning. the moon comes back, red as before.',
+  7: 'five in the morning. they are here, all around the walls.',
+};
+
 const HOUR_LINES_3 = {
   1: "eleven o'clock. the wind screams around the cabin.",
   2: 'midnight. you can no longer see the trees.',
@@ -417,7 +427,7 @@ function updateNight(dt) {
   S.night += dt;
   const h = hour();
   const ch = clockHour();
-  if (ch > S.hourSaid) { S.hourSaid = ch; say((S.nightNo >= 4 ? HOUR_LINES_4 : S.nightNo === 3 ? HOUR_LINES_3 : S.nightNo === 2 ? HOUR_LINES_2 : HOUR_LINES)[ch]); }
+  if (ch > S.hourSaid) { S.hourSaid = ch; say((S.nightNo >= 5 ? HOUR_LINES_5 : S.nightNo === 4 ? HOUR_LINES_4 : S.nightNo === 3 ? HOUR_LINES_3 : S.nightNo === 2 ? HOUR_LINES_2 : HOUR_LINES)[ch]); }
   if (S.night >= NIGHT_HOURS * HOUR) { startDawn(); return; }
 
   // the fire burns down, faster every hour
@@ -427,6 +437,10 @@ function updateNight(dt) {
       S.fire -= 1;
       S.decay = decayTime();
       say(S.fire === 0 ? 'the fire is dead.' : `the fire is ${FIRE_NAMES[S.fire]}.`);
+      if (S.fire === 0) {
+        S.everOut = true;
+        if (S.stranger === 'inside' && !S.strangerFalse) { S.ember = Math.max(0, (S.ember || 40) - 20); say('the stranger gasps as the fire goes out, and curls in on herself.'); }
+      }
     }
   } else {
     S.deadFor += dt;
@@ -522,6 +536,8 @@ function updateNight(dt) {
   if (mode !== 'playing') return;
   updateGoblins(dt);
   if (mode !== 'playing') return;
+  updateBloodMoon(dt);
+  if (mode !== 'playing') return;
   updateDoor(dt);
   updateAwake(dt);
   // the stranger warns you about the floor, once, early on the second night
@@ -531,7 +547,12 @@ function updateNight(dt) {
       openDialogue({ id: 'hint', portrait: 'stranger', text: 'The stranger keeps looking at the floor. "There\'s a hatch under there, and something under the hatch. When the boards creak, slam it. If you go out, nail a beam across it first. And salt on the doorway will stop one of them. One."', choices: [{ label: 'nod', act: () => {} }] });
     }
   }
-  // night 3: she knows this weather (a placeholder; her story comes in a later pass)
+  // night 4: what happened at home
+  if (S.n4HintT > 0 && S.stranger === 'inside' && !dialog && !S.away) {
+    S.n4HintT -= dt;
+    if (S.n4HintT <= 0) openDialogue({ id: 'hint', portrait: 'stranger', text: '"They came through the walls at home too," the stranger says. "The small ones first. Then all the rest, on the night the moon went red. I was the fire there. I went out." She looks at your fire for a long time.', choices: [{ label: 'nod', act: () => {} }] });
+  }
+  // night 3: she knows this weather
   if (S.n3HintT > 0 && S.stranger === 'inside' && !dialog && !S.away) {
     S.n3HintT -= dt;
     if (S.n3HintT <= 0) {
@@ -539,6 +560,154 @@ function updateNight(dt) {
     }
   }
   updateStranger(dt);
+}
+
+/* --------------------------------------------------------- night 5: the blood moon */
+
+// The snow stops and the moon comes up red. Every one of them comes, from every part of the woods, to the last fire
+// still burning. Everything is awake from the start. Mimics stand on two feet now, so only the slot in the door shows
+// their faces. From three to four the moon goes dark (the blood hour): open the door or even the slot and the thing in
+// the trees reaches through. From five to six they try every way in at once: any door, window, cabinet or hatch left
+// open and they pour in.
+const bloodMoon = () => S.nightNo >= 5;
+const bloodHour = () => bloodMoon() && clockHour() === 5;   // 3 to 4 am
+const floodHour = () => bloodMoon() && clockHour() === 7;   // 5 to 6 am
+const FLOOD_FROM = { door: { x: 274, y: 108 }, window: { x: 61, y: 66 }, cabinet: null, hatch: null };
+
+function floodOpenings() {
+  const o = [];
+  if (door > 0.3) o.push('door');
+  if (S.glassBroken && S.boards === 0) o.push('window');
+  if (S.shed && !S.cabBar) o.push('cabinet');
+  if (!S.hatchBar) o.push('hatch');
+  return o;
+}
+const floodFrom = (k) => (k === 'cabinet' ? { x: CABINET.x + 10, y: CABINET.y + 20 } : k === 'hatch' ? { x: HATCH.x + HATCH.w / 2, y: HATCH.y + 4 } : FLOOD_FROM[k]);
+
+function updateBloodMoon(dt) {
+  if (!bloodMoon()) return;
+  // the blood hour: the moon goes dark, the torches die and won't catch
+  if (bloodHour() && !S.bloodSaid) {
+    S.bloodSaid = true;
+    for (const tc of TORCHES) if (S.torches[tc.id] === true) S.torches[tc.id] = 'out';
+    sfx.recede();
+    if (S.stranger === 'inside' && !S.strangerFalse) say('the stranger grips your arm. "don\'t open anything. not the door, not the slot. not for anyone."');
+  }
+  // half past four: they're gathering
+  if (S.night >= 6.5 * HOUR && !S.floodSaid) {
+    S.floodSaid = true;
+    sfx.scuttle();
+    say(S.stranger === 'inside' && !S.strangerFalse ? 'the stranger is on her feet. "close everything," she says. "all of it. the door, the window, the cabinet, the hatch. they\'re coming."'
+      : 'you can hear them out there now: hundreds of small feet, all around the cabin. close everything. the door, the window, the cabinet, the hatch.');
+  }
+  // five to six: one gap is all it takes
+  if (floodHour()) {
+    const o = floodOpenings();
+    if (o.length) {
+      S.floodT = (S.floodT || 0) + dt;
+      if (S.floodT > 1) { S.floodFrom = o[0]; die('flood'); }
+    } else S.floodT = 0;
+  }
+  // her, telling you what she is, early on the last night
+  if (S.n5HintT > 0 && S.stranger === 'inside' && !dialog && !S.away) {
+    S.n5HintT -= dt;
+    if (S.n5HintT <= 0) {
+      openDialogue({ id: 'hint', portrait: 'stranger', text: 'The stranger looks up at the red moon through the window. "They all come tonight," she says. "Every one of them, from every corner of the woods, to the last fire still burning. That\'s this one." Her eyes are very bright. "Keep it burning. Feed me if you can. At dawn I can end this, if I\'m strong enough."', choices: [{ label: 'nod', act: () => {} }] });
+    }
+  }
+}
+
+// what you see through the slot: the right face, or one that's almost right
+const WRONG_FACES = [
+  'the face is almost right. the eyes are too far apart.',
+  'the face is almost right. there are no whites to its eyes at all.',
+  'the face is almost right. the mouth goes on a little too long.',
+  'the face is almost right. it blinks, sideways.',
+];
+function lookThroughSlot(v) {
+  if (bloodHour()) { die('bloodHour'); return; }
+  sfx.creak();
+  const wrong = v.who === 'mimic' || v.who === 'ash';
+  const face = v.who === 'ash' ? 'it is her hood and her cloak. there is nothing inside them but a dull red glow, like a fire nobody fed.'
+    : wrong ? pick(WRONG_FACES) : 'a face, cold and tired. it looks right. it looks like a person.';
+  let snatch = '';
+  if (v.who === 'mimic' && Math.random() < 0.35) {
+    // long fingers through the gap before you get it shut
+    if (S.wood >= 2) { S.wood -= 2; snatch = ' fingers shoot through the slot and drag two logs out before you slam it. -2 wood'; }
+    else if (anyMeat()) { takeMeat(); snatch = ' fingers shoot through the slot and snatch a piece of meat before you slam it. -1 meat'; }
+    sfx.slam();
+  }
+  const key = v.as === 'woodcutter' ? 'woodcutter' : v.as === 'trader' ? 'trader' : 'stranger';
+  openDialogue({
+    id: 'knock', visit: { ...v, looked: true },
+    portrait: wrong ? `${key}Wrong` : key,
+    text: `You slide the slot open. ${face}${snatch}`,
+    choices: [
+      { label: 'open the door', act: () => openDoorFor(v) },
+      { label: 'keep it shut', act: () => keepShut(v) },
+    ],
+  });
+}
+
+// the endings, decided at the fifth dawn by what she is and how strong she got
+const ENDINGS = {
+  keeper: { title: 'the keeper.', bonus: 500, text: 'Five nights, and your fire never once went out. At first light she kneels at your hearth and holds her hands to it, her eyes bright as coals. "You kept it," she says. "I have been looking for someone who would." She does not burn the woods. She gives you the fire. The things in the trees will remember this cabin and keep away from it. You were never going to leave. You are the keeper now.' },
+  burning: { title: 'the burning.', bonus: 400, text: 'At first light she stands, and lets the cloak fall. There is nothing under it but fire. She walks out into the snow and the forest catches behind her: every tree, and every one of them in the trees, all of them that came for you tonight. You hear them burn until noon. The snow slides off the roof. When you finally walk out, the ground is bare and smoking, and the winter is over.' },
+  lastEmber: { title: 'the last ember.', bonus: 200, text: 'She stands at first light, but she is so dim you can see the wall through her. "I don\'t have enough left," she says. "Not for all of it." She walks out into the clearing and burns, just there, just enough. The things at the edge of the trees scream and fall back. When it is over there is a ring of ash around the cabin, and nothing else of her. Beyond it the woods are still dark. You walk out alone.' },
+  ash: { title: 'the ash.', bonus: 150, text: 'She came back with the blood moon and circled the cabin all night, calling you by a name you never told her. At dawn there is a ring of grey ash in the snow around the walls, and the woods are as dark as they ever were. You lived. You are still here.' },
+  coldHearth: { title: 'the cold hearth.', bonus: 100, text: 'The sun comes up. The red moon goes down. Nothing changes. The woods are as dark as they were on the first night, and somewhere in them something is already waiting for dusk. As you stack the last of your wood, the snow begins again.\n\nnight 6.' },
+};
+function finalEnding() {
+  const real = S.stranger === 'inside' && !S.strangerFalse;
+  if (real && !S.everOut) return 'keeper';
+  if (real) return (S.ember || 0) >= 50 ? 'burning' : 'lastEmber';
+  if (S.herDied) return 'ash';
+  return 'coldHearth';
+}
+
+// the blood moon over the room: a red cast all night, deep red in the blood hour, the moon itself in the window,
+// and red outlines around anything left open as the end comes
+function drawBloodMoon(s, t) {
+  if (!bloodMoon() || (mode !== 'playing' && mode !== 'dawn')) return;
+  const hourDark = bloodHour();
+  lx.fillStyle = hourDark ? 'rgba(80, 0, 0, 0.4)' : 'rgba(110, 0, 0, 0.12)';
+  lx.fillRect(0, 0, light.width, light.height);
+  if (!S.curtainsShut) {
+    throughWindow(s, () => {
+      const mx = 69 * s, my = 40 * s, r = 4 * s;
+      const g = lx.createRadialGradient(mx, my, 0, mx, my, r * 4);
+      g.addColorStop(0, hourDark ? 'rgba(120, 0, 0, 0.5)' : 'rgba(220, 40, 30, 0.45)');
+      g.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      lx.fillStyle = g;
+      lx.fillRect(mx - r * 4, my - r * 4, r * 8, r * 8);
+      lx.fillStyle = hourDark ? 'rgba(8, 0, 0, 1)' : 'rgba(200, 40, 28, 0.95)';
+      lx.beginPath(); lx.arc(mx, my, r, 0, Math.PI * 2); lx.fill();
+      if (hourDark) { lx.strokeStyle = 'rgba(220, 30, 20, 0.9)'; lx.lineWidth = s * 0.6; lx.stroke(); }
+    });
+  }
+  if (S.night >= 6.5 * HOUR && mode === 'playing') {
+    const pulse = 0.5 + 0.5 * Math.sin(t * 8);
+    lx.strokeStyle = `rgba(230, 30, 20, ${0.4 + 0.5 * pulse})`;
+    lx.lineWidth = s;
+    for (const k of floodOpenings()) {
+      if (k === 'door') lx.strokeRect(257 * s, 51 * s, 34 * s, 61 * s);
+      else if (k === 'window') lx.strokeRect(45 * s, 35 * s, 32 * s, 32 * s);
+      else if (k === 'cabinet') lx.strokeRect(CABINET.x * s, CABINET.y * s, CABINET.w * s, CABINET.h * s);
+      else lx.strokeRect(HATCH.x * s, HATCH.y * s, HATCH.w * s, HATCH.h * s);
+    }
+  }
+}
+
+// the flood: a stream of them through whatever was open, piling onto you
+function deathFlood(s) {
+  const from = floodFrom(S.floodFrom || 'door');
+  for (let i = 0; i < 70; i++) {
+    const k = clamp(lossT * 1.6 - i * 0.045, 0, 1);
+    if (k <= 0) continue;
+    const e = ease(k);
+    const tx = 160 + (hash(i) - 0.5) * 90, ty = 176 - hash(i + 5) * 30 * e;
+    drawGoblin(s, lerp(from.x, tx, e) + Math.sin(lossT * 12 + i) * 1.5, lerp(from.y, ty, e), lerp(0.9, 2.8, e), tx > from.x ? 1 : -1, 1);
+  }
 }
 
 /* --------------------------------------------------------- night 4: the goblins */
@@ -860,6 +1029,7 @@ function aboutToDie() {
   if (hd.phase === 'crawl' && !hd.phantom && S.boards === 0 && !S.saltWin && S.wood < HER_TOLL && hd.t < 1.6) return true;   // her, with nothing to take but you
   if (hc.phase === 'lift' && !hc.phantom && !S.hatchBar && !S.saltHatch && S.meat + S.cooked === 0 && S.stranger !== 'inside' && hc.t < 1.6) return true;   // the hatch, with nothing to take but you
   if (S.blaze > 0 && S.blaze < 2 && S.blood < 2) return true;                                  // the fire, with no blood to douse it
+  if (floodHour() && (S.floodT || 0) > 0) return true;                                         // something is open at the end
   if (blizzard() && S.cold >= 92) return true;
   if (S.hunger >= 97) return true;
   return false;
@@ -908,7 +1078,7 @@ function roomTarget() {
 const FUR_WEAR = { coat: 0.35, pants: 0.2, hat: 0.2, socks: 0.15 };
 const furMult = () => 1 - Object.entries(FUR_WEAR).reduce((a, [k, v]) => a + (S[k] ? v : 0), 0);
 // night 4, from 2 to 3 am: the storm drops to a dead calm
-const calm = () => S.nightNo >= 4 && clockHour() === 4;
+const calm = () => S.nightNo === 4 && clockHour() === 4;
 
 function updateCold(dt) {
   if (!blizzard()) { S.cold = 0; S.room = 0; return; }
@@ -1514,6 +1684,10 @@ function updateDoor(dt) {
   const h = hour();
   S.doorT = rand(45, 70) * (1 - h * 0.04);
   if (S.firstVisit) { S.firstVisit = false; queueVisit('stranger'); return; }
+  // the blood hour: knock after knock, in voices you trust. none of them is anything you want
+  if (bloodHour()) { S.doorT = rand(10, 16); queueVisit('blood', pick(['woodcutter', 'trader', 'stranger']), true); return; }
+  // her, come back as ash, if she died
+  if (bloodMoon() && S.herDied && Math.random() < 0.35) { queueVisit('ash', 'stranger'); return; }
   const pool = realPool();
   if (Math.random() < MIMIC_CHANCE[h] + (h >= 2 ? D().mimic : 0)) {
     // it copies a voice you'd open the door for. from night 2 it knows the trader's, too
@@ -1527,10 +1701,10 @@ function updateDoor(dt) {
 }
 
 function queueVisit(who, as = who, fake = false) {
-  const real = who !== 'mimic';
+  const real = who !== 'mimic' && who !== 'blood';
   // under the door, in the lantern's light, people stand on two feet. a mimic gets it wrong: one, or three.
   // what you only imagine has no feet at all
-  pendingVisit = { who, as, fake, feet: who === 'phantom' ? 0 : real ? 2 : pick([1, 3]), t: real || fake ? 3.2 : 0.9, away: !!S.away };
+  pendingVisit = { who, as, fake, feet: who === 'phantom' ? 0 : real || bloodMoon() ? 2 : pick([1, 3]), t: real || fake ? 3.2 : 0.9, away: !!S.away };
   if (S.away) return;   // you can't hear footsteps from the trees; the snow will tell you when you're back
   if (real || fake) {
     sfx.footsteps();
@@ -1569,6 +1743,8 @@ function knockText(v) {
     case 'trader': return S.met.trader
       ? 'Two slow knocks, and something clinks. The dry voice: "Evening again. I kept a few things back for you."'
       : 'Two slow knocks, and something clinks. A dry voice: "Evening. I sell what a person needs on a night like this."';
+    case 'stranger': if (v.who === 'ash') return 'A knock. Her voice, exactly her voice: "Please. I just need the fire. I won\'t be any trouble."';
+    // falls through
     default: return 'A knock. A woman\'s voice through the door, cracked with cold: "Please. I just need the fire. I won\'t be any trouble."';
   }
 }
@@ -1589,6 +1765,7 @@ function knockDialogue(v) {
     text: knockText(v) + lanternText(),
     choices: [
       { label: 'open the door', act: () => openDoorFor(v) },
+      ...(S.slot && !v.looked ? [{ label: 'look through the slot', act: () => lookThroughSlot(v) }] : []),
       { label: 'keep it shut', act: () => keepShut(v) },
     ],
   };
@@ -1605,6 +1782,8 @@ const anyMeat = () => S.meat + S.cooked;
 function openDoorFor(v) {
   doorTarget = 1;
   goblinsLeave();
+  if (v.who === 'blood' || bloodHour()) { die('bloodHour'); return; }
+  if (v.who === 'ash') { die('ash'); return; }
   if (v.who === 'phantom') {
     doorCloseIn = 1.4;
     say('there is no one there. no footprints in the snow. there never were.');
@@ -1630,6 +1809,7 @@ function openDoorFor(v) {
   switch (v.who) {
     case 'stranger':
       S.stranger = 'inside';
+      S.ember = 40;
       S.hintT = 10;
       S.sHunger = 20;
       S.strangerFalse = Math.random() < FALSE_STRANGER_CHANCE;
@@ -1663,6 +1843,8 @@ function openDoorFor(v) {
 }
 
 function keepShut(v) {
+  if (v.who === 'blood') { say('the knocking stops. something stays at the door a long time before it goes.'); return; }
+  if (v.who === 'ash') { say('the knocking stops. grey ash drifts in under the door.'); return; }
   if (v.who === 'phantom') { say('the knocking stops. there are no footprints in the snow, coming or going.'); return; }
   if (v.who === 'mimic') {
     S.rec.mimicsKept += 1;
@@ -1708,7 +1890,8 @@ function feedStranger(kind) {
   S.rec.fed += 1;
   S.sHunger = 0;
   S.sPlea = 0;
-  say('the stranger eats slowly, eyes closed. "thank you."');
+  S.ember = Math.min(100, (S.ember || 40) + 15);   // she grows stronger every time you feed her
+  say('the stranger eats slowly, eyes closed. "thank you." her eyes glow a little brighter.');
 }
 
 function updateStranger(dt) {
@@ -1809,6 +1992,7 @@ function killAtDawn() {
 
 function strangerDies(text = 'The stranger slumps against the wall and stops breathing. A moment later, something under her skin begins to move.') {
   S.stranger = 'dead';
+  S.herDied = true;
   sfx.heartbeat(1);
   openDialogue({
     id: 'strangerDead', portrait: 'dead',
@@ -1836,6 +2020,9 @@ const DEATHS = {
   handAway: { text: 'You came back to a broken window. She was already inside.', hint: 'board the window before one in the morning. a bare window lets her in, whether you are home or not.' },
   guest: { text: 'The fire went out, and the thing in the corner came for you.', hint: 'something got in behind you when you came back from a trip. salt the doorway to keep them out, throw salt at one to drive it off, or light its corner. and never let the fire die with one inside.' },
   goblins: { text: 'Three of them. That was enough for them to be bold.', hint: 'they follow you in from your trips and come through the woodshed cabinet. salt or plank the cabinet, salt the doorway, swat them off the wall, and drive them out before there are three.' },
+  bloodHour: { text: 'You opened the door in the blood hour.', hint: 'from three to four, while the moon is dark, nothing at the door is anything you want. not the door, not even the slot.' },
+  flood: { text: 'They came in. All of them.', hint: 'from five to six they try every way in at once. by then the door must stay shut, the window boarded, the woodshed cabinet planked and the hatch barred.' },
+  ash: { text: 'You let her in. It was not her anymore.', hint: 'she died, and under the blood moon what was left of her came back to the door. it has her voice. it will never be her.' },
   sleep: { text: 'You lay down by the fire at dusk, just for a moment, and never got up.', hint: 'four days without sleep is more than anyone can take. sleep during the day.' },
   lost: { text: 'You lost the path in the white, and never found it again.',
     hint: "nothing you could have done. about one blizzard night in a hundred ends like this. you were very, very unlucky." },
@@ -1856,7 +2043,7 @@ function die(cause) {
   pendingVisit = null;
   toggleBuild(false);
   toggleJournal(false);
-  if (cause === 'mimic') { doorTarget = 1; visitorAtDoor = null; shake = 0.8; }
+  if (cause === 'mimic' || cause === 'bloodHour' || cause === 'ash') { doorTarget = 1; visitorAtDoor = null; shake = 0.8; }
   if (cause === 'dark') { shake = 0.4; S.fire = 0; particles = []; }
   if (cause === 'hand' || cause === 'handAway') { shake = 0.6; S.hand.phase = 'crawl'; S.hand.p = 1; }
   if (cause === 'risen') shake = 0.6;
@@ -1880,6 +2067,7 @@ function startDawn() {
   S.hunter.near = false;
   for (const e of eyes) e.out = true;
   achieve(`night_${S.nightNo}`);
+  if (S.nightNo >= LAST_NIGHT) { S.ending = finalEnding(); achieve(`end_${S.ending}`); }
   if (S.nightNo >= LAST_NIGHT && S.diff === 'hard') achieve('hard_win');
   if (S.nightNo >= LAST_NIGHT && S.diff === 'insane') { achieve('hard_win'); achieve('insane_win'); }
   if (lvl() >= 3) achieve('awake_3');
@@ -1931,7 +2119,7 @@ function updateToasts(dt) {
   toastT = 3.6;
 }
 
-const ACH_GROUPS = [['nights', 'nights survived'], ['feats', 'feats'], ['deaths', 'ways to die']];
+const ACH_GROUPS = [['nights', 'nights survived'], ['endings', 'endings'], ['feats', 'feats'], ['deaths', 'ways to die']];
 
 function renderAchievements() {
   const got = achievements.unlocked();
@@ -2063,7 +2251,7 @@ const nextHatch = () => rand(34, 52) * (1 - hour() * 0.04);
 function updateHatch(dt) {
   if (S.nightNo < 2) return;
   const hc = S.hatch;
-  if (clockHour() < 1 && hc.phase === 'idle') return;
+  if (clockHour() < (S.nightNo >= 5 ? 0 : 1) && hc.phase === 'idle') return;
   hc.t -= dt;
   if (hc.phase === 'idle') {
     if (hc.t <= 0) {
@@ -2232,6 +2420,7 @@ const dayClock = (hoursLeft) => clockText(((22 - hoursLeft - START_HOUR + 24) % 
 // what the next night brings, told during the day
 const NIGHT_WARNINGS = {
   2: 'Tonight will be worse. Everything comes two hours sooner: the thing in the trees and the knocking from the moment it gets dark, her at the window from eleven, and the walkers from one in the morning.',
+  5: 'Tonight the moon will be full, and red. Every one of them will come, from every part of the woods, and they will all be awake from the start. Under that moon the mimics stand on two feet: only a slot in the door shows their faces. From three to four the moon goes dark: open nothing then, not even the slot. And before dawn they will try every way in at once: have the door, the window, the woodshed cabinet and the hatch shut tight.',
   4: 'The blizzard will not stop. And there are tracks in the snow by the woodshed, small ones, like a child walking on its knuckles. Tonight, things may follow you in when you come back from a trip. Salt keeps them out of a doorway. They hate the light.',
   3: 'A blizzard is coming tonight. Everything still comes two hours sooner. Out in it, everything takes half again as long, and the cold can kill you: one trip chills you badly, two in a row could freeze you. The wood you bring in will be frozen, even from the woodshed, and frozen wood barely burns until it thaws. Only a big fire keeps the house warm.',
 };
@@ -2311,6 +2500,7 @@ function doDay(id) {
 const NIGHT_START = {
   2: ['the sun is down. the second night begins. dawn is eight hours away.', 'they are already awake. tonight everything comes two hours sooner.'],
   3: ['the sun is down, and the blizzard comes with it. the third night begins.', 'out there everything takes longer and the wood comes in frozen. only a big fire keeps the house warm. you can barely see out of the window.'],
+  5: ['the snow has stopped. the sky is clear, and the moon is coming up red.', 'the fifth night. everything is awake.'],
   4: ['the sun goes down on a fourth night. the blizzard has not let up.', 'something small has been at the woodshed. when you come back in, close the door behind you fast.'],
 };
 
@@ -2331,6 +2521,12 @@ function startNextNight() {
   S.dozeT = dozeGap();
   S.halT = rand(8, 14);
   S.howlT = rand(4, 9);
+  if (S.stranger === 'inside' && !S.strangerFalse) {
+    S.ember = Math.max(0, (S.ember || 40) - 5);
+    S.n4HintT = n === 4 ? 70 : -1;
+    S.n5HintT = n === 5 ? 8 : -1;
+    if (n >= 3) setTimeout(() => { if (S.nightNo === n && mode === 'playing' && S.stranger === 'inside') say(S.ember >= 60 ? 'her eyes burn brighter than they did. she is getting stronger.' : S.ember < 35 ? 'her eyes are dim tonight. she is hungry for more than food.' : 'her eyes glow, steady, in the dark of her hood.'); }, 6000);
+  }
   if (S.stranger === 'inside') { S.sHunger = 30; S.sPlea = 0; S.n2HintT = S.strangerFalse || n !== 2 ? -1 : 9; S.n3HintT = S.strangerFalse || n !== 3 ? -1 : 60; }
   if (S.fire === 0) S.fire = 1;
   S.lit = true;
@@ -2405,6 +2601,9 @@ const BUILDS = [
     cost: () => (S.torches && S.torches[tc.id] === 'out' ? {} : { wood: 2 }),   // relighting one is free: carry it to the fire and back
     done: () => lightTorch(tc),
   })),
+  { id: 'slot', name: 'a slot in the door', desc: 'a small sliding slot at eye height. at a knock, slide it open and see the face outside. under the blood moon that is the only way to tell. sometimes something puts its fingers through.',
+    show: () => S.nightNo >= 5 && !S.slot, cost: () => ({ wood: 6 }),
+    done: () => { S.slot = true; say('you cut a slot in the door and fit a sliding cover over it.'); } },
   { id: 'saltCab', name: 'salt the woodshed cabinet', desc: 'a line of salt inside the cabinet. the next thing that comes through it from the woodshed shrieks and goes back. one use.',
     show: () => goblinNight() && S.shed && !S.saltCab && !S.cabBar && S.salt > 0, cost: () => ({ salt: 2 }),
     done: () => { S.saltCab = true; say('you pour a line of salt across the cabinet floor.'); } },
@@ -2471,7 +2670,7 @@ function toggleBuild(force) {
 // build something there right now; click it for a card with what it is, what it does and what it costs.
 const SPOTS = [
   { id: 'window', x: 61, y: 29, builds: ['boards', 'saltWin', 'curtains'] },
-  { id: 'door', x: 274, y: 44, builds: ['saltDoor'] },
+  { id: 'door', x: 274, y: 44, builds: ['saltDoor', 'slot'] },
   { id: 'traps', x: 244, y: 100, builds: ['trap', 'saltTrap'] },   // on the traps by the door
   { id: 'lantern', x: 240, y: 52, builds: ['lantern'] },
   { id: 'hatch', x: 220, y: 109, builds: ['bar', 'saltHatch'] },
@@ -2648,6 +2847,7 @@ function updateAmbient(dt) {
         id: 'dawn', portrait: S.stranger === 'inside' ? 'stranger' : 'dawn',
         text: S.stranger === 'inside'
           ? 'Gray light creeps across the floor. The eyes are gone. The stranger stands and stretches, and for the first time she smiles. "They never come in the light," she says.'
+          : S.nightNo >= 5 ? 'Gray light. The red moon slides down behind the trees.'
           : S.nightNo >= 4 ? 'Gray light. The snow finally stops. Four nights. You are still here.'
           : S.nightNo === 3 ? 'Gray light, and at last the snow eases. Three nights. Under the floor, something settles and goes still.'
           : S.nightNo === 2 ? 'Gray light again. The second night is over. Under the floor, something settles and goes still.' : 'Gray light creeps across the floor. The eyes are gone. You made it through the night.',
@@ -2700,6 +2900,7 @@ function nearTorch(x, y, pad) {
 }
 
 function lightTorch(tc) {
+  if (bloodHour()) { say("the torch won't catch. not now. not under that moon."); return; }
   const first = !S.torches[tc.id];   // relighting a snuffed torch doesn't turn up another rat
   S.torches[tc.id] = true;
   for (const e of eyes) if (Math.hypot(e.x - tc.x, (e.y - tc.y) / ELLIPSE) < TORCH_R + 6) e.out = true;
@@ -4419,6 +4620,7 @@ function drawLight() {
     lx.fillRect(0, 0, light.width, light.height);
   }
 
+  drawBloodMoon(s, t);
   drawDeath(s, t);
 }
 
@@ -4427,7 +4629,7 @@ function drawLight() {
 // Every way to die has its own few seconds before the red screen. lossT runs from 0 when you die.
 const DEATH_LEN = {
   dark: 6.4, starve: 5.6, burn: 5.8, mimic: 5.4, hand: 5.2, handAway: 5.2, hunter: 5.6,
-  risen: 5.6, cellar: 5.2, cellarAway: 5.2, falseStranger: 5.6, freeze: 5.6, lost: 5.6, sleep: 5, guest: 5.2, goblins: 5.4,
+  risen: 5.6, cellar: 5.2, cellarAway: 5.2, falseStranger: 5.6, freeze: 5.6, lost: 5.6, sleep: 5, guest: 5.2, goblins: 5.4, bloodHour: 5.4, flood: 5.6, ash: 5.4,
 };
 const deathLen = () => DEATH_LEN[S.cause] || 4;
 const seg = (a, b) => clamp((lossT - a) / (b - a), 0, 1);   // progress 0..1 through one stretch of a death
@@ -4450,6 +4652,9 @@ const DEATH_CUES = {
   risen: [[0.7, () => sfx.crack()], [1.4, () => sfx.crack()], [2.1, () => sfx.breath()], [2.9, () => sfx.growl(1.1)], [3.1, () => sfx.footsteps(4)]],
   cellar: [[0, () => sfx.slam()], [1.0, () => sfx.scratch()], [2.9, () => { sfx.drag(); sfx.thump(1); shake = 0.3; }]],
   falseStranger: [[0.7, () => sfx.crack()], [1.8, () => sfx.breath()], [3.2, () => sfx.growl(1.3)]],
+  bloodHour: [[0, () => sfx.slam()], [0.6, () => sfx.growl(1.6)], [2.0, () => sfx.scream()]],
+  ash: [[0, () => sfx.slam()], [1.2, () => sfx.crack()], [2.4, () => sfx.growl(1)]],
+  flood: [[0, () => sfx.scuttle()], [0.3, () => sfx.scuttle()], [0.6, () => sfx.scuttle()], [0.9, () => sfx.scuttle()], [1.2, () => sfx.scuttle()], [1.6, () => sfx.scream()]],
   guest: [[0.1, () => sfx.scuttle()], [1.2, () => sfx.scuttle()], [2.4, () => sfx.growl(0.8)]],
   goblins: [[0.1, () => sfx.scuttle()], [0.5, () => sfx.scuttle()], [1.1, () => sfx.scuttle()], [2.2, () => sfx.growl(1.3)], [2.6, () => sfx.scream()]],
   lost: [[0, () => sfx.gust()], [1.3, () => sfx.gust()], [2.6, () => sfx.gust()], [3.6, () => sfx.howl()]],
@@ -5004,6 +5209,7 @@ const DEATH_SCENES = {
   dark: deathDark, starve: deathStarve, burn: deathBurn, mimic: deathMimic, hand: deathHand, handAway: deathHand,
   hunter: deathHunter, risen: deathRisen, cellar: deathCellar, cellarAway: deathCellar, falseStranger: deathFalseStranger,
   freeze: deathFreeze, lost: deathLost, sleep: deathSleep, guest: deathGoblins, goblins: deathGoblins,
+  bloodHour: deathMimic, ash: deathRisen, flood: deathFlood,
 };
 
 // Terrifying: the thing that killed you, all at once and much too close, for a third of a second.
@@ -5014,17 +5220,17 @@ function drawJumpScare(s, t) {
   lx.save();
   lx.translate(160 * s, 90 * s); lx.scale(grow, grow); lx.translate(-160 * s, -90 * s);
   const c = S.cause;
-  if (c === 'hunter') {
+  if (c === 'hunter' || c === 'bloodHour') {
     eyePair(s, 160, 62, 9, 1, true, 1);
     for (let x = 96; x < 224; x += 6) { lx.fillStyle = 'rgba(235, 225, 200, 1)'; lpx(s, x, 104 + Math.abs(x - 160) * -0.12, 4, 12); }
     lx.fillStyle = 'rgba(40, 0, 0, 1)'; lpx(s, 96, 116, 128, 10);
   } else if (c === 'hand' || c === 'handAway') {
     herGlow(s, 160, 90, 120, 0.6); drawHerHead(s, t, 160, 96, 7.5, 1);
-  } else if (c === 'mimic' || c === 'risen' || c === 'falseStranger') {
+  } else if (c === 'mimic' || c === 'risen' || c === 'falseStranger' || c === 'ash') {
     tallThing(s, t, 160, 420, 360, { pal: c === 'mimic' ? MIMIC_IN_PAL : RISEN_PAL, tilt: 0.25, mouth: 1, eyes: c === 'mimic' ? 'rgba(235, 235, 255, 1)' : 'rgba(230, 40, 20, 1)' });
   } else if (c === 'cellar' || c === 'cellarAway') {
     claw(s, 160, 150, -Math.PI / 2, 0.5, 1.2, 70, PALE_PAL);
-  } else if (c === 'guest' || c === 'goblins') {
+  } else if (c === 'guest' || c === 'goblins' || c === 'flood') {
     drawGoblin(s, 166, 196, 12, 1, 1);
   } else if (c === 'dark') {
     eyePair(s, 160, 88, 15, 1, true, 1);
@@ -5100,6 +5306,8 @@ const PORTRAITS = {
     ],
     colors: { h: '#1e1c20', r: '#5a1a14', f: '#7a7064', e: '#0e0c0c', m: '#3a2a2a', c: '#2e2c30', L: '#3a1210' },
   },
+  strangerWrong: { map: HOODED, colors: { ...SPR_COLORS, e: '#000000', f: '#1a0808' } },
+  woodcutterWrong: { map: BEARDED, colors: { h: '#7a2a22', H: '#9a3a2a', f: '#8a6248', e: '#f0ece0', n: '#6a4a36', b: '#5a3a20', m: '#8a0a0a', c: '#3a4a3a', C: '#2a3a2a' } },
   dead: { map: HOODED.map((r) => r.replace(/e/g, 'f')), colors: { ...SPR_COLORS, f: '#060303' }, bg: '#1a0505' },
   doorFeet0: { map: [...DOOR_MAP.slice(0, 15), 'frrrrrrrrrrrrrrf'], colors: DOOR_COLORS },
   doorFeet2: { map: [...DOOR_MAP.slice(0, 15), 'frxxrrrrrrxxrrrf'], colors: DOOR_COLORS },
@@ -5111,6 +5319,8 @@ const PORTRAITS = {
     bg: '#c8a8b0',
   },
 };
+
+PORTRAITS.traderWrong = { map: PORTRAITS.trader.map, colors: { ...PORTRAITS.trader.colors, e: '#f0ece0', m: '#8a0a0a' } };
 
 function drawPortrait(key = 'stranger') {
   const P = PORTRAITS[key] || PORTRAITS.stranger;
@@ -5419,12 +5629,14 @@ function showEnding(won) {
   ui.endHint.classList.add('hidden');
   const result = nightScore();
   const n = S.nightNo;
-  const ORD = ['', 'first', 'second', 'third', 'fourth'];
+  const ORD = ['', 'first', 'second', 'third', 'fourth', 'fifth'];
   ui.endTitle.textContent = n === 1 ? 'dawn.' : `the ${ORD[n]} dawn.`;
   const company = S.stranger === 'inside' && !S.strangerFalse;
+  const ending = n >= LAST_NIGHT && ENDINGS[S.ending || finalEnding()];
   ui.endText.textContent = n === 1
     ? (company ? 'You made it through the night, and you were not alone.' : 'You made it through the night.') + ' Rest through the day and face a second night, or end here.'
     : `You survived ${n} nights${n >= 3 ? ', and the blizzard' : ''}.` + (company ? ' She is still with you.' : '') + (n < LAST_NIGHT ? ' Rest through the day and face another, or end here.' : '');
+  if (ending) { ui.endTitle.textContent = ending.title; ui.endText.textContent = ending.text; }
   for (const [label, k, pts, items] of result.lines) scoreRow(label, k, pts, '', items);
   S.final = result.total;
   if (n > 1) {
@@ -5432,6 +5644,7 @@ function showEnding(won) {
     scoreRow(`the ${ORD[n]} dawn`, '', 100);
     S.final += S.carry + 100;
   }
+  if (ending) { scoreRow(ending.title.replace(/\.$/, ''), '', ending.bonus); S.final += ending.bonus; }
   S.runNights = n;
   scoreRow('score', '', S.final, 'total');
   if (result.lines.at(-1)[2] >= 200) achieve('well_stocked');
@@ -5578,7 +5791,7 @@ function devKit(night) {
     dev: true, lit: true, fire: 3, wood: 18, blood: 6, salt: 3, hunger: 20,
     boardsBuilt: true, boards: 3, glassBroken: true, lantern: true, lanternLit: true, lanternT: 60,
     stranger: 'inside', strangerFalse: false, sHunger: 20, firstVisit: false, hint: HINTS.length,
-    carry: [0, 0, 250, 600, 1000][night], final: [0, 0, 250, 600, 1000][night], met: { woodcutter: true }, axe: true,
+    carry: [0, 0, 250, 600, 1000, 1400][night], final: [0, 0, 250, 600, 1000, 1400][night], met: { woodcutter: true }, axe: true,
   });
   S.rawLife = [RAW_LIFE]; S.cookedLife = [COOKED_LIFE, COOKED_LIFE, CURED]; syncMeat();
   S.trapUses = [makeTrap(), makeTrap()]; syncTraps();

@@ -18,6 +18,9 @@ export const ACHIEVEMENTS = [
   { id: 'die_freeze', group: 'deaths', name: 'Frostbite', desc: 'Freeze to death in the blizzard.' },
   { id: 'die_guest', group: 'deaths', name: 'Company', desc: 'Let the fire die with a goblin in the corner.' },
   { id: 'die_goblins', group: 'deaths', name: 'Full House', desc: 'Let three goblins in at once.' },
+  { id: 'die_bloodHour', group: 'deaths', name: 'The Blood Hour', desc: 'Open the door while the moon is dark.' },
+  { id: 'die_flood', group: 'deaths', name: 'Swarmed', desc: 'Leave a way in open at the end.' },
+  { id: 'die_ash', group: 'deaths', name: 'Not Her', desc: 'Open the door to what came back of her.' },
   { id: 'die_sleep', group: 'deaths', name: 'Eyes Closed', desc: 'Go a fourth day without sleep.', later: true },
   { id: 'die_lost', group: 'deaths', name: 'Into the White', desc: 'Lose the path in the blizzard for good. About one blizzard night in a hundred.', hidden: true, hint: 'something very unlucky.' },
 
@@ -26,7 +29,14 @@ export const ACHIEVEMENTS = [
   { id: 'night_2', group: 'nights', name: 'Second Dawn', desc: 'Survive the second night.' },
   { id: 'night_3', group: 'nights', name: 'After the Storm', desc: 'Survive the blizzard on the third night.' },
   { id: 'night_4', group: 'nights', name: 'Fourth Dawn', desc: 'Survive the fourth night.' },
-  { id: 'night_5', group: 'nights', name: 'Blood Moon', desc: 'Survive the fifth night.', later: true },
+  { id: 'night_5', group: 'nights', name: 'Blood Moon', desc: 'Survive the fifth night.' },
+
+  // the endings
+  { id: 'end_burning', group: 'endings', name: 'The Burning', desc: 'Keep her strong to the last dawn, and watch the woods burn.' },
+  { id: 'end_lastEmber', group: 'endings', name: 'The Last Ember', desc: 'Reach the last dawn with her, too weak to save more than you.' },
+  { id: 'end_ash', group: 'endings', name: 'The Ash', desc: 'Survive the last night after she died.' },
+  { id: 'end_coldHearth', group: 'endings', name: 'The Cold Hearth', desc: 'Reach the last dawn without her.' },
+  { id: 'end_keeper', group: 'endings', name: 'The Keeper', desc: 'Never let the fire go out, all five nights, with her beside you.', hidden: true, hint: 'something about a fire that never goes out.' },
 
   // playing well
   { id: 'not_alone', group: 'feats', name: 'Not Alone', desc: 'Reach dawn with the stranger still beside you.' },
@@ -45,8 +55,8 @@ export const ACHIEVEMENTS = [
   { id: 'awake_3', group: 'feats', name: 'Three Days Awake', desc: 'Survive a night after three days without sleep.' },
   { id: 'not_tonight', group: 'feats', name: 'Not Tonight', desc: 'Stop a goblin at the salted doorway.' },
   { id: 'nowhere_to_hide', group: 'feats', name: 'Nowhere to Hide', desc: 'Let a goblin in with every corner lit.' },
-  { id: 'hard_win', group: 'nights', name: 'A Hard Winter', desc: 'Survive all four nights on hard.' },
-  { id: 'insane_win', group: 'nights', name: 'Madness', desc: 'Survive all four nights on insane.' },
+  { id: 'hard_win', group: 'nights', name: 'A Hard Winter', desc: 'Survive all five nights on hard.' },
+  { id: 'insane_win', group: 'nights', name: 'Madness', desc: 'Survive all five nights on insane.' },
   { id: 'four_figures', group: 'feats', name: 'Four Figures', desc: 'Score 1,000 or more in one run.' },
 ];
 

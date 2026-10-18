@@ -64,7 +64,7 @@ Keep the door shut on a real visitor and you hear their footsteps leave. Keep it
 
 ## The day, and nights 2 and 3
 
-Make it to dawn and you choose: **end here** and bank your score, or **rest through the day** and face the next night. A run is up to four nights (night 4 is the blizzard again, with the goblins). Longer runs score far more, and the leaderboard marks them with one ☀ per night.
+Make it to dawn and you choose: **end here** and bank your score, or **rest through the day** and face the next night. A run is up to five nights: the blizzard on nights 3 and 4, and the blood moon on night 5. Longer runs score far more, and the leaderboard marks them with one ☀ per night.
 
 **The day** is a planning screen over the daylit room. It runs from 6 am to 10 pm: 16 hours, and every choice costs some. Each button shows what time it'll be when you're done.
 
@@ -98,6 +98,25 @@ The day also dries every wet log and spoils any meat that isn't cured. The day s
 - **Three inside at once**, or the fire dying with one in a corner, and they come for you.
 
 
+
+**Night 5: the blood moon.** The snow stops and the moon comes up red. Every one of them comes, from every part of the woods, to the last fire still burning, and they're all awake from 10 pm. There's no cold and no frozen wood: it's the siege.
+
+- **Mimics stand on two feet.** The lantern can't tell anymore. Build **a slot in the door** (6 wood) and slide it open at a knock to see the face. A real person looks right; a mimic is almost right. Sometimes fingers come through the slot and snatch something.
+- **The blood hour, 3 to 4 am.** The moon goes dark, the room floods red, the torches die and won't relight, and the knocks come one after another in voices you trust. **Open the door, or even the slot, and the thing in the trees reaches through.**
+- **The swarm, 5 to 6 am.** At 4:30 you're warned, and every way in that's still open glows red. From five, any open entrance pours goblins at you: the door opening for any reason, a bare window, an unplanked woodshed cabinet, a hatch without its beam. Her tearing the boards off counts.
+- If the stranger died earlier, **she comes back to the door** with her own voice. Through the slot there's nothing in the hood but a red glow.
+
+**The stranger, and the endings.** She is not a person. She was the fire of the village, and when its fire went out the things took it. She reached your door two days later, a dying ember. She can only take what fire has touched (cooked meat), raw meat poisons her, and when she starves what's left under the cloak is the dark of a dead fire. Feeding her makes her stronger; your fire going out with her inside weakens her. On the blood moon every one of them gathers at your cabin, and at the fifth dawn:
+
+| Ending | How |
+| --- | --- |
+| **The Burning** | She's with you and strong. She lets the cloak fall, and she is fire. She walks out, and the forest burns with every one of them in it. The winter is over |
+| **The Last Ember** | She's with you but weak. She has only enough to burn the clearing, and burns herself out getting you through |
+| **The Ash** | She died along the way, and came back to your door all night |
+| **The Cold Hearth** | She isn't with you: never let in, sent away, taken by the hatch, or the false one. The sun comes up and nothing changes. The snow begins again |
+| **The Keeper** *(secret)* | Your fire never once went out, all five nights, and she's beside you at the end |
+
+The endings are simple cards for now; their scenes come later.
 
 **The woodcutter's axe.** He'll sell his spare for 3 meat, once. Every wood trip then brings back 5–7 logs instead of 3–5.
 
@@ -395,7 +414,7 @@ They're stored in this browser for now (`achievements.js`). Each unlock keeps it
 
 Open the game once with `?dev` on the address (https://firelight-topaz.vercel.app/?dev) and the title menu gets a **playtest** button, remembered in that browser. Pick a difficulty, then start at the day before a night or straight into night 2, 3 or 4 (optionally a few days awake), with a basic kit (the axe included): boarded window, two traps (three on night 3), the lantern, the stranger, some food and wood, and on night 3 a woodshed and the drying rack. Playtest runs don't count toward the stats or the leaderboard.
 
-The version is in the bottom-right corner (v0.42 is the 42nd commit; the number counts every commit, docs included), so you can tell a refresh picked up the latest build.
+The version is in the bottom-right corner (v0.43 is the 43rd commit; the number counts every commit, docs included), so you can tell a refresh picked up the latest build.
 
 ## Future ideas
 

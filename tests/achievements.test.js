@@ -7,7 +7,7 @@ const memory = () => { const m = {}; return { getItem: (k) => m[k] ?? null, setI
 test('ids are unique, and every death in the game has an achievement', () => {
   const ids = ACHIEVEMENTS.map((a) => a.id);
   assert.equal(new Set(ids).size, ids.length);
-  for (const cause of ['dark', 'starve', 'burn', 'mimic', 'hand', 'handAway', 'hunter', 'risen', 'cellar', 'cellarAway', 'falseStranger', 'freeze', 'lost', 'guest', 'goblins']) {
+  for (const cause of ['dark', 'starve', 'burn', 'mimic', 'hand', 'handAway', 'hunter', 'risen', 'cellar', 'cellarAway', 'falseStranger', 'freeze', 'lost', 'guest', 'goblins', 'bloodHour', 'flood', 'ash']) {
     assert.ok(ids.includes(`die_${cause}`), cause);
   }
 });
@@ -24,9 +24,9 @@ test('unlocking happens once, is remembered, and waits to be synced', () => {
   assert.deepEqual(createStore(st).unsynced(), []);
 });
 
-test('achievements for nights not in the game yet cannot unlock, and junk is dropped', () => {
+test('achievements for things not in the game yet cannot unlock, and junk is dropped', () => {
   const a = createStore(memory());
-  assert.equal(a.unlock('night_5'), null);
+  assert.equal(a.unlock('die_sleep'), null);
   assert.equal(a.unlock('nonsense'), null);
   assert.deepEqual(cleanUnlocked({ night_1: { t: 3, synced: 'yes' }, bogus: { t: 1 }, die_dark: 7 }), { night_1: { t: 3, synced: false } });
 });
