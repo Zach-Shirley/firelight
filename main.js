@@ -6,7 +6,7 @@ import * as sfx from './sound.js';
 import { ACHIEVEMENTS, createStore } from './achievements.js';
 import { computeScore, qualifies, insertScore, cleanInitials, sanitizeBoard } from './score.js';
 
-const VERSION = '0.37';   // one step per commit to the repository
+const VERSION = '0.38';   // one step per commit to the repository
 const W = 320, H = 180;
 const FIRE = { x: 160, y: 136 };          // base of the flames
 const LIGHT_Y = 130;                       // centre of the light pool
@@ -119,7 +119,7 @@ function freshState() {
     wet: [],                                     // seconds until each wet log is dry (wet logs are used up first)
     smoke: 0,                                    // 0..1 smoke from wet wood, collecting under the roof (looks only)
     rack: false,                                 // drying rack
-    rackT: 20,                                   // seconds until the rack smokes the next piece of meat
+    rackT: 105,                                  // seconds until the rack smokes the next piece of meat (two hours)
     fur: 0,
     coat: false,
     insulated: false,
@@ -390,7 +390,7 @@ const HOUR_LINES_3 = {
   7: 'the last hour of the third night. hold on.',
 };
 
-const decayTime = () => Math.max(7, 13 - hour() * 0.8) * (S.glassBroken && S.boards === 0 ? 0.8 : 1) * (S.grate ? 1.4 : 1) * (S.stove ? 1.25 : 1);
+const decayTime = () => Math.max(7, 13 - hour() * 0.8) * (S.glassBroken && S.boards === 0 ? 0.8 : 1) * (S.grate ? 1.4 : 1) * (S.stove ? 1.25 : 1) * (blizzard() ? 0.8 : 1);   // the blizzard pulls the heat out of it
 
 function updateNight(dt) {
   S.night += dt;
@@ -451,15 +451,8 @@ function updateNight(dt) {
       S.cooking.t -= dt;
       if (Math.random() < dt * 3) sfx.sizzle();
       if (S.cooking.t <= 0) {
-        if (S.cooking.burnt) {
-          S.decay += 1.2 * S.cooking.n;
-          for (let i = 0; i < 16; i++) spawnEmber(true);
-          sfx.sizzle();
-          say(`the meat burned black while your eyes were shut. you throw it on the fire. -${S.cooking.n} raw meat`);
-        } else {
-          addCooked(S.cooking.n);
-          say(`the meat is cooked. +${S.cooking.n} cooked meat`);
-        }
+        addCooked(S.cooking.n);
+        say(`the meat is cooked. +${S.cooking.n} cooked meat`);
         S.cooking = null;
       }
     }
@@ -537,7 +530,7 @@ function updateNight(dt) {
 const GOB_CORNERS = { bl: { x: 12, y: 54 }, br: { x: 291, y: 56 }, fl: { x: 16, y: 160 }, fr: { x: 304, y: 160 } };
 const GOB_STEAL = () => rand(20, 30);
 const goblinNight = () => S.nightNo >= 4;
-const cornerLit = (id) => (S.torches && S.torches[id]) || (id === 'br' && S.shed);
+const cornerLit = (id) => (S.torches && S.torches[id] === true) || (id === 'br' && S.shed);
 const freeCorners = () => Object.keys(GOB_CORNERS).filter((id) => !cornerLit(id) && !S.goblins.some((g) => g.corner === id));
 const settled = () => S.goblins.filter((g) => g.corner);
 
@@ -553,13 +546,39 @@ function goblinEntry(panicked) {
     return;
   }
   const free = freeCorners();
-  const g = { corner: free.length ? pick(free) : null, t: GOB_STEAL(), since: 0, act: null };
+  // a minute in its corner before it tries the rack again: it is watching to see if you noticed
+  const g = { corner: free.length ? pick(free) : null, t: 60, since: 0, act: null };
   S.goblins.push(g);
   fx.push({ kind: 'gobIn', x: 274, y: 104, life: 0, max: 0.45 });
   sfx.scuttle();
-  if (!g.corner) achieve('nowhere_to_hide');
-  say(g.corner ? 'something brushed past your legs as you came in.' : 'something brushed past your legs as you came in. it scuttles from corner to lit corner and finds nowhere to hide.');
+  if (!g.corner) {
+    achieve('nowhere_to_hide');
+    g.corner = snuffTorch();   // nowhere dark to hide: it makes somewhere
+  }
+  const took = goblinSteal(g);
+  say(`something brushed past your legs as you came in${took ? ` and snatched ${took} off the rack on its way to a corner` : ''}.`);
   if (S.goblins.length >= 4) die('goblins');
+}
+
+// it pinches out a torch and takes that corner (relighting costs 1 wood)
+function snuffTorch() {
+  const lit = TORCHES.filter((tc) => S.torches && S.torches[tc.id] === true && !S.goblins.some((g) => g.corner === tc.id));
+  if (!lit.length) return null;
+  const tc = pick(lit);
+  S.torches[tc.id] = 'out';
+  sfx.hiss();
+  say(`something leaps up the wall and pinches out the torch in ${tc.name}.`);
+  return tc.id;
+}
+
+// one thing off the rack or the shelf: cured meat first, then cooked, raw, then blood. returns what, or ''
+function goblinSteal(g) {
+  const what = STEAL_ORDER.find(([, has]) => has());
+  if (!what) return '';
+  what[2]();
+  g.act = { t: 0, to: what[3] };
+  sfx.scratch();
+  return what[0] === 'blood' ? 'a jar of blood' : `a piece of ${what[0]}`;
 }
 
 // unsettled ones slip out whenever the door opens
@@ -583,25 +602,22 @@ function updateGoblins(dt) {
   for (const g of S.goblins) {
     g.since += dt;
     if (g.act) { g.act.t += dt; if (g.act.t >= 2.2) g.act = null; }
-    // its corner got lit: it moves to another, or has nowhere left
+    // its corner got lit: it moves to another, or puts a torch out and takes that corner
     if (g.corner && cornerLit(g.corner)) {
       const free = freeCorners();
       g.corner = free.length ? pick(free) : null;
       sfx.scuttle();
-      if (!g.corner) achieve('nowhere_to_hide');
-      say(g.corner ? 'something scuttles along the wall, out of the light, into another corner.' : 'something scuttles from corner to lit corner. there is nowhere left for it to hide.');
+      if (!g.corner) { achieve('nowhere_to_hide'); g.corner = snuffTorch(); }
+      if (g.corner) say('something scuttles along the wall, out of the light, into another corner.');
     }
     if (!g.corner) continue;
     const bold = g.since > 2 * HOUR;
     if (bold || S.fire <= 2 || S.away) g.t -= dt;
     if (g.t <= 0) {
       g.t = bold ? rand(10, 15) : GOB_STEAL();
-      const what = STEAL_ORDER.find(([, has]) => has());
-      if (!what) continue;
-      what[2]();
-      g.act = { t: 0, to: what[3] };
-      sfx.scratch();
-      if (!S.away) say(`something climbs the wall to the ${what[3] === 'blood' ? 'shelf' : 'meat rack'} and back down. -1 ${what[0]}`);
+      const took = goblinSteal(g);
+      if (!took) continue;
+      if (!S.away) say(`something climbs the wall to the ${g.act.to === 'blood' ? 'shelf' : 'meat rack'} and back down with ${took}.`);
       else S.gobTook = (S.gobTook || 0) + 1;
     }
   }
@@ -681,9 +697,9 @@ function drawGoblins(s, t) {
 
 /* --------------------------------------------------------- no sleep */
 
-// Each day you skip sleep makes the next night worse. One: your eyes close now and then, you're slow and hungrier,
-// and meat cooking while your eyes are shut burns. Two: you start hearing and seeing things that aren't there.
+// Each day you skip sleep makes the next night worse. One: your eyes close now and then, and you're slow and hungrier. Two: you start hearing and seeing things that aren't there.
 // Three: it hardly stops. A fourth: you don't make it to the first hour.
+// While your eyes are shut you can't do anything at all: not even burn her back or slam the hatch.
 const AWAKE_LINES = ['', "you didn't sleep. your eyes are heavy.", "two days without sleep. the edges of things won't hold still.", 'three days without sleep. you are not sure what is real anymore.'];
 const lvl = () => Math.min(3, S.awake || 0);
 const DOZE = [null, [15, 20, 2, 3], [10, 15, 3, 4], [7, 11, 4, 5]];   // gap min..max, length min..max (seconds)
@@ -699,7 +715,6 @@ function updateAwake(dt) {
   if (S.dozeT <= 0 && !S.away && !dialog) {
     S.dozeT = dozeGap();
     dozeLen = doze = rand(DOZE[L][2], DOZE[L][3]);
-    if (S.cooking) S.cooking.burnt = true;
     say(pick(['your eyes close for a moment.', 'you jerk awake. how long was that?', 'your head drops. the room swims back.']));
   }
   if (L < 2) return;
@@ -742,6 +757,22 @@ function hallucinate(L) {
   }
 }
 
+/* --------------------------------------------------------- about to die */
+
+// True only when something is about to kill you, not just take something from you: that's when the edges go red.
+function aboutToDie() {
+  const hd = S.hand, hc = S.hatch;
+  if (S.away && S.hunter.near && S.stalk >= 78 && !S.spear) return true;                       // the grin, nearly full
+  if (S.fire === 0 && S.dread >= 85) return true;                                              // the dark
+  if (S.fire <= 1 && S.decay < 1.5 && S.goblins && settled().length) return true;              // a goblin, as the fire dies
+  if (hd.phase === 'crawl' && !hd.phantom && S.boards === 0 && !S.saltWin && S.wood < HER_TOLL && hd.t < 1.6) return true;   // her, with nothing to take but you
+  if (hc.phase === 'lift' && !hc.phantom && !S.hatchBar && !S.saltHatch && S.meat + S.cooked === 0 && S.stranger !== 'inside' && hc.t < 1.6) return true;   // the hatch, with nothing to take but you
+  if (S.blaze > 0 && S.blaze < 2 && S.blood < 2) return true;                                  // the fire, with no blood to douse it
+  if (blizzard() && S.cold >= 92) return true;
+  if (S.hunger >= 97) return true;
+  return false;
+}
+
 /* --------------------------------------------------------- the hunter */
 
 function updateHunter(dt) {
@@ -759,6 +790,7 @@ function updateHunter(dt) {
     if (S.stranger === 'inside' && !S.strangerFalse && !S.away) setTimeout(() => { if (S.hunter.near && mode === 'playing') say('the stranger, quietly: "not now. it\'s out there."'); }, 1800);
   } else {
     hn.t = rand(22, 40) * (1 - hour() * 0.06) * (S.carcass ? 0.7 : 1);
+    sfx.recede();
     say('the howling moves off, deeper into the woods.');
   }
 }
@@ -803,7 +835,7 @@ function updateWet(dt) {
   if (S.rack && S.fire >= 1) {
     S.rackT -= dt;
     if (S.rackT <= 0) {
-      S.rackT = 20;
+      S.rackT = 2 * HOUR;
       const i = S.cookedLife.findIndex((l) => l < CURED / 2);
       if (i >= 0) { S.cookedLife[i] = CURED; say('a strip of meat on the rack is smoked through. it will keep now.'); }
     }
@@ -816,7 +848,7 @@ const wetInPile = () => Math.min(S.wet.length, S.wood);
 
 // Meat spoils: raw in two minutes, cooked in four. Salt-cured meat keeps. Every piece carries its own clock,
 // oldest eaten first. S.meat and S.cooked are the counts the rest of the game reads.
-const RAW_LIFE = 120, COOKED_LIFE = 240, CURED = 1e9;
+const RAW_LIFE = 55, COOKED_LIFE = 170, CURED = 1e9;   // about one hour raw, three cooked
 const PILE_CAP = 25;         // logs the room can hold in one pile
 const SHED_CAP = 100;        // logs the woodshed outside can hold
 
@@ -826,7 +858,7 @@ function addCooked(n = 1, life = COOKED_LIFE) { for (let i = 0; i < n; i++) S.co
 function takeRaw(n = 1) { S.rawLife.sort((a, b) => a - b).splice(0, n); syncMeat(); }
 function takeCooked(n = 1) { S.cookedLife.sort((a, b) => a - b).splice(0, n); syncMeat(); }
 const curedCount = () => S.cookedLife.filter((l) => l >= CURED / 2).length;
-const spoilingSoon = (list) => list.some((l) => l < 30);
+const spoilingSoon = (list) => list.some((l) => l < 20);
 
 function spoilMeat(dt) {
   let raw = 0, cooked = 0;
@@ -907,7 +939,7 @@ function updateBlaze(dt) {
 
 // A last resort nobody tells you about: with the fire down to embers and the dark closing in, throw salt on it.
 // It flares blue-white, the eyes scatter, and the fire catches again.
-const saltFlareReady = () => mode === 'playing' && S.lit && !S.away && !dialog && S.fire <= 1 && S.dread >= 45 && S.salt >= 2;
+const saltFlareReady = () => mode === 'playing' && S.lit && !S.away && !dialog && doze <= 0.15 && S.fire <= 1 && S.dread >= 45 && S.salt >= 2;
 let flareT = 0;
 let blueT = 0;        // seconds the fire burns blue after salt (it fades back over the last two)
 const BLUE = () => clamp(blueT / 2, 0, 1);
@@ -931,7 +963,7 @@ function saltFlare() {
 }
 
 function douse() {
-  if (!(S.blaze > 0) || mode !== 'playing' || S.away || dialog) return;
+  if (!(S.blaze > 0) || mode !== 'playing' || S.away || dialog || doze > 0.15) return;
   if (S.blood < 2) { say("you don't have enough blood to throw on it. two jars, at least."); return; }
   S.blood -= 2;
   nearMiss('blaze', 1 - S.blaze / 9, `put out the blaze with ${S.blaze.toFixed(1)} s to spare`);
@@ -961,10 +993,10 @@ function checkTraps(rolls = 1) {
     const uses = [], salt = [];
     S.trapUses.forEach((u, i) => {
       const salted = S.trapSalt[i];
-      const caughtMeat = Math.random() < (salted ? 0.55 : 0.3), caughtBlood = Math.random() < 0.3;   // salt draws them in
+      const caughtMeat = Math.random() < (salted ? 0.6 : 0.3), caughtBlood = Math.random() < (salted ? 0.6 : 0.3);   // salt draws them in
       if (caughtMeat) m += 1;
       if (caughtBlood) b += 1;
-      if (S.nightNo >= 2 && Math.random() < 0.15) f += 1;   // from the second night, now and then a pelt
+      if (S.nightNo >= 2 && Math.random() < (salted ? 0.3 : 0.15)) f += 1;   // from the second night, now and then a pelt
       const left = u - (caughtMeat || caughtBlood ? 1 : 0) - (Math.random() < 0.08 ? 99 : 0);
       if (left > 0) { uses.push(left); salt.push(salted); } else broke += 1;   // a broken trap takes its salt with it
     });
@@ -1104,7 +1136,8 @@ function updateTrip(dt) {
   // a howl while you're already out gives you a moment to run first; leaving while it's close does not.
   if (hour() >= 1) {
     const close = S.hunter.near && (a.startedNear || S.hunter.since > 2.5);
-    if (close) S.stalk += dt * (S.charm ? 100 / 7 : 25);   // four seconds, or seven with the bone charm
+    // four seconds, or seven with the bone charm; leave while it's already out there and the first half comes almost at once
+    if (close) S.stalk += dt * (S.charm ? 100 / 7 : 25) * (a.startedNear && S.stalk < 50 ? 8 : 1);
     else S.stalk = Math.max(0, S.stalk - dt * 4);
     if (S.stalk >= 100) {
       if (S.spear) {
@@ -1290,7 +1323,7 @@ function endPhantom() {
 
 function strikeHand() {
   const hd = S.hand;
-  if (hd.phase !== 'reach' || S.away || dialog || mode !== 'playing') return;
+  if (hd.phase !== 'reach' || S.away || dialog || mode !== 'playing' || doze > 0.15) return;
   if (S.wood < 1 || S.fire < 1) { say('you need a burning branch. there is no fire to take one from.'); return; }
   S.wood -= 1;
   if (hd.phantom) {
@@ -1930,7 +1963,7 @@ function updateHatch(dt) {
 // Slam it down on its fingers. With the beam across it, you stamp it shut and the beam stays whole.
 function slamHatch() {
   const hc = S.hatch;
-  if (hc.phase !== 'lift' || S.away || dialog || mode !== 'playing') return;
+  if (hc.phase !== 'lift' || S.away || dialog || mode !== 'playing' || doze > 0.15) return;
   nearMiss('hatch', 1 - hc.t / hc.total, `slammed the hatch with ${hc.t.toFixed(1)} s to spare`);
   hc.phase = 'slammed';
   hc.t = 0.6;
@@ -2183,7 +2216,7 @@ const BUILDS = [
     desc: () => `a shed against the outside wall that holds 100 more logs, so the pile never topples. it takes ${PILE_CAP} logs, built in a second each outside. you carry out what wood you have and build log by log; run back any time and what you built stays.`,
     show: () => !S.shed, cost: () => ({}), ok: () => S.wood >= 1, costText: 'the wood you carry',
     done: () => { startTrip('shed'); } },
-  { id: 'rack', name: 'drying rack', desc: 'a frame by the fire. dries wet wood three times faster, eight logs at a time, and smokes cooked meat so it never goes bad: one piece every 20 seconds while the fire burns. (salt stays free for the salt lines.)',
+  { id: 'rack', name: 'drying rack', desc: 'a frame by the fire. dries wet wood three times faster, eight logs at a time, and slowly smokes cooked meat so it never goes bad: one piece every couple of hours while the fire burns.',
     show: () => !S.rack, cost: () => ({ wood: 12 }),
     done: () => { S.rack = true; say('you lash a drying rack together beside the fire.'); } },
   { id: 'coat', name: 'fur coat', desc: 'you get cold outside a third more slowly. (fur is also worth 3 points each at dawn.)',
@@ -2212,10 +2245,10 @@ const BUILDS = [
     done: () => { S.salt += 1; saltGoblin(tc.id); },
   })),
   ...TORCHES.map((tc) => ({
-    id: `torch_${tc.id}`, name: `a torch in ${tc.name}`,
+    id: `torch_${tc.id}`, name: () => (S.torches && S.torches[tc.id] === 'out' ? `relight the torch in ${tc.name}` : `a torch in ${tc.name}`),
     desc: 'an iron sconce and a torch that burns all night. a faint glow, and nothing opens its eyes inside it.',
-    show: () => !(S.torches && S.torches[tc.id]) && !(tc.id === 'br' && S.shed),   // the woodshed's candle already lights that corner
-    cost: () => ({ wood: 2 }),
+    show: () => !(S.torches && S.torches[tc.id] === true) && !(tc.id === 'br' && S.shed && !(S.torches && S.torches.br)),   // the woodshed's candle already lights that corner
+    cost: () => ({ wood: S.torches && S.torches[tc.id] === 'out' ? 1 : 2 }),
     done: () => lightTorch(tc),
   })),
   { id: 'saltTrap', name: 'salt a trap', desc: () => `rub salt into a trap. a salted trap catches meat far more often, for as long as it lasts; when it breaks, the salt goes with it. (${saltedTraps()} of ${S.traps} salted)`,
@@ -2491,7 +2524,7 @@ const EYE_SPOTS = [
 
 // Torches: one sconce in each corner of the room, where the eyes like to sit. Two wood each, lit for good: a faint
 // warm glow, and nothing opens its eyes inside it. The first time a corner is lit, now and then a rat bolts out.
-const torchLit = (tc) => S.torches && S.torches[tc.id] && !(mode === 'lost' && S.cause === 'dark');
+const torchLit = (tc) => S.torches && S.torches[tc.id] === true && !(mode === 'lost' && S.cause === 'dark');
 function nearTorch(x, y, pad) {
   // the woodshed's candle lights the back-right corner as well as a torch would
   if (S.shed && S.lit && !(mode === 'lost' && S.cause === 'dark') && Math.hypot(x - (CABINET.x + 10), (y - CABINET.y) / ELLIPSE) < 30 + pad) return true;
@@ -2499,16 +2532,17 @@ function nearTorch(x, y, pad) {
 }
 
 function lightTorch(tc) {
+  const first = !S.torches[tc.id];   // relighting a snuffed torch doesn't turn up another rat
   S.torches[tc.id] = true;
   for (const e of eyes) if (Math.hypot(e.x - tc.x, (e.y - tc.y) / ELLIPSE) < TORCH_R + 6) e.out = true;
   sfx.crackle(3);
-  if (Math.random() < 1 / 8) {
+  if (first && Math.random() < 1 / 8) {
     // something was living in that corner
     fx.push({ kind: 'rat', x: tc.x + tc.rat[0] * 4, y: tc.y + 8, vx: tc.rat[0] * rand(70, 90), vy: tc.rat[1] * 30, life: 0, max: 1.6 });
     sfx.squeak();
     say(`you light a torch in ${tc.name}. a rat bolts out of the shadows and is gone.`);
   } else {
-    say(`you light a torch in ${tc.name}.`);
+    say(first ? `you light a torch in ${tc.name}.` : `you relight the torch in ${tc.name}.`)
   }
 }
 
@@ -3231,7 +3265,7 @@ function drawCooking() {
   px.fillStyle = '#5a3a22'; px.fillRect(146, 125, 29, 1);
   const k = clamp(1 - S.cooking.t / (S.cooking.total || COOK_TIME), 0, 1);
   const lerp = (a, b) => Math.round(a + (b - a) * k);
-  const col = S.cooking.burnt && k > 0.5 ? '#1a0e08' : `rgb(${lerp(140, 84)}, ${lerp(34, 44)}, ${lerp(28, 24)})`;
+  const col = `rgb(${lerp(140, 84)}, ${lerp(34, 44)}, ${lerp(28, 24)})`;
   for (let i = 0; i < S.cooking.n; i++) {
     const x = 153 + i * 6;
     px.fillStyle = col; px.fillRect(x, 124, 4, 4);
@@ -4003,12 +4037,12 @@ function drawLight() {
     lx.restore();
   }
 
-  // dread: a dark red vignette from the edges
+  // dread: the dark itself pressing in from the edges (red is kept for when you're about to die)
   if (S.dread > 40 && mode === 'playing') {
     const k = ((S.dread - 40) / 60) * (0.75 + 0.25 * Math.sin(t * 4));
     const vg = lx.createRadialGradient(light.width / 2, light.height / 2, light.height * 0.35, light.width / 2, light.height / 2, light.width * 0.65);
-    vg.addColorStop(0, 'rgba(60, 0, 0, 0)');
-    vg.addColorStop(1, `rgba(70, 0, 0, ${0.45 * k})`);
+    vg.addColorStop(0, 'rgba(0, 0, 0, 0)');
+    vg.addColorStop(1, `rgba(0, 0, 0, ${0.55 * k})`);
     lx.fillStyle = vg;
     lx.fillRect(0, 0, light.width, light.height);
   }
@@ -4048,15 +4082,17 @@ function drawLight() {
   drawFx(s);
   drawGrin(s, t);
 
-  // starving: a thin, dull red border closing in from the edges
-  if (S.hunger >= 90 && (mode === 'playing' || (mode === 'lost' && S.cause === 'starve'))) {
-    const k = clamp((S.hunger - 90) / 10, 0.15, 1) * (0.85 + 0.15 * Math.sin(t * 3));
+  // the edges of the screen: a sickly green when you're starving, and red only when something is about to kill you
+  const doom = mode === 'playing' && aboutToDie();
+  if (doom || (S.hunger >= 90 && (mode === 'playing' || (mode === 'lost' && S.cause === 'starve')))) {
+    const k = doom ? 0.75 + 0.25 * Math.sin(t * 14) : clamp((S.hunger - 90) / 10, 0.15, 1) * (0.85 + 0.15 * Math.sin(t * 3));
     const bw = (0.05 + 0.1 * k) * light.height;
-    const col = `rgba(120, 12, 10, ${0.18 + 0.22 * k})`;
+    const rgb = doom ? '190, 14, 10' : '70, 120, 30';
+    const col = `rgba(${rgb}, ${0.18 + 0.22 * k})`;
     const edge = (x0, y0, x1, y1, x, y, w, h) => {
       const g2 = lx.createLinearGradient(x0, y0, x1, y1);
       g2.addColorStop(0, col);
-      g2.addColorStop(1, 'rgba(120, 12, 10, 0)');
+      g2.addColorStop(1, `rgba(${rgb}, 0)`);
       lx.fillStyle = g2;
       lx.fillRect(x, y, w, h);
     };

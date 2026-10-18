@@ -33,8 +33,8 @@ Every threat has a tell and a counter. Threats arrive as the night goes on.
 | From | Threat | The tell | What saves you | Death |
 | --- | --- | --- | --- | --- |
 | 10 pm | **The dark** | Slitted eyes open around the room, a heartbeat starts, red creeps in from the edges. Once the fire is out you have **about ten seconds** | Keep the fire above smoldering. It burns down faster every hour | The dark comes in |
-| 10 pm | **Hunger** | A stomach growl at "hungry"; at "starving" it repeats and a dull red border closes in. **Meat goes bad**: raw in two minutes, cooked in four, and its count turns green when something is about to turn | Keep eating, which means traps early: at night they're the only meat, checked on every wood trip. Cook raw meat first; raw makes you sick. Salt-cured meat keeps | You starve |
-| 11 pm | **The thing in the trees** | A howl, and its amber eyes shining in the treeline outside the window. While you're out and it's close, **a grin grows beneath its eyes** | One rule: once it's close, the grin fills in **four seconds**, every time. Leave while its eyes are in the treeline and you have four seconds. If it howls while you're already out, you get a moment to turn back first. Running back brings you home empty-handed | A full grin |
+| 10 pm | **Hunger** | A stomach growl at "hungry"; at "starving" it repeats and a dull red border closes in. **Meat goes bad**: raw in about an hour of the night, cooked in about three, and its count turns green when something is about to turn | Keep eating, which means traps early: at night they're the only meat, checked on every wood trip. Cook raw meat first; raw makes you sick. Salt-cured meat keeps | You starve |
+| 11 pm | **The thing in the trees** | A howl, and its amber eyes shining in the treeline outside the window. While you're out and it's close, **a grin grows beneath its eyes** | One rule: once it's close, the grin fills in **four seconds**, every time. **Leave while its eyes are in the treeline and the grin races to half full almost at once**, so you have about two. A falling howl tells you when it moves off. If it howls while you're already out, you get a moment to turn back first. Running back brings you home empty-handed | A full grin |
 | midnight | **The mimic** | Real visitors' **footsteps crunch through the snow before they knock**. The mimic just knocks, word for word in the voice of someone you'd open for. There is only one stranger | Keep the door shut when nothing walked up | You opened the door. It was not a person |
 | 1 am | **Her, at the window** | She rises into the window from below the sill: a gaunt black figure backlit in red, with one huge pale eye, an empty socket, a hanging jaw and wet hair. On her first visit the glass always explodes inward, boarded or not, and from then on wind and snow blow in; through a bare frame the fire burns down faster | Board the window beforehand. Her eye watches through a gap while her hand hooks a board and pulls, to a rhythm of thuds. **Burn the hand** and she snatches it back in a burst of flame and smoke. **Don't, and she tears every board off** and drags them away. You have to board the window again (8 wood) | Bare window: she climbs in, even while you're out, and **takes ten logs** through the frame; you can't burn her back. **Fewer than ten, and she takes you.** You can still nail boards up in the last seconds |
 | any time | **The fire itself** | The wood pile leans toward the fire when it's over 25 logs | Keep the pile at or under 25, or build a woodshed. If it topples, logs crash into the fire and it roars toward the roof: **douse it with 2 blood** in time | The cabin burns down |
@@ -91,10 +91,10 @@ The day also dries every wet log and spoils any meat that isn't cured. The day s
 
 **Night 4: the goblins.** The blizzard again, and now things follow you in.
 
-- **Getting in.** Each time you come back from a trip there's about a 1 in 10 chance (more if you ran back in a hurry) that a small hunchbacked goblin slips in at your heels. Its shadow crumbles through the door, it scuttles, and "something brushed past your legs as you came in."
+- **Getting in.** Each time you come back from a trip there's about a 1 in 10 chance (more if you ran back in a hurry) that a small hunchbacked goblin slips in at your heels. Its shadow crumbles through the door, it scuttles, and **it snatches something off the rack on its way to a corner**, where it watches you for a minute before it tries again.
 - **A salted doorway** stops one at the threshold; the salt goes.
 - **In the house.** It settles in a dark corner, one to a corner, where all you see is two small, dim eyes. While the fire is low or you're out, it climbs the wall to the meat rack or the shelf and takes one thing: cured meat first, then cooked, raw, then blood. Never salt. After two hours it gets bolder and steals faster.
-- **Getting rid of one.** Throw salt into its corner (1 salt, from the ember there) and it bolts out the door. Or light its corner with a torch and it moves to another dark one. With every corner lit it can't settle: it skitters along the walls in plain view, steals nothing, and leaves the next time the door opens.
+- **Getting rid of one.** Throw salt into its corner (1 salt, from the ember there) and it bolts out the door. Or light its corner with a torch and it moves to another dark one. With every corner lit, **it leaps up and pinches out a torch** and takes that corner (relighting costs 1 wood).
 - **How they kill you.** Let the fire die with one settled in and it comes for you. Let **four** in at once, one in every corner, and they all do.
 
 **The woodcutter's axe.** He'll sell his spare for 3 meat, once. Every wood trip then brings back 5–7 logs instead of 3–5.
@@ -103,7 +103,7 @@ The day also dries every wet log and spoils any meat that isn't cured. The day s
 
 | Days awake | What happens |
 | --- | --- |
-| 1 | Your eyes close every 15–20 seconds or so for 2–3 seconds; you can't act while they're shut. Slower hands and trips, and you get hungry faster. **Meat cooking while your eyes are shut burns**: it goes on the fire instead, which burns a little longer for it |
+| 1 | Your eyes close every 15–20 seconds or so for 2–3 seconds, and while they're shut you can't do anything: **not even burn her back or slam the hatch**. Slower hands and trips, and you get hungry faster |
 | 2 | Longer, more frequent dozes, and **things that aren't there**: knocks with footsteps but nothing under the door (the lantern shows no feet at all); howls with no eyes in the treeline; whispering at the edge of hearing; her at the window when she isn't (look closely: a faint double of her drifts around her); the hatch rattling three times as often, only one in three real. And every mimic seems to walk up, so footsteps tell you nothing |
 | 3 | Longer and more frequent still, trips take two seconds more, it howls every few seconds, its eyes and grin flicker in the treeline, and the false hers have no tell at all |
 | 4 | You don't make it to the first hour |
@@ -146,11 +146,11 @@ Click an ember for a card with what it does and what it costs. The **build** but
 | **Woodshed** | 25 logs, 1 s outside each | A shed against the outside wall that holds 100 more logs. **You build it a bit at a time**: each trip carries out the wood you have and builds it in log by log, and you can run back any time without losing what's built. That's also how you spend a pile that's getting too tall. Once it stands, a **small cabinet appears in the right wall** with a candle beside it: it opens straight onto the shed. Click it to look in. Wood moves on its own: extra logs go into the shed, the pile restocks from it a few logs at a time when it runs low, and the cabinet swings open while they do. The wood count shows what's in the shed |
 | Corner torches (up to 4) | 2 wood each | An iron sconce in each corner of the room, where the eyes like to sit. Once you have a woodshed, its candle lights the back-right corner and that torch isn't offered (build it first and you keep both). Burns all night with a faint warm glow, and nothing opens its eyes inside it. The first time you light a corner, now and then a rat bolts out of the shadows |
 | Cure meat | 1 salt | Rubs salt into 2 cooked meat so it never goes bad |
-| **Drying rack** | 12 wood | Beside the fire. Dries wet wood three times faster (eight logs at a time), and **smokes cooked meat** so it never goes bad, one piece every 20 seconds while the fire burns. Smoked meat counts as cured. It keeps your salt free for the salt lines |
+| **Drying rack** | 12 wood | Beside the fire. Dries wet wood three times faster (eight logs at a time), and slowly **smokes cooked meat** so it never goes bad, one piece every couple of hours while the fire burns. Smoked meat counts as cured |
 | Fur coat | 4 fur | You get cold outside a third more slowly |
 | Insulate the walls | 6 fur | The house loses heat more slowly and the fire warms you a little faster. (Six fur is also 18 points at dawn; whether insulation is worth it is up to you) |
 | Salt the doorway / the sill | 2 salt each | One use each; see night 2 |
-| Salt a trap | 1 salt | A salted trap catches meat far more often, for as long as it lasts; the salt goes when the trap breaks. You can see the white flecks on it |
+| Salt a trap | 1 salt | A salted trap catches meat and blood twice as often (and fur, from night 2), for as long as it lasts; the salt goes when the trap breaks. You can see the white flecks on it |
 | Salt around the hatch (night 2) | 2 salt | One use: the next time it would get out, it touches the salt and drops back down. Spent before the beam |
 | Bar the hatch (night 2) | 4 wood | A beam across the cellar hatch. Breaks instead of you the first time you miss the slam |
 
@@ -183,6 +183,8 @@ Only a night survived to dawn scores: for making it, how you lived through it, a
 | Each dawn after the first | +100, on top of the nights before |
 
 The resource bar uses small pixel icons: a log end (with the pile's 25-log limit), then the meat in three counts, **cured** (dark and salt-flecked, which never goes bad; shown once you have some), **cooked** (which goes bad in a few minutes and over the day) and **raw**, then salt and a vial of blood. Hover an icon for its name. The room shows what you're keeping too: elk haunches hang from a meat rack (raw dark red and marbled, cooked seared brown, cured dark and salt-flecked, gray-green when about to turn), and below it a shelf holds corked vials of blood and a crock of salt.
+
+**The edges of the screen** tell you how close you are: a sickly green when you're starving, and **red only when something is about to kill you**. Red means the grin nearly full, the dark almost in, her climbing in with fewer than ten logs to take, the hatch opening with no beam, no salt and nothing left but you, a blaze with no blood to douse it, the cold or hunger almost there. Losing boards or food doesn't count.
 
 Every death has its own few seconds before the red screen:
 
@@ -372,7 +374,7 @@ They're stored in this browser for now (`achievements.js`). Each unlock keeps it
 
 Open the game once with `?dev` on the address (https://firelight-topaz.vercel.app/?dev) and the title menu gets a **playtest** button, remembered in that browser. It starts you at the day before night 2 or 3, or straight into night 2 or 3, with a basic kit: boarded window, two traps (three on night 3), the lantern, the stranger, some food and wood, and on night 3 a woodshed and the drying rack. Playtest runs don't count toward the stats or the leaderboard.
 
-The version is in the bottom-right corner (v0.37 is the 37th commit; the number counts every commit, docs included), so you can tell a refresh picked up the latest build.
+The version is in the bottom-right corner (v0.38 is the 38th commit; the number counts every commit, docs included), so you can tell a refresh picked up the latest build.
 
 ## Future ideas
 

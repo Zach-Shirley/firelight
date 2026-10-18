@@ -873,3 +873,29 @@ export function scuttle() {
     src.start(at, Math.random(), 0.05);
   }
 }
+
+// The thing in the trees moving off: a long howl that falls in pitch and fades into the distance.
+export function recede() {
+  if (!ctx || !enabled) return;
+  const t = ctx.currentTime + 0.05;
+  const lp = ctx.createBiquadFilter();
+  lp.type = 'lowpass';
+  lp.frequency.setValueAtTime(900, t);
+  lp.frequency.linearRampToValueAtTime(260, t + 2.2);
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.linearRampToValueAtTime(0.09, t + 0.35);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 2.4);
+  lp.connect(g).connect(master);
+  for (const [f, d] of [[340, 0], [343, 6]]) {
+    const o = ctx.createOscillator();
+    o.type = 'sawtooth';
+    o.detune.value = d;
+    o.frequency.setValueAtTime(f, t);
+    o.frequency.linearRampToValueAtTime(f * 1.08, t + 0.4);
+    o.frequency.exponentialRampToValueAtTime(f * 0.45, t + 2.3);
+    o.connect(lp);
+    o.start(t);
+    o.stop(t + 2.5);
+  }
+}
