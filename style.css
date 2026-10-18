@@ -309,7 +309,7 @@ button:disabled { opacity: 0.4; cursor: default; }
   gap: calc(3px * var(--s));
 }
 .end-panel h2 { font-size: calc(14px * var(--s)); margin: 0; }
-#endText { margin: 0; font-size: calc(6px * var(--s)); color: var(--ink-dim); }
+#endText { margin: 0; font-size: calc(6px * var(--s)); color: var(--ink-dim); white-space: pre-line; }
 #endScore { border-collapse: collapse; font-size: calc(6px * var(--s)); width: 100%; }
 #endScore td { padding: 0; }
 #endScore .n { color: var(--ink-dim); text-align: right; padding-right: calc(4px * var(--s)); }

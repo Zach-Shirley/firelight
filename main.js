@@ -6,7 +6,7 @@ import * as sfx from './sound.js';
 import { ACHIEVEMENTS, createStore } from './achievements.js';
 import { computeScore, qualifies, insertScore, cleanInitials, sanitizeBoard } from './score.js';
 
-const VERSION = '0.43';   // one step per commit to the repository
+const VERSION = '0.44';   // one step per commit to the repository
 const W = 320, H = 180;
 const FIRE = { x: 160, y: 136 };          // base of the flames
 const LIGHT_Y = 130;                       // centre of the light pool
@@ -892,36 +892,48 @@ function saltGoblin(id) {
   say('you throw a fistful of salt into the corner. it shrieks and bolts for the door, and out into the snow.');
 }
 
-// A hunched little thing: a humped back, a head hung low and forward, pointed ears, long arms with the knuckles
-// on the floor, bent little legs, two small pale eyes. Drawn cell by cell, facing right (face -1 flips it).
-const GOBLIN = [
-  '..........e...e.',
-  '..........ee.ee.',
-  '....bbb....hhhh.',
-  '..bbbbbbb.hhhhhh',
-  '.bbbbbbbbbhHhhHh',
-  '.bbbbbbbbbbhhhh.',
-  'bbbbbbbbbbb.hh..',
-  'bbbbbbbbbbaa....',
-  '.bbbbbbbb..a....',
-  '..bbbbbb...a....',
-  '..bb..bb...aa...',
-  '.bb....bb...a...',
-  'bb......bb..aa..',
-];
-function drawGoblin(s, x, y, sc = 1, face = 1, alpha = 1, eyes = true) {
-  const W2 = GOBLIN[0].length, H2 = GOBLIN.length, u = 0.75 * sc;
-  for (let r = 0; r < H2; r++) {
-    for (let c = 0; c < W2; c++) {
-      const k = GOBLIN[r][c];
-      if (k === '.') continue;
-      const edge = r === 0 || GOBLIN[r - 1][c] === '.';
-      lx.fillStyle = k === 'H' && eyes ? `rgba(220, 230, 170, ${alpha})`
-        : edge ? `rgba(66, 54, 42, ${0.85 * alpha})` : `rgba(14, 12, 10, ${alpha})`;
-      const cx = face > 0 ? c : W2 - 1 - c;
-      lpx(s, x + (cx - W2 / 2) * u, y + (r - H2) * u, u + 0.05, u + 0.05);
-    }
+// A goblin: knee-high, hunched, all knees and elbows. A humped back with knobs of spine, a big head hung low and
+// forward with long pointed ears and a hooked nose, a small grin full of teeth, long thin arms that reach the floor,
+// bent little legs. Drawn as smooth strokes with a rim of light, facing right (face -1 flips it). Feet at (x, y).
+const GOB_PAL = { black: '#14140f', rim: '#5a583e', nail: '#080604' };
+function drawGoblin(s, x, y, sc = 1, face = 1, alpha = 1, eyes = true, pose = 'run') {
+  const t = animT;
+  const P = (dx, dy) => [x + dx * sc * face, y - dy * sc];
+  const W = (...ws) => ws.map((w) => w * sc);
+  const step = pose === 'run' ? Math.sin(t * 18) : 0;
+  const climb = pose === 'climb';
+  const legs = [-1, 1].map((side) => [P(-2 + side * 0.4, 4.6), P(-3.6 + side * step * 1.1, 2.4), P(-1.6 + side * step * 1.8, 0.2)]);
+  const arm = (side) => climb
+    ? [P(1.6, 8.4), P(3.2 + side * 0.6, 10.6), P(4 + side * 0.8, 13 + side * step)]
+    : [P(1.4 + side * 0.3, 8.2), P(3.6 - side * step * 0.8, 5.2), P(5.2 + side * step * 1.4, 0.6)];
+  const body = [P(-2.6, 4.6), P(-1.8, 7.6), P(1.4, 8.8)];
+  const head = [P(4.0, 9.4), P(4.8, 9.0)];
+  const ears = [[P(3.0, 10.8), P(0.6, 14.2)], [P(5.0, 11.0), P(7.6, 13.8)]];
+  const nose = [P(6.6, 9.0), P(8.3, 8.0)];
+  const parts = [
+    [legs[0], W(1.6, 1.2, 1.0)], [arm(-1), W(1.2, 1.0, 0.7)],
+    [body, W(5.0, 6.0, 4.4)], [legs[1], W(1.6, 1.2, 1.0)],
+    [head, W(5.0, 4.6)], [ears[0], W(1.5, 0.25)], [ears[1], W(1.5, 0.25)], [nose, W(1.3, 0.5)],
+    [arm(1), W(1.3, 1.1, 0.8)],
+  ];
+  lx.save();
+  lx.globalAlpha = alpha;
+  for (const [pts, ws] of parts) tubePass(s, pts, ws, GOB_PAL.rim, 0.4);
+  for (const [pts, ws] of parts) tubePass(s, pts, ws, GOB_PAL.black, 0);
+  // knobs of spine along the hump
+  lx.fillStyle = GOB_PAL.rim;
+  for (const [dx, dy] of [[-2.4, 7.4], [-1.4, 8.4], [-0.2, 9.0]]) { const [px1, py1] = P(dx, dy + 0.8); lx.beginPath(); lx.arc(px1 * s, py1 * s, 0.55 * sc * s, 0, Math.PI * 2); lx.fill(); }
+  // claws on the hands
+  lx.fillStyle = GOB_PAL.nail;
+  for (const side of [-1, 1]) { const h = arm(side)[2]; for (let i = -1; i <= 1; i++) { lx.beginPath(); lx.arc((h[0] + i * 0.5 * sc) * s, (h[1] + 0.5 * sc) * s, 0.3 * sc * s, 0, Math.PI * 2); lx.fill(); } }
+  // a small grin of pale teeth under the nose
+  lx.fillStyle = `rgba(214, 206, 180, ${0.9})`;
+  for (let i = 0; i < 4; i++) { const [tx, ty] = P(4.4 + i * 0.7, 7.9 - Math.abs(i - 1.5) * 0.15); lpx(s, tx - 0.2 * sc, ty, 0.4 * sc, 0.5 * sc); }
+  if (eyes) {
+    lx.fillStyle = 'rgba(220, 230, 170, 1)';
+    for (const dx of [4.0, 5.6]) { const [ex, ey] = P(dx, 9.8); lpx(s, ex - 0.35 * sc, ey - 0.3 * sc, 0.7 * sc, 0.6 * sc); }
   }
+  lx.restore();
 }
 
 function drawGoblins(s, t) {
@@ -945,7 +957,7 @@ function drawGoblins(s, t) {
       else if (T < 1.5) { const k = ease((T - 1.2) / 0.3); x = lerp(196, 216, k); y = 106; }
       else if (T < 2.0) { const k = ease((T - 1.5) / 0.5); x = 216; y = lerp(106, ty, k); face = -1; }
       else { const k = ease((T - 2.0) / (GOB_CLIMB - 2.0)); x = lerp(216, c.x, k); y = lerp(ty, c.y + 6, k); face = c.x < 216 ? -1 : 1; }
-      drawGoblin(s, x, y, 0.9, face, 0.95);
+      drawGoblin(s, x, y, 0.9, face, 0.95, true, T >= 0.45 && T < 0.95 || T >= 1.5 && T < 2.0 ? 'climb' : 'run');
       continue;
     }
     // in its corner only its eyes show, small and dim and low, blinking out of rhythm
@@ -3873,47 +3885,70 @@ function spawnDust() {
 const HER = { black: 'rgba(6, 2, 3, 0.97)', rim: 'rgba(130, 16, 12, 0.85)', nail: 'rgba(70, 8, 6, 0.95)' };
 
 // a thick limb segment from a to b, rim first then the black core
-function limbSeg(s, ax, ay, bx, by, w, pal = HER) {
-  const len = Math.hypot(bx - ax, by - ay);
-  const n = Math.max(1, Math.ceil(len * 2));
-  for (let i = 0; i <= n; i++) {
-    const x = ax + ((bx - ax) * i) / n, y = ay + ((by - ay) * i) / n;
-    lx.fillStyle = pal.rim; lpx(s, x - w / 2 - 0.4, y - w / 2 - 0.4, w + 0.8, w + 0.8);
-  }
-  for (let i = 0; i <= n; i++) {
-    const x = ax + ((bx - ax) * i) / n, y = ay + ((by - ay) * i) / n;
-    lx.fillStyle = pal.black; lpx(s, x - w / 2, y - w / 2, w, w);
+// Limbs are drawn as round brush strokes along a path: every outline (rim) first, then every fill, so joints are
+// seamless and the rim runs unbroken around elbows and shoulders.
+function tubePass(s, pts, widths, color, pad) {
+  lx.fillStyle = color;
+  for (let k = 0; k < pts.length - 1; k++) {
+    const [ax, ay] = pts[k], [bx, by] = pts[k + 1];
+    const n = Math.max(1, Math.ceil(Math.hypot(bx - ax, by - ay) * 2));
+    for (let i = 0; i <= n; i++) {
+      const f = i / n, w = widths[k] + (widths[k + 1] - widths[k]) * f;
+      lx.beginPath();
+      lx.arc((ax + (bx - ax) * f) * s, (ay + (by - ay) * f) * s, Math.max(0.3, w / 2 + pad) * s, 0, Math.PI * 2);
+      lx.fill();
+    }
   }
 }
+function tube(s, pts, widths, pal) {
+  tubePass(s, pts, widths, pal.rim, 0.45);
+  tubePass(s, pts, widths, pal.black, 0);
+}
 
-// shoulder to hand with the elbow pushed out to one side by `bend`
+function limbSeg(s, ax, ay, bx, by, w, pal = HER) {
+  tube(s, [[ax, ay], [bx, by]], [w, w], pal);
+}
+
+// shoulder to hand with the elbow pushed out to one side by `bend`: thick at the shoulder, a knob at the elbow,
+// thin at the wrist, all in one stroke
 function limb(s, ax, ay, bx, by, bend, w = 1.6, pal = HER) {
   const mx = (ax + bx) / 2, my = (ay + by) / 2;
   const len = Math.hypot(bx - ax, by - ay) || 1;
   const ex = mx + (-(by - ay) / len) * bend, ey = my + ((bx - ax) / len) * bend;
-  limbSeg(s, ax, ay, ex, ey, w, pal);
-  limbSeg(s, ex, ey, bx, by, w * 0.85, pal);
-  lx.fillStyle = pal.black; lpx(s, ex - w * 0.7, ey - w * 0.7, w * 1.4, w * 1.4);   // a knobbed elbow
+  const pts = [[ax, ay], [ex, ey], [bx, by]], widths = [w, w * 1.25, w * 0.75];
+  tubePass(s, pts, widths, pal.rim, 0.45);
+  tubePass(s, pts, widths, pal.black, 0);
   return { ex, ey };
 }
 
 // four long fingers fanned around `dir`; curl closes them into a fist
 function claw(s, hx, hy, dir, spread, curl, len = 5, pal = HER) {
   const pw = Math.max(1, len / 9);   // big hands get thick fingers
-  const pr = pw > 1 ? 0.75 : 1;      // and a smaller palm for their size
-  lx.fillStyle = pal.rim; lpx(s, hx - 1.9 * pw * pr, hy - 1.9 * pw * pr, 3.8 * pw * pr, 3.8 * pw * pr);
-  lx.fillStyle = pal.black; lpx(s, hx - 1.5 * pw * pr, hy - 1.5 * pw * pr, 3 * pw * pr, 3 * pw * pr);
+  // each finger as a path from the palm out, curling at the tip
+  const fingers = [];
   for (let i = 0; i < 4; i++) {
     let a = dir + (i - 1.5) * spread;
     let x = hx, y = hy;
     const fl = len * (i === 1 || i === 2 ? 1.15 : 0.9);
+    const pts = [[x, y]];
     for (let k = 0; k < fl; k += 0.5 * pw) {
       a += curl * 0.09 * (i < 2 ? -1 : 1) * (k > fl * 0.4 ? 1 : 0.2);   // the tips hook inward
       x += Math.cos(a) * 0.5 * pw; y += Math.sin(a) * 0.5 * pw;
-      const tip = k > fl - 1.2 * pw;
-      lx.fillStyle = tip ? pal.nail : pal.black;
-      lpx(s, x - 0.35 * pw, y - 0.35 * pw, (tip ? 0.6 : 0.9) * pw, (tip ? 0.6 : 0.9) * pw);
+      pts.push([x, y]);
     }
+    fingers.push(pts);
+  }
+  const widthsFor = (pts) => pts.map((_, j) => 0.95 * pw * (1 - 0.55 * (j / pts.length)));
+  const palm = [[hx, hy], [hx + Math.cos(dir) * 0.6 * pw, hy + Math.sin(dir) * 0.6 * pw]], palmW = [2.6 * pw, 2.4 * pw];
+  // rims first, then fills, then the nails
+  tubePass(s, palm, palmW, pal.rim, 0.45);
+  for (const f of fingers) tubePass(s, f, widthsFor(f), pal.rim, 0.4);
+  tubePass(s, palm, palmW, pal.black, 0);
+  for (const f of fingers) tubePass(s, f, widthsFor(f), pal.black, 0);
+  lx.fillStyle = pal.nail;
+  for (const f of fingers) {
+    const [x, y] = f[f.length - 1];
+    lx.beginPath(); lx.arc(x * s, y * s, 0.45 * pw * s, 0, Math.PI * 2); lx.fill();
   }
 }
 
@@ -5053,12 +5088,19 @@ function deathHunter(s, t) {
 
 // The stranger gets up: in jerks, then taller than she was, then she walks toward you.
 function deathRisen(s, t) {
-  if (lossT < 2.0) return;   // sitting up and standing are pixel sprites; see drawStranger
-  const grow = ease(seg(2.0, 2.8));
-  const k = ease(seg(2.8, 5.0));
-  tallThing(s, t, lerp(193, 168, k), lerp(138, 200, k), lerp(lerp(38, 54, grow), 190, k), {
-    pal: RISEN_PAL, tilt: lerp(0.3, 1.2, grow) + Math.sin(t * 3) * 0.05, reach: lerp(0.5, 1, grow),
-    mouth: seg(2.6, 3.4), walk: lossT > 2.8, eyes: 'rgba(230, 40, 20, 1)',
+  // the risen stranger gets up by the fire (sitting up and standing are pixel sprites; see drawStranger);
+  // her ash comes in through the door, already standing, straight away
+  const ash = S.cause === 'ash';
+  const L = ash ? lossT + 2.0 : lossT;
+  const sg = (a2, b2) => clamp((L - a2) / (b2 - a2), 0, 1);
+  if (L < 2.0) return;
+  const grow = ease(sg(2.0, 2.8));
+  const k = ease(sg(2.8, 5.0));
+  const sx = ash ? 274 : 193, sy = ash ? 111 : 138;
+  tallThing(s, t, lerp(sx, 168, k), lerp(sy, 200, k), lerp(lerp(38, 54, grow), 190, k), {
+    pal: ash ? { black: 'rgba(34, 30, 30, 0.99)', rim: 'rgba(150, 40, 24, 0.9)', nail: 'rgba(60, 8, 6, 1)' } : RISEN_PAL,
+    tilt: lerp(0.3, 1.2, grow) + Math.sin(t * 3) * 0.05, reach: lerp(0.5, 1, grow),
+    mouth: sg(2.6, 3.4), walk: L > 2.8, eyes: 'rgba(230, 40, 20, 1)',
   });
 }
 
@@ -5164,6 +5206,31 @@ function deathFreeze(s, t) {
   }
 }
 
+// The blood hour: the door bangs open on the thing in the trees itself. Its eyes and its grin fill the doorway,
+// growing, and a long arm reaches in across the floor for you.
+function deathBloodHour(s, t) {
+  lx.fillStyle = `rgba(60, 0, 0, ${0.35 * seg(0, 1.5)})`;
+  lx.fillRect(0, 0, light.width, light.height);
+  const k = ease(seg(0.3, 3.4));
+  const cx = lerp(274, 160, k * 0.6), cy = lerp(70, 80, k), sz = lerp(1.5, 8, k);
+  // the eyes, amber going red
+  eyePair(s, cx, cy, sz, 1, k > 0.4, 1);
+  // the grin beneath them, opening
+  const w = sz * 9, gap = sz * (0.8 + k * 1.6);
+  for (let x = -w / 2; x <= w / 2; x += Math.max(0.5, sz * 0.4)) {
+    const u = (2 * x) / w, top = cy + sz * 2.2 + sz * 1.6 * (1 - u * u);
+    lx.fillStyle = 'rgba(10, 0, 0, 1)'; lpx(s, cx + x, top, Math.max(0.5, sz * 0.4), gap * (1 - u * u * 0.8));
+    lx.fillStyle = 'rgba(232, 222, 196, 1)'; lpx(s, cx + x, top, Math.max(0.5, sz * 0.3), Math.max(0.5, sz * 0.5));
+  }
+  // its arm, reaching in along the floor toward you
+  const r = ease(seg(1.2, 3.6));
+  if (r > 0) {
+    const hx = lerp(270, 175, r), hy = lerp(108, 182, r);
+    limb(s, 276, 100, hx, hy, -20 * r, 2 + 4 * r, MIMIC_PAL);
+    claw(s, hx, hy, Math.PI * 0.7, 0.45, 1.2, 6 + 18 * r, MIMIC_PAL);
+  }
+}
+
 // The goblins: out of their corners along the floor toward you, eyes first, growing as they come, then on you.
 function deathGoblins(s) {
   lx.fillStyle = `rgba(0, 0, 0, ${0.5 * seg(0, 2)})`;
@@ -5209,7 +5276,7 @@ const DEATH_SCENES = {
   dark: deathDark, starve: deathStarve, burn: deathBurn, mimic: deathMimic, hand: deathHand, handAway: deathHand,
   hunter: deathHunter, risen: deathRisen, cellar: deathCellar, cellarAway: deathCellar, falseStranger: deathFalseStranger,
   freeze: deathFreeze, lost: deathLost, sleep: deathSleep, guest: deathGoblins, goblins: deathGoblins,
-  bloodHour: deathMimic, ash: deathRisen, flood: deathFlood,
+  bloodHour: deathBloodHour, ash: deathRisen, flood: deathFlood,
 };
 
 // Terrifying: the thing that killed you, all at once and much too close, for a third of a second.
