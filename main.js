@@ -6,7 +6,7 @@ import * as sfx from './sound.js';
 import { ACHIEVEMENTS, createStore } from './achievements.js';
 import { computeScore, qualifies, insertScore, cleanInitials, sanitizeBoard } from './score.js';
 
-const VERSION = '0.40';   // one step per commit to the repository
+const VERSION = '0.41';   // one step per commit to the repository
 const W = 320, H = 180;
 const FIRE = { x: 160, y: 136 };          // base of the flames
 const LIGHT_Y = 130;                       // centre of the light pool
@@ -2501,6 +2501,9 @@ function syncSpots() {
 function openSpotCard(id) {
   const spot = SPOTS.find((sp) => sp.id === id);
   if (!spot || !canAct()) return;
+  // nothing to choose: one free thing to do here (relighting a torch), so just do it
+  const can = spotBuilds(spot).filter(buildable);
+  if (can.length === 1 && !Object.keys(can[0].cost()).length) { build(can[0].id); return; }
   openSpot = id;
   toggleBuild(false);
   toggleJournal(false);
@@ -4202,16 +4205,16 @@ function drawLight() {
 
   // the blizzard: a white-out beyond the window, snow driving past
   if (blizzard() && !calm() && !S.curtainsShut && mode === 'playing') {
-    lx.save();
-    lx.beginPath(); lx.rect(45 * s, 35 * s, 32 * s, 32 * s); lx.clip();
-    lx.fillStyle = 'rgba(200, 208, 220, 0.55)';
-    lx.fillRect(45 * s, 35 * s, 32 * s, 32 * s);
-    lx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-    for (let i = 0; i < 18; i++) {
-      const y = 35 + hash(i) * 32, x = 45 + ((hash(i + 9) * 40 + t * (60 + hash(i + 4) * 40)) % 44) - 6;
-      lpx(s, x, y, 4 + hash(i + 2) * 5, 0.5);
-    }
-    lx.restore();
+    // it's still the middle of the night: a dim gray white, snow driving past (only where the boards don't cover it)
+    throughWindow(s, () => {
+      lx.fillStyle = 'rgba(70, 78, 92, 0.42)';
+      lx.fillRect(45 * s, 35 * s, 32 * s, 32 * s);
+      lx.fillStyle = 'rgba(190, 198, 212, 0.38)';
+      for (let i = 0; i < 18; i++) {
+        const y = 35 + hash(i) * 32, x = 45 + ((hash(i + 9) * 40 + t * (60 + hash(i + 4) * 40)) % 44) - 6;
+        lpx(s, x, y, 4 + hash(i + 2) * 5, 0.5);
+      }
+    });
   }
   // snow drifted under the window, pale even in the dark
   if (S.snowPile > 0.02) {
@@ -5575,7 +5578,7 @@ function devKit(night) {
     dev: true, lit: true, fire: 3, wood: 18, blood: 6, salt: 3, hunger: 20,
     boardsBuilt: true, boards: 3, glassBroken: true, lantern: true, lanternLit: true, lanternT: 60,
     stranger: 'inside', strangerFalse: false, sHunger: 20, firstVisit: false, hint: HINTS.length,
-    carry: [0, 0, 250, 600, 1000][night], final: [0, 0, 250, 600, 1000][night], met: { woodcutter: true },
+    carry: [0, 0, 250, 600, 1000][night], final: [0, 0, 250, 600, 1000][night], met: { woodcutter: true }, axe: true,
   });
   S.rawLife = [RAW_LIFE]; S.cookedLife = [COOKED_LIFE, COOKED_LIFE, CURED]; syncMeat();
   S.trapUses = [makeTrap(), makeTrap()]; syncTraps();
@@ -5586,7 +5589,7 @@ function devKit(night) {
 function devStart(which) {
   const m = /(\d)(?:a(\d))?$/.exec(which);
   const night = +m[1], awake = +(m[2] || 0);
-  newNight(true);
+  newNight(true, $('devDiff').value);
   S.nightNo = night - 1;
   S.won = true;
   startDay();
@@ -5600,6 +5603,8 @@ light.addEventListener('pointerdown', (e) => {
   if (mode !== 'playing' && mode !== 'day') return;
   const r = light.getBoundingClientRect();
   const lx0 = ((e.clientX - r.left) / r.width) * W, ly0 = ((e.clientY - r.top) / r.height) * H;
+  const out = TORCHES.find((tc) => S.torches && S.torches[tc.id] === 'out' && Math.abs(lx0 - tc.x) < 7 && Math.abs(ly0 - tc.y) < 9);
+  if (out && mode === 'playing' && canAct()) { lightTorch(out); return; }
   if (cabinetHit(lx0, ly0)) { cabHeld = !cabHeld; sfx.creak(); }
   else if (S.curtains && mode === 'playing' && lx0 >= 40 && lx0 <= 82 && ly0 >= 30 && ly0 <= 72) {
     S.curtainsShut = !S.curtainsShut;
