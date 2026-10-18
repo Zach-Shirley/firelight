@@ -6,7 +6,7 @@ import * as sfx from './sound.js';
 import { ACHIEVEMENTS, createStore } from './achievements.js';
 import { computeScore, qualifies, insertScore, cleanInitials, sanitizeBoard } from './score.js';
 
-const VERSION = '0.52';   // one step per commit to the repository
+const VERSION = '0.53';   // one step per commit to the repository
 const W = 320, H = 180;
 const FIRE = { x: 160, y: 136 };          // base of the flames
 const LIGHT_Y = 130;                       // centre of the light pool
@@ -5279,10 +5279,18 @@ function deathLost(s, t) {
   }
   const w = seg(1.2, 4.6);
   if (w > 0 && w < 1) {
-    const h = lerp(26, 2, w), cx = 160 + Math.sin(lossT * 2) * 2 * (1 - w), feet = lerp(150, 104, w);
-    lx.fillStyle = `rgba(30, 30, 36, ${0.85 * (1 - w)})`;
-    lpx(s, cx - h * 0.18, feet - h, h * 0.36, h);
-    lpx(s, cx - h * 0.12, feet - h * 1.18, h * 0.24, h * 0.2);
+    // you, from behind: hood up, shoulders hunched, arms wrapped round yourself, trudging away into it
+    const h = lerp(26, 2, w), u = h / 26, cx = 160 + Math.sin(lossT * 2) * 2 * (1 - w), feet = lerp(150, 104, w);
+    const pal = { black: 'rgb(30, 30, 36)', rim: 'rgb(30, 30, 36)' };
+    const st = Math.sin(lossT * 5);
+    asLayer(0.85 * (1 - w), () => {
+      tube(s, [[cx - 1.6 * u, feet - 9 * u], [cx - 1.8 * u - st * 0.6 * u, feet - 4 * u], [cx - 1.7 * u - st * 1.2 * u, feet - 0.6 * u]], [2.6 * u, 2.2 * u, 2 * u], pal);
+      tube(s, [[cx + 1.6 * u, feet - 9 * u], [cx + 1.8 * u + st * 0.6 * u, feet - 4 * u], [cx + 1.7 * u + st * 1.2 * u, feet - 0.6 * u]], [2.6 * u, 2.2 * u, 2 * u], pal);
+      tube(s, [[cx, feet - 8 * u], [cx, feet - 14 * u], [cx, feet - 20 * u]], [7.4 * u, 7 * u, 8.4 * u], pal);   // coat, wider at the hunched shoulders
+      tube(s, [[cx - 4.4 * u, feet - 19.6 * u], [cx - 4.8 * u, feet - 15 * u]], [2.6 * u, 2.4 * u], pal);         // arms wrapped in
+      tube(s, [[cx + 4.4 * u, feet - 19.6 * u], [cx + 4.8 * u, feet - 15 * u]], [2.6 * u, 2.4 * u], pal);
+      tube(s, [[cx, feet - 21.5 * u], [cx + 0.3 * u, feet - 24.4 * u]], [5 * u, 4.4 * u], pal);                  // hooded head, bowed
+    });
   }
 }
 
