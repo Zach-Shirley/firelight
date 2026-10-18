@@ -6,7 +6,7 @@ import * as sfx from './sound.js';
 import { ACHIEVEMENTS, createStore } from './achievements.js';
 import { computeScore, qualifies, insertScore, cleanInitials, sanitizeBoard } from './score.js';
 
-const VERSION = '0.61';   // one step per commit to the repository
+const VERSION = '0.62';   // one step per commit to the repository
 const W = 320, H = 180;
 const FIRE = { x: 160, y: 136 };          // base of the flames
 const LIGHT_Y = 130;                       // centre of the light pool
@@ -4148,7 +4148,7 @@ function drawHandBody(s, t) {
     const reach = Math.min(1, p);
     const handX = shx + side * (9 + reach * 9);
     const handY = 66 + reach * 46 + Math.sin(t * 5 + side) * 0.6;
-    limb(s, shx, shy, handX, handY, side * (11 + reach * 4), 1.8);   // elbows jut up and out, like a spider's
+    limb(s, shx, shy, handX, handY, side * (11 + reach * 4), 1.6 * sc);   // elbows jut up and out, like a spider's; as thick as she is big
     claw(s, handX, handY, Math.PI / 2 + side * 0.25, 0.45, 2.6, 6);
   }
 }
