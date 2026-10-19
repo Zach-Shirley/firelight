@@ -6,7 +6,7 @@ import * as sfx from './sound.js';
 import { ACHIEVEMENTS, createStore } from './achievements.js';
 import { computeScore, qualifies, insertScore, cleanInitials, sanitizeBoard } from './score.js';
 
-const VERSION = '0.67';   // one step per commit to the repository
+const VERSION = '0.68';   // one step per commit to the repository
 const W = 320, H = 180;
 const FIRE = { x: 160, y: 136 };          // base of the flames
 const LIGHT_Y = 130;                       // centre of the light pool
@@ -5907,18 +5907,54 @@ try {
   devMode = localStorage.getItem('firelight-dev') === 'on';
 } catch (e) { devMode = new URLSearchParams(location.search).has('dev'); }
 
-// A basic kit for starting partway through: what a decent player might have by then.
-function devKit(night) {
+// What a strong player holds by then, from the perfect bot in tools/sim.js (fullReport, medians over 80 runs on
+// normal and hard). "day" is the morning after night n-1 (uncured meat already spoiled); "night" is after that day's
+// work. Insane is estimated from hard: the bot almost never gets through an insane night 1 (it starves).
+// [wood, raw, cooked, cured, blood, salt, fur, traps, score so far, what's built]
+const DEV_KITS = {
+  normal: {
+    day: { 2: [10, 0, 0, 0, 10, 0, 0, 3, 285, 'axe'], 3: [20, 0, 0, 4, 20, 0, 10, 3, 840, 'axe shed stove shoes spear'],
+      4: [29, 0, 0, 9, 28, 0, 2, 3, 1538, 'axe shed stove shoes spear rack coat curtains'],
+      5: [42, 0, 0, 12, 39, 1, 4, 3, 2416, 'axe shed stove shoes spear rack coat curtains'] },
+    night: { 2: [25, 1, 0, 0, 13, 5, 0, 2, 285, 'axe'], 3: [42, 2, 0, 4, 21, 5, 11, 2, 840, 'axe shed stove shoes spear'],
+      4: [50, 2, 0, 9, 30, 6, 3, 2, 1538, 'axe shed stove shoes spear rack coat curtains'],
+      5: [67, 1, 0, 12, 41, 6, 4, 2, 2416, 'axe shed stove shoes spear rack coat curtains'] },
+  },
+  hard: {
+    day: { 2: [6, 0, 0, 0, 8, 0, 0, 1, 243, ''], 3: [7, 0, 0, 2, 11, 0, 8, 2, 690, 'axe'],
+      4: [7, 0, 0, 4, 13, 2, 3, 2, 1194, 'axe stove shoes spear rack coat curtains'],
+      5: [9, 0, 0, 3, 11, 1, 3, 2, 1699, 'axe shed stove shoes spear rack coat curtains'] },
+    night: { 2: [23, 0, 0, 0, 9, 5, 0, 1, 243, ''], 3: [25, 1, 0, 2, 12, 5, 9, 1, 690, 'axe'],
+      4: [25, 1, 0, 4, 14, 8, 3, 1, 1194, 'axe stove shoes spear rack coat curtains'],
+      5: [27, 1, 0, 3, 11, 7, 3, 1, 1699, 'axe shed stove shoes spear rack coat curtains'] },
+  },
+  insane: {
+    day: { 2: [4, 0, 0, 0, 5, 0, 0, 1, 209, ''], 3: [5, 0, 0, 1, 8, 0, 5, 1, 500, 'axe'],
+      4: [5, 0, 0, 3, 9, 1, 2, 1, 850, 'axe stove rack coat curtains'],
+      5: [6, 0, 0, 2, 8, 1, 2, 1, 1200, 'axe shed stove shoes spear rack coat curtains'] },
+    night: { 2: [14, 0, 0, 0, 6, 4, 0, 1, 209, ''], 3: [16, 1, 0, 1, 8, 4, 6, 1, 500, 'axe'],
+      4: [16, 1, 0, 3, 10, 5, 2, 1, 850, 'axe stove rack coat curtains'],
+      5: [18, 1, 0, 2, 8, 5, 2, 1, 1200, 'axe shed stove shoes spear rack coat curtains'] },
+  },
+};
+
+function devKit(night, day) {
+  const [wood, raw, cooked, cured, blood, salt, fur, traps, score, built] = (DEV_KITS[S.diff] || DEV_KITS.normal)[day ? 'day' : 'night'][night];
+  const has = new Set(built.split(' ').filter(Boolean));
   Object.assign(S, {
-    dev: true, lit: true, fire: 3, wood: 18, blood: 6, salt: 3, hunger: 20,
-    boardsBuilt: true, boards: 3, glassBroken: true, lantern: true, lanternLit: true, lanternT: 60,
+    dev: true, lit: true, fire: 3, blood, salt, fur, hunger: 20,
+    boardsBuilt: true, boards: 3, glassBroken: true, lantern: true, lanternLit: true, lanternT: 60, hatchBar: night >= 3,
     stranger: 'inside', strangerFalse: false, sHunger: 20, firstVisit: false, hint: HINTS.length,
-    carry: [0, 0, 250, 600, 1000, 1400][night], final: [0, 0, 250, 600, 1000, 1400][night], met: { woodcutter: true }, axe: true,
+    carry: score, final: score, met: { woodcutter: true, trader: true },
+    axe: has.has('axe'), stove: has.has('stove'), shoes: has.has('shoes'), spear: has.has('spear'), rack: has.has('rack'),
+    coat: has.has('coat'), curtains: has.has('curtains'),
   });
-  S.rawLife = [RAW_LIFE]; S.cookedLife = [COOKED_LIFE, COOKED_LIFE, CURED]; syncMeat();
-  S.trapUses = [makeTrap(), makeTrap()]; syncTraps();
-  if (night >= 3) Object.assign(S, { shed: true, shedBuilt: PILE_CAP, shedWood: 20, traps: 3, fur: 2, rack: true });
-  if (night >= 3) { S.trapUses.push(makeTrap()); syncTraps(); }
+  if (has.has('shed')) Object.assign(S, { shed: true, shedBuilt: PILE_CAP });
+  S.wood = Math.min(PILE_CAP, wood);
+  S.shedWood = S.shed ? Math.min(shedCap(), wood - S.wood) : 0;
+  S.rawLife = Array(raw).fill(RAW_LIFE); S.cookedLife = [...Array(cooked).fill(COOKED_LIFE), ...Array(cured).fill(CURED)]; syncMeat();
+  S.trapUses = Array.from({ length: traps }, makeTrap); syncTraps();
+  if (S.stranger === 'inside' && night >= 5) S.ember = 40;
 }
 
 function devStart(which) {
@@ -5928,7 +5964,7 @@ function devStart(which) {
   S.nightNo = night - 1;
   S.won = true;
   startDay();
-  devKit(night);   // after the day starts, so the kit's meat doesn't spoil over it
+  devKit(night, which.startsWith('day'));   // after the day starts, so the kit's meat doesn't spoil over it
   if (awake) { S.awake = awake - 1; S.tired = true; } else S.awake = 0;
   if (which.startsWith('night')) { if (!awake) S.tired = false; startNextNight(); }
   else renderDay();
@@ -6272,14 +6308,15 @@ window.__firelight = {
   get pending() { return pendingVisit; },
   get eyes() { return eyes.length; },
   day: { start: startDay, do: doDay, night: startNextNight },
-  act: { douse, slam: slamHatch, stoke, eat, cook, wood: () => startTrip('wood'), strike: strikeHand, runBack, build },
+  act: { douse, slam: slamHatch, stoke, eat, cook, wood: () => startTrip('wood'), strike: strikeHand, runBack, build, swat: swatGoblin,
+    curtains: (shut) => { if (S.curtains) S.curtainsShut = shut; } },
   visit: (who, as, fake) => queueVisit(who, as, fake),
   die: (cause) => die(cause),
   dev: (which) => devStart(which),
   lab: { open: () => openLab(), close: () => closeLab(), scenes: LAB_SCENES.map((sc) => sc.id), load: (id, t) => labLoad(LAB_SCENES.find((sc) => sc.id === id), t), get t() { return lab && lab.t; } },
   get lossT() { return lossT; },
   choose,
-  newNight: () => newNight(true),
+  newNight: (diff) => newNight(true, diff),
   backToTitle,
   // advance the game by `sec` seconds; draw = false skips rendering (for fast simulations)
   step(sec, draw = true) {

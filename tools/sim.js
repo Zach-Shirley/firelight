@@ -284,3 +284,174 @@ export function report(n = 300) {
   return out;
 }
 
+
+/* ---------------------------------------------------------- the perfect player, all five nights */
+
+// Knows everything the game can teach and reacts instantly: every tell, every defense from nights 3 to 5, buys
+// what is worth buying, and hoards. The ceiling for the score and the yardstick for the playtest kits.
+const HOUR_S = 52.5;
+const clock = (S) => S.night / HOUR_S;   // hours since 10 pm
+const bloodHourNow = (S) => S.nightNo >= 5 && Math.floor(clock(S)) === 5;
+const floodSoon = (S) => S.nightNo >= 5 && clock(S) >= 6.3;
+const curedOf = (S) => S.cookedLife.filter((l) => l > 1e8).length;
+const labelIndex = (d, word) => d.choices.findIndex((c) => c.label.includes(word));
+const shutIndex = (d) => labelIndex(d, 'keep it shut');
+const SHOP_ORDER = ['stove', 'grate', 'shoes', 'spear', 'ironTrap'];
+const CLOTHES = [['coat', 6], ['curtains', 5], ['pants', 5], ['hat', 4], ['socks', 3], ['insulate', 6]];
+
+function perfect(f, S, mem) {
+  const d = f.dialog;
+  const n = S.nightNo;
+  if (d) {
+    if (d.id === 'knock') {
+      const v = d.visit;
+      if (bloodHourNow(S) || floodSoon(S)) return f.choose(shutIndex(d));
+      if (n >= 5) {
+        // two feet under the door means nothing now: only the slot tells
+        if (S.slot && !v.looked) return f.choose(labelIndex(d, 'slot'));
+        const right = v.looked && !['mimic', 'ash', 'blood', 'phantom'].includes(v.who);
+        return f.choose(right ? labelIndex(d, 'open') : shutIndex(d));
+      }
+      // without a lit lantern, from 3 am footsteps can be faked: then nobody comes in
+      const truth = lanternTruth(S, v);
+      const open = truth ?? (clock(S) < 5 && heardFootsteps(v));
+      return f.choose(open && v.who !== 'phantom' ? labelIndex(d, 'open') : shutIndex(d));
+    }
+    if (d.id === 'cutter') {
+      const meat = S.meat + S.cooked - curedOf(S);
+      if (meat + curedOf(S) < 3 && S.wood >= 12) { const i = keyed(d, 'woodForMeat'); if (i >= 0) return f.choose(i); }   // hungry: logs for food
+      if (!S.axe && meat >= 3) { const i = keyed(d, 'axe'); if (i >= 0) return f.choose(i); }
+      // two meat for fifteen logs is the best deal in the woods whenever wood is short
+      if (meat + curedOf(S) >= 6 && (S.meat >= 2 || S.wood + S.shedWood < 60)) { const i = keyed(d, 'meat2ForWood'); if (i >= 0) return f.choose(i); }
+      if (S.meat >= 1 && meat + curedOf(S) >= 5) { const i = keyed(d, 'meatForWood'); if (i >= 0) return f.choose(i); }
+      return f.choose(keyed(d, 'no'));
+    }
+    if (d.id === 'shop') {
+      for (const k of SHOP_ORDER) { const i = keyed(d, k); if (i >= 0 && S.blood >= 7) return f.choose(i); }
+      const salt = keyed(d, 'salt');
+      if (salt >= 0 && S.salt < 12 && S.blood >= 5) return f.choose(salt);   // 3 salt for a jar of blood
+      return f.choose(keyed(d, 'leave'));
+    }
+    // she only needs feeding on her last plea; on the last night feeding her makes her stronger for the ending
+    if (d.id === 'plea') { const i = keyed(d, 'cooked'); return f.choose(i >= 0 && (d.last || (n >= 5 && S.cooked >= 3) || S.cooked >= 8) ? i : keyed(d, 'no')); }
+    if (d.id === 'demand') return f.choose(keyed(d, 'leave'));
+    return f.choose(0);
+  }
+  if (S.away) { if ((S.hunter.near || S.stalk > (mem.flee ?? 30)) && S.away.kind !== 'drag') f.act.runBack(); return; }
+  // instant reactions
+  if (S.hand.phase === 'reach') f.act.strike();
+  if (S.hatch.phase === 'lift') f.act.slam();
+  if (S.blaze > 0) f.act.douse();
+  f.act.swat();
+  // the fire never goes out: that is the keeper's ending
+  if (!S.lit || S.fire <= 2 || (S.fire === 3 && S.wood > (n >= 3 ? 6 : 12))) f.act.stoke();
+  if (S.meat >= 1 && S.fire >= 1) f.act.cook();
+  if (S.hunger >= 60 && S.cooked - curedOf(S) > 0) f.act.eat();
+  if (S.hunger >= 80 && S.cooked > 0) f.act.eat();
+  const saltKeep = n >= 4 ? 4 : 0;   // goblin nights: salt is for throwing
+  if (S.salt > saltKeep) f.act.build('cure');
+  // defenses
+  if (n >= 4 && S.salt >= 1) for (const c of ['bl', 'fl', 'fr', 'br']) f.act.build(`saltGob_${c}`);
+  if (S.salt >= 2) { f.act.build('saltDoor'); f.act.build('saltWin'); }
+  if (n >= 2) { f.act.build('bar'); if (S.salt >= 4) f.act.build('saltHatch'); }
+  // boards come first, then the traps; everything else waits on a reserve of logs (bare window: she takes ten)
+  if (!S.boardsBuilt && (S.wood >= 11 || (S.wood >= 8 && clock(S) > 2.4))) f.act.build('boards');   // keep a few for the fire
+  const spare = S.wood - (S.boardsBuilt ? 8 : 16);
+  if (S.boardsBuilt && S.traps < 2 && S.wood >= 12) f.act.build('trap');
+  if (S.traps < 3 && spare >= 6) f.act.build('trap');
+  if (!S.lantern && S.blood >= 4 && spare >= 8) f.act.build('lantern');
+  if (S.salt >= 3 + saltKeep && S.traps) f.act.build('saltTrap');
+  if (n >= 3 && !S.rack && spare >= 12) f.act.build('rack');
+  if (n >= 3) for (const [k, c] of CLOTHES) if (S.fur >= c) f.act.build(k);
+  if (n >= 3 && n <= 4) f.act.curtains(true);
+  if (n >= 4) {
+    for (const c of ['bl', 'fl', 'fr', 'br']) {
+      if (spare >= 2 || (S.torches && S.torches[c] === 'out')) f.act.build(`torch_${c}`);
+      if (S.salt >= 1) f.act.build(`saltGob_${c}`);
+    }
+    // a full woodshed is a nest: keep the cabinet planked, open it only to restock the pile
+    if (S.shed && !S.cabBar && S.wood >= 15) f.act.build('barCab');
+    if (S.cabBar && S.wood < 8 && S.shedWood > 0) f.act.build('unbarCab');
+  }
+  if (n >= 5 && spare >= 6) f.act.build('slot');
+  if (floodSoon(S)) { if (!S.cabBar && S.wood >= 3) f.act.build('barCab'); if (!S.boardsBuilt && S.wood >= 8) f.act.build('boards'); return; }
+  // the woodshed goes up a few logs at a time, whenever there are logs to spare and it is quiet
+  // (you carry every log out to build with, so only with plenty, and the fire roaring first)
+  if (!S.shed && S.wood >= 20 && S.boardsBuilt && S.traps >= 2 && !S.hunter.near && S.hand.phase === 'idle' && S.stalk < 3 && !bloodHourNow(S)) {
+    if (S.fire < 4) return f.act.stoke();
+    return f.act.build('shed');
+  }
+  // trips: out whenever it is quiet, the way a hoarder would
+  const low = S.wood + S.shedWood < 10;   // running low: go while it is still possible
+  if (S.hunter.near || S.stalk > (n >= 4 && !low ? 3 : low ? 25 : mem.bold ?? 15) || bloodHourNow(S)) return;
+  if (S.hand.phase !== 'idle' || S.hatch.phase !== 'idle') return;
+  if (n >= 3 && S.cold > (S.wood + S.shedWood < 20 ? 45 : 10)) return;   // low on logs, it goes anyway unless it is dangerously cold
+  if (n >= 4 && (S.goblins.length >= 2 || (S.goblins.length && S.salt < 1) || !S.saltDoor) && S.wood >= 6) return;   // one more could be the last
+  const cap = 25 + (S.shed ? ({ normal: 100, hard: 70, insane: 50 }[S.diff] || 100) : 0);
+  if (S.wood + S.shedWood < cap - 4 || S.traps) return f.act.wood();
+}
+players.perfect = perfect;
+dayPlans.perfect = ['sit', 'sleep', 'traps', 'window', 'chop', 'chop', 'scavenge', 'chop', 'hunt'];
+
+const snap = (S, night) => ({
+  night, wood: S.wood + S.shedWood, raw: S.meat, cooked: S.cooked - curedOf(S), cured: curedOf(S),
+  blood: S.blood, salt: S.salt, fur: S.fur, traps: S.traps,
+  shed: !!S.shed, rack: !!S.rack, stove: !!S.stove, shoes: !!S.shoes, spear: !!S.spear, axe: !!S.axe,
+  coat: !!S.coat, curtains: !!S.curtains, stranger: S.stranger === 'inside' && !S.strangerFalse, score: S.final,
+});
+
+// whole runs, nights 1 to 5 with the days between: where each died, and what it held at each dawn
+export function runFull(name = 'perfect', n = 50, diff = 'normal', tune = {}) {
+  const f = F();
+  const out = { n, diff, deaths: {}, finished: 0, dawns: [[], [], [], [], [], []], starts: [[], [], [], [], [], []], finals: [], endings: {} };
+  window.__simulating = true;
+  for (let i = 0; i < n; i++) {
+    f.newNight(diff);
+    const mem = { name, reacted: new Set(), handId: '0', willStrike: false, howlDelay: 1, clawDelay: 0.2, ...tune };
+    for (let night = 1; night <= 5; night++) {
+      let guard = 0;
+      while (f.mode === 'playing' && guard++ < 3000) { players[name](f, f.state, mem); f.step(0.5, false); }
+      let g2 = 0;
+      while (f.mode === 'dawn' && g2++ < 100) { if (f.dialog) f.choose(0); f.step(0.5, false); }
+      const S = f.state;
+      if (!S.won) { const k = `n${night}:${S.cause}`; out.deaths[k] = (out.deaths[k] || 0) + 1; f.step(4, false); break; }
+      out.dawns[night].push(snap(S, night));
+      if (night === 5) { out.finished += 1; out.finals.push(S.final); out.endings[S.ending] = (out.endings[S.ending] || 0) + 1; break; }
+      f.day.start();
+      spendDay(f, name);
+      out.starts[night + 1].push(snap(f.state, night + 1));   // what it walks into the next night with
+    }
+  }
+  window.__simulating = false;
+  return out;
+}
+
+const median = (a) => { const b = [...a].sort((x, y) => x - y); return b.length ? b[Math.floor(b.length / 2)] : null; };
+export function fullReport(n = 50, diffs = ['normal', 'hard', 'insane'], name = 'perfect', tune = {}) {
+  const rep = {};
+  for (const diff of diffs) {
+    const r = runFull(name, n, diff, tune);
+    const dawns = {};
+    for (let k = 1; k <= 5; k++) {
+      const list = r.dawns[k];
+      if (!list.length) continue;
+      const m = { reached: `${list.length}/${n}` };
+      for (const key of ['wood', 'raw', 'cooked', 'cured', 'blood', 'salt', 'fur', 'traps', 'score']) m[key] = median(list.map((x) => x[key]));
+      for (const key of ['shed', 'rack', 'stove', 'shoes', 'spear', 'axe', 'coat', 'curtains', 'stranger']) m[key] = `${Math.round((list.filter((x) => x[key]).length / list.length) * 100)}%`;
+      dawns[k] = m;
+    }
+    const starts = {};
+    for (let k = 2; k <= 5; k++) {
+      const list = r.starts[k];
+      if (!list.length) continue;
+      const m = { reached: `${list.length}/${n}` };
+      for (const key of ['wood', 'raw', 'cooked', 'cured', 'blood', 'salt', 'fur', 'traps', 'score']) m[key] = median(list.map((x) => x[key]));
+      for (const key of ['shed', 'rack', 'stove', 'shoes', 'spear', 'axe', 'coat', 'curtains', 'stranger']) m[key] = `${Math.round((list.filter((x) => x[key]).length / list.length) * 100)}%`;
+      starts[k] = m;
+    }
+    rep[diff] = { finished: `${r.finished}/${n}`, deaths: r.deaths, endings: r.endings,
+      final: r.finals.length ? { min: Math.min(...r.finals), median: median(r.finals), max: Math.max(...r.finals) } : null, dawns, starts };
+  }
+  F().backToTitle();
+  return rep;
+}

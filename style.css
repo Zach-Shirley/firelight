@@ -660,6 +660,9 @@ body.touch #dayList button { min-height: calc(14px * var(--s)); }
   color: #fff3d6; background: rgba(60, 40, 20, 0.92); border-color: #e0a050; animation: flicker 0.4s infinite;
 }
 #swat::after { content: ''; position: absolute; left: 0; bottom: 0; height: calc(1px * var(--s)); width: var(--cd, 100%); background: #e0a050; }
+/* the playtest starts: day and night side by side, two to a row */
+.menu-col.dev-grid { display: grid; grid-template-columns: 1fr 1fr; gap: calc(2.5px * var(--s)) calc(4px * var(--s)); align-items: stretch; }
+.menu-col.dev-grid button { min-width: 0; font-size: calc(6.5px * var(--s)); white-space: nowrap; }
 .dev-diff { display: block; font-size: calc(6px * var(--s)); color: var(--ink-dim); margin-bottom: calc(3px * var(--s)); }
 .dev-diff select { font: inherit; font-size: calc(6px * var(--s)); background: var(--panel-solid); color: var(--ink); border: calc(0.5px * var(--s)) solid var(--edge); }
 
