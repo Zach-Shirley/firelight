@@ -153,6 +153,29 @@ Pick a difficulty for each run; each has its own leaderboard.
 | **Hard** | A little less wood (90% on trips, 85% chopping), 30% fewer catches, hungrier, meat goes bad sooner, a smaller woodshed (70). The grin takes three seconds; she and the hatch are quicker; more of the knocks are mimics. The trader sells one bundle of **smoked meat** a visit (1 blood + 2 logs for 2 cooked meat) |
 | **Insane** | The traps barely feed you (42% of normal catches), much hungrier, less wood, a 50-log woodshed that loses some logs to damp each day. The trader comes every night (from 11 pm), charges a jar of blood less, sells an **iron trap** that never wears out, and trades **smoked meat for logs** (2 logs for 2 cooked meat, three times a visit). A night with no one knocking is nearly always the last |
 
+**Challenges** go on top of any difficulty, one per run, picked beside the difficulty when you start ([challenges.js](challenges.js)). Each multiplies every night's score and has its own achievement for surviving all five nights under it:
+
+| | | |
+| --- | --- | --- |
+| **No axe** | the woodcutter keeps his axe | ×1.15 |
+| **No woodshed** | the pile by the fire is all the wood you have | ×1.3 |
+| **No lantern** | you can never count the feet under the door | ×1.2 |
+| **One trap** | never more than one | ×1.35 |
+| **No torches** | the goblins have every corner | ×1.15 |
+| **No visitors** | the door never opens to a knock: no woodcutter, no trader, no stranger | ×1.4 |
+
+Under each challenge is its record for the difficulty you're pointing at: the best finished run by a person (kept on this computer until there are accounts), otherwise the best finished run by the evolved bots (`sim.certifyChallenges`), otherwise **presumed impossible**: no bot survived all five nights in hundreds of tries. Presumed-impossible challenges can still be played.
+
+Bot records on 2026-10-19 (each a replayable seed and genome in [tools/challenge-records.json](tools/challenge-records.json); 640 to 1,200 runs tried per cell):
+
+| | No axe | No woodshed | No lantern | One trap | No torches | No visitors |
+| --- | --- | --- | --- | --- | --- | --- |
+| Normal | 5,399 | 5,514 | 6,267 | 3,385 | 5,605 | presumed impossible |
+| Hard | 3,991 | 3,825 | 4,819 | presumed impossible | 4,317 | presumed impossible |
+| Insane | 3,403 | 3,759 | 4,107 | presumed impossible | 3,724 | presumed impossible |
+
+No visitors fails for the bots because the woodcutter is most of the wood: without his trades a night-2 pile hovers between empty and a dozen logs, the woodshed never gets built, and the first blizzard puts the fire out.
+
 **Scares** (on the title screen) is separate from difficulty:
 - **Eerie** keeps the dread and no jump scares.
 - **Terrifying** adds:
@@ -362,6 +385,8 @@ score.js            scoring and leaderboard logic (pure, tested)
 tests/              Node test runner tests
 tools/sim.js        difficulty simulation, the evolved perfect player (not deployed)
 tools/genomes.json  its best genomes and replayable best runs
+tools/challenge-records.json  the bots' challenge records, replayable
+challenges.js       the challenges, their multipliers and the bots' records
 docs/               README screenshots
 ```
 
@@ -437,7 +462,7 @@ Open the game once with `?dev` on the address (https://firelight-topaz.vercel.ap
 
 The playtest menu also opens the **death lab** (or go straight there with `?lab`, https://firelight-topaz.vercel.app/?lab): every death on its own in an empty lit cabin, set up the way the room looks when it really happens (night 4's goblins, night 5's blood hour, out in the trees for the hunter and the whiteout), plus the flood from each way in, the goblins from one, two or three corners, the jump scare for every death, the face at the window on a close call, and the mimic stopped at the salt line. Play, pause, restart, scrub, slow it to 0.25x or 0.5x, switch scares between eerie and terrifying, and turn sound on or off (space, R, the arrow keys for one frame, Esc to leave). Scenes run from a fixed seed, so scrubbing shows the same frames each time. Nothing in the lab touches your saved night, the stats, the leaderboard or achievements.
 
-The version is in the bottom-right corner (v0.70 is the 70th commit; the number counts every commit, docs included), so you can tell a refresh picked up the latest build.
+The version is in the bottom-right corner (v0.71 is the 71st commit; the number counts every commit, docs included), so you can tell a refresh picked up the latest build.
 
 ## Future ideas
 

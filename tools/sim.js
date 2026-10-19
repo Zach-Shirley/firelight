@@ -296,6 +296,7 @@ const floodSoon = (S) => S.nightNo >= 5 && clock(S) >= 6.3;
 const curedOf = (S) => S.cookedLife.filter((l) => l > 1e8).length;
 const labelIndex = (d, word) => d.choices.findIndex((c) => c.label.includes(word));
 const shutIndex = (d) => labelIndex(d, 'keep it shut');
+const openIndex = (d) => { const i = labelIndex(d, 'open the door'); return i >= 0 ? i : shutIndex(d); };   // no visitors: there is no opening it
 const SHOP_ORDER = ['stove', 'grate', 'shoes', 'spear', 'ironTrap'];
 const CLOTHES = [['coat', 6], ['curtains', 5], ['pants', 5], ['hat', 4], ['socks', 3], ['insulate', 6]];
 
@@ -343,12 +344,12 @@ function perfect(f, S, mem) {
         // two feet under the door means nothing now: only the slot tells
         if (S.slot && !v.looked) return f.choose(labelIndex(d, 'slot'));
         const right = v.looked && !['mimic', 'ash', 'blood', 'phantom'].includes(v.who);
-        return f.choose(right ? labelIndex(d, 'open') : shutIndex(d));
+        return f.choose(right ? openIndex(d) : shutIndex(d));
       }
       // without a lit lantern, from 3 am footsteps can be faked: then nobody comes in
       const truth = lanternTruth(S, v);
       const open = truth ?? (clock(S) < 5 && heardFootsteps(v));
-      return f.choose(open && v.who !== 'phantom' ? labelIndex(d, 'open') : shutIndex(d));
+      return f.choose(open && v.who !== 'phantom' ? openIndex(d) : shutIndex(d));
     }
     if (d.id === 'cutter') {
       const meat = S.meat + S.cooked - curedOf(S);
@@ -393,6 +394,11 @@ function perfect(f, S, mem) {
   // trapsFirst: Zach's order, three traps as fast as possible and the boards by 1 am
   if (G.trapsFirst >= 0.5 && n === 1 && !S.boardsBuilt && S.traps < 3 && clock(S) < 2.3) { if (S.wood >= 7) f.act.build('trap'); }
   else if (!S.boardsBuilt && (S.wood >= G.boardsAt || (S.wood >= 8 && clock(S) > G.boardsLate) || (G.trapsFirst >= 0.5 && S.wood >= 8))) f.act.build('boards');   // keep a few for the fire
+  // from night 2, the woodshed comes before anything else that costs logs: without one the blizzard eats the pile
+  if (n >= 2 && !S.shed && S.wood >= G.shedAt && S.boardsBuilt && !S.hunter.near && S.hand.phase === 'idle' && S.stalk < 3 && !bloodHourNow(S) && !floodSoon(S)) {
+    if (S.fire < 4) return f.act.stoke();
+    return f.act.build('shed');
+  }
   const spare = S.wood - (S.boardsBuilt ? G.reserve : 16);
   if (S.boardsBuilt && S.traps < 2 && S.wood >= G.trap2At) f.act.build('trap');
   if (S.traps < 3 && spare >= 6) f.act.build('trap');
@@ -414,7 +420,7 @@ function perfect(f, S, mem) {
   if (floodSoon(S)) { if (!S.cabBar && S.wood >= 3) f.act.build('barCab'); if (!S.boardsBuilt && S.wood >= 8) f.act.build('boards'); return; }
   // the woodshed goes up a few logs at a time, whenever there are logs to spare and it is quiet
   // (you carry every log out to build with, so only with plenty, and the fire roaring first)
-  if (!S.shed && S.wood >= G.shedAt && S.boardsBuilt && S.traps >= 2 && !S.hunter.near && S.hand.phase === 'idle' && S.stalk < 3 && !bloodHourNow(S)) {
+  if (!S.shed && S.wood >= G.shedAt && S.boardsBuilt && (S.traps >= 2 || n >= 2) && !S.hunter.near && S.hand.phase === 'idle' && S.stalk < 3 && !bloodHourNow(S)) {
     if (S.fire < 4) return f.act.stoke();
     return f.act.build('shed');
   }
@@ -425,6 +431,9 @@ function perfect(f, S, mem) {
   if (n >= 3 && S.cold > (S.wood + S.shedWood < G.lowWood ? G.coldGoLow : G.coldGo)) return;   // low on logs, it goes anyway unless it is dangerously cold
   if (n >= 4 && (S.goblins.length >= G.gobMax || (S.goblins.length && S.salt < 1) || !S.saltDoor) && S.wood >= 6) return;   // one more could be the last
   const cap = 25 + (S.shed ? ({ normal: 100, hard: 70, insane: 50 }[S.diff] || 100) : 0);
+  // no room for another armful (no woodshed, or a full one): a trip would topple the pile into the fire
+  const noRoom = S.wood > 18 && S.wood + S.shedWood >= cap - 7;
+  if (noRoom && S.meat + S.cooked >= 2) return;
   if (S.wood + S.shedWood < cap - 4 || S.traps) return f.act.wood();
 }
 players.perfect = perfect;
@@ -525,14 +534,14 @@ export function withSeed(seed, fn) {
 
 // One whole run (up to five nights and the days between) by the perfect player with genome g.
 // Returns how far it got, its score, what killed it, and which visitors came each night.
-export function runOne(g, seed, diff = 'normal') {
+export function runOne(g, seed, diff = 'normal', ch = null) {
   const f = F();
   window.__simulating = true;
   try {
     return withSeed(seed, () => {
-      f.newNight(diff);
+      f.newNight(diff, ch);
       const mem = { name: 'perfect', reacted: new Set(), g: { ...defaultGenome(), ...g } };
-      const res = { seed, diff, nights: 0, finished: false, score: 0, cause: null, ending: null, visits: [], dawns: [], starts: [] };
+      const res = { seed, diff, ch, nights: 0, finished: false, score: 0, cause: null, ending: null, visits: [], dawns: [], starts: [] };
       for (let night = 1; night <= 5; night++) {
         const vis = { woodcutter: 0, trader: 0 };
         let lastD = null, guard = 0;
@@ -580,26 +589,28 @@ export function mutate(g, rate = 0.3, size = 0.15, rnd = Math.random) {
 }
 
 const mean = (a) => a.reduce((x, y) => x + y, 0) / Math.max(1, a.length);
-export function evaluate(g, seeds, diff) {
-  const runs = seeds.map((sd) => runOne(g, sd, diff));
+export function evaluate(g, seeds, diff, ch = null) {
+  const runs = seeds.map((sd) => runOne(g, sd, diff, ch));
   return { fitness: mean(runs.map(fitnessOf)), finished: runs.filter((r) => r.finished).length, nights: mean(runs.map((r) => r.nights)), runs };
 }
 
 // A simple evolution: keep the best few genomes, fill the rest of the population with mutants of them, and test every
 // generation on fresh seeds (so a genome that was only lucky drops out). Runs in slices so the page stays alive;
 // progress and results land in window.__evo. Returns a promise of the result.
-export async function evolve(diff = 'normal', { pop = 12, gens = 10, seeds = 8, keep = 3, start = null, seedBase = 1 } = {}) {
+export async function evolve(diff = 'normal', { pop = 12, gens = 10, seeds = 8, keep = 3, start = null, seedBase = 1, ch = null } = {}) {
   const rnd = mulberry(seedBase * 7919 + diff.length);
   let population = [start || defaultGenome()];
   while (population.length < pop) population.push(mutate(population[0], 0.5, 0.2, rnd));
-  const evo = (window.__evo = { diff, gen: 0, gens, history: [], best: null, bestRuns: [] });
+  const evo = (window.__evo = { diff, ch, gen: 0, gens, history: [], best: null, bestRuns: [], tested: 0, bestFinish: null });
   for (let gen = 0; gen < gens; gen++) {
     const sd = Array.from({ length: seeds }, (_, i) => seedBase * 100000 + gen * 1000 + i);
     const scored = [];
     for (const g of population) {
       await yieldNow();
-      const e = evaluate(g, sd, diff);
+      const e = evaluate(g, sd, diff, ch);
       scored.push({ g, ...e });
+      evo.tested += e.runs.length;
+      for (const r of e.runs) if (r.finished && (!evo.bestFinish || r.score > evo.bestFinish.score)) evo.bestFinish = { score: r.score, nights: r.nights, seed: r.seed, g };
       for (const r of e.runs) evo.bestRuns.push({ fitness: fitnessOf(r), seed: r.seed, diff, g, nights: r.nights, score: r.score, finished: r.finished, visits: r.visits });
       evo.bestRuns.sort((a, b) => b.fitness - a.fitness);
       evo.bestRuns.length = Math.min(evo.bestRuns.length, 20);
@@ -656,7 +667,9 @@ export async function pickBest(evo, n = 30, seedBase = 800000) {
   let best = null;
   for (const g of evo.leaders || [evo.best.g]) {
     await yieldNow();
-    const e = evaluate(g, Array.from({ length: n }, (_, i) => seedBase + i), evo.diff);
+    const e = evaluate(g, Array.from({ length: n }, (_, i) => seedBase + i), evo.diff, evo.ch);
+    evo.tested = (evo.tested || 0) + e.runs.length;
+    for (const r of e.runs) if (r.finished && (!evo.bestFinish || r.score > evo.bestFinish.score)) evo.bestFinish = { score: r.score, nights: r.nights, seed: r.seed, g };
     if (!best || e.fitness > best.fitness) best = { g, fitness: e.fitness, finished: e.finished, nights: e.nights, n };
   }
   evo.validated = best;
@@ -692,4 +705,21 @@ export async function replayBest(diff = 'normal', i = 0) {
   const run = gj.bestRuns[diff][i];
   const r = runOne(gj.genomes[diff], run.seed, diff);
   return { recorded: run, replayed: { nights: r.nights, score: r.score, finished: r.finished, ending: r.ending }, same: r.score === run.score && r.nights === run.nights };
+}
+
+// Certify the challenges: for each difficulty and challenge, evolve the perfect player from that difficulty's best
+// genome under the challenge's rule, then check the leaders on fresh seeds. Any finished run proves the challenge
+// possible and its best score becomes the bot record; none finished in all those tries means "presumed impossible".
+// Results land in window.__cert as they come, in the BOT_RECORDS format of challenges.js.
+export async function certifyChallenges(combos, { pop = 10, gens = 6, seeds = 8, validate = 20 } = {}) {
+  const gj = await genomes();
+  const cert = (window.__cert = window.__cert || {});
+  for (const [diff, ch] of combos) {
+    const evo = await evolve(diff, { pop, gens, seeds, keep: 3, start: gj.genomes[diff], seedBase: 50 + Object.keys(cert).length, ch });
+    await pickBest(evo, validate, 860000);
+    const b = evo.bestFinish;
+    cert[`${diff}:${ch}`] = b ? { score: b.score, nights: 5, seed: b.seed, g: b.g, tested: evo.tested } : { impossible: true, tested: evo.tested };
+    try { localStorage.setItem('fl-cert', JSON.stringify(cert)); } catch (e) { /* kept in memory */ }
+  }
+  return cert;
 }

@@ -95,16 +95,21 @@
           <button id="achBtn">achievements</button>
           <button id="scareBtn" title="eerie: no jump scares. terrifying: a whine when something is about to kill you, a lunge when it does.">scares: eerie</button>
           <button id="howBtn">how to play</button>
-          <button id="titleFullBtn">fullscreen</button>
           <button id="devBtn" class="hidden">playtest</button>
         </div>
 
         <div id="diffPanel" class="subpanel hidden">
           <h2>how hard a winter?</h2>
-          <div class="diff-list">
-            <button data-diff="normal"><span class="name">normal</span><span class="desc"></span></button>
-            <button data-diff="hard"><span class="name">hard</span><span class="desc"></span></button>
-            <button data-diff="insane"><span class="name">insane</span><span class="desc"></span></button>
+          <div class="diff-wrap">
+            <div class="diff-list">
+              <button data-diff="normal"><span class="name">normal</span><span class="desc"></span></button>
+              <button data-diff="hard"><span class="name">hard</span><span class="desc"></span></button>
+              <button data-diff="insane"><span class="name">insane</span><span class="desc"></span></button>
+            </div>
+            <div class="ch-col">
+              <div class="ch-head">a challenge? <span id="chFor"></span></div>
+              <div id="chList" class="ch-list"></div>
+            </div>
           </div>
           <button class="backBtn">back</button>
         </div>

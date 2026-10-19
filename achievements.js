@@ -24,6 +24,14 @@ export const ACHIEVEMENTS = [
   { id: 'die_sleep', group: 'deaths', name: 'Eyes Closed', desc: 'Go a fourth day without sleep.', later: true },
   { id: 'die_lost', group: 'deaths', name: 'Into the White', desc: 'Lose the path in the blizzard for good. About one blizzard night in a hundred.', hidden: true, hint: 'something very unlucky.' },
 
+  // challenges: all five nights under one rule, on any difficulty
+  { id: 'ch_noAxe', group: 'challenges', name: 'Bare Hands', desc: 'Survive all five nights without the axe.' },
+  { id: 'ch_noShed', group: 'challenges', name: 'One Pile', desc: 'Survive all five nights without a woodshed.' },
+  { id: 'ch_noLantern', group: 'challenges', name: 'In the Dark', desc: 'Survive all five nights without the blood lantern.' },
+  { id: 'ch_oneTrap', group: 'challenges', name: 'Lean Winter', desc: 'Survive all five nights with only one trap.' },
+  { id: 'ch_noTorches', group: 'challenges', name: 'Their Corners', desc: 'Survive all five nights without a torch.' },
+  { id: 'ch_noVisitors', group: 'challenges', name: 'Nobody Home', desc: 'Survive all five nights without opening the door to anyone.' },
+
   // surviving
   { id: 'night_1', group: 'nights', name: 'First Light', desc: 'Survive the first night.' },
   { id: 'night_2', group: 'nights', name: 'Second Dawn', desc: 'Survive the second night.' },

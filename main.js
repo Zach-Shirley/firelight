@@ -5,8 +5,9 @@
 import * as sfx from './sound.js';
 import { ACHIEVEMENTS, createStore } from './achievements.js';
 import { computeScore, qualifies, insertScore, cleanInitials, sanitizeBoard } from './score.js';
+import { CHALLENGES, challengeById, recordFor } from './challenges.js';
 
-const VERSION = '0.70';   // one step per commit to the repository
+const VERSION = '0.71';   // one step per commit to the repository
 const W = 320, H = 180;
 const FIRE = { x: 160, y: 136 };          // base of the flames
 const LIGHT_Y = 130;                       // centre of the light pool
@@ -55,6 +56,9 @@ const DIFFS = {
     blurb: 'almost nothing to live on, and the woodshed rots. without the people who knock, you will not last. the trader charges less, trades smoked meat for logs, and sells an iron trap that never breaks.' },
 };
 const D = () => DIFFS[S.diff] || DIFFS.normal;
+// the challenge's rules
+const noVisitors = () => S.ch === 'noVisitors';
+const trapMax = () => (S.ch === 'oneTrap' ? 1 : 3);
 const boardKey = (diff) => (diff && diff !== 'normal' ? `${BOARD_KEY}-${diff}` : BOARD_KEY);
 const STATS_KEY = 'firelight-stats-v1';
 const FALSE_STRANGER_CHANCE = 0.12;   // some nights, the stranger you let in is not her
@@ -95,6 +99,7 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 function freshState() {
   return {
     v: 8,
+    ch: null,                                    // the challenge this run is taking, if any (challenges.js)
     time: 0,
     night: 0,
     hourSaid: 0,
@@ -656,7 +661,7 @@ function lookThroughSlot(v) {
     portrait: wrong ? `${key}Wrong` : key,
     text: `You slide the slot open. ${face}${snatch}`,
     choices: [
-      { label: 'open the door', act: () => openDoorFor(v) },
+      ...(noVisitors() ? [] : [{ label: 'open the door', act: () => openDoorFor(v) }]),
       { label: 'keep it shut', act: () => keepShut(v) },
     ],
   });
@@ -1338,7 +1343,7 @@ const SHOP = [
     has: () => S.charm, avail: () => true,
     buy: () => { S.charm = true; return 'he ties a charm of knotted finger bones around your wrist. it is warm, like it has a pulse.'; } },
   { id: 'ironTrap', name: 'iron trap', price: { blood: 5 }, desc: 'a heavy iron trap that never wears out and never breaks. it takes the place of your next trap. (insane only)',
-    has: () => S.trapUses.some((u) => u >= 999) || S.traps >= 3, avail: () => !!D().trader,
+    has: () => S.trapUses.some((u) => u >= 999) || S.traps >= trapMax(), avail: () => !!D().trader,
     buy: () => { S.trapUses.push(999); syncTraps(); return 'he sets down an iron trap so heavy you can barely lift it. it will outlast you.'; } },
   { id: 'meat', name: 'smoked meat', price: { blood: 1, wood: 2 }, desc: 'two strips of smoked meat, wrapped in cloth. +2 cooked meat.',   // on insane: just the logs
     has: () => (S.traderMeatN || 0) >= D().traderMeat, avail: () => D().traderMeat > 0,
@@ -1802,7 +1807,7 @@ function knockDialogue(v) {
     portrait: lanternLit() ? `doorFeet${v.feet ?? 2}` : 'door',
     text: knockText(v) + lanternText(),
     choices: [
-      { label: 'open the door', act: () => openDoorFor(v) },
+      ...(noVisitors() ? [] : [{ label: 'open the door', act: () => openDoorFor(v) }]),
       ...(S.slot && !v.looked ? [{ label: 'look through the slot', act: () => lookThroughSlot(v) }] : []),
       { label: 'keep it shut', act: () => keepShut(v) },
     ],
@@ -1865,7 +1870,7 @@ function openDoorFor(v) {
         choices: [
           { key: 'meatForWood', label: 'give 1 meat for 7 wood', can: () => anyMeat() >= 1, act: () => { takeMeat(); addWood(7); say(blizzard() ? 'he stacks seven logs by the door, dry from under his oilcloth. +7 dry wood' : 'he stacks seven logs by the door. +7 wood'); } },
           { key: 'meat2ForWood', label: 'give 2 meat for 15 wood', can: () => anyMeat() >= 2, act: () => { takeMeat(); takeMeat(); addWood(15); say(blizzard() ? 'he unloads half his sled, dry from under the oilcloth. +15 dry wood' : 'he unloads half his sled by the door. +15 wood'); } },
-          ...(S.axe ? [] : [{ key: 'axe', label: 'give 3 meat for his spare axe', desc: 'a real axe: every wood trip brings back half again as much.', can: () => anyMeat() >= 3,
+          ...(S.axe || S.ch === 'noAxe' ? [] : [{ key: 'axe', label: 'give 3 meat for his spare axe', desc: 'a real axe: every wood trip brings back half again as much.', can: () => anyMeat() >= 3,
             act: () => { takeMeat(); takeMeat(); takeMeat(); S.axe = true; sfx.chime(); say('he hands you his spare axe, the handle worn smooth. "keep it sharp." your wood trips will bring back more now.'); } }]),
           { key: 'woodForMeat', label: 'give 6 wood for 1 cooked meat', can: () => S.wood >= 6, act: () => { S.wood -= 6; addCooked(1); say('he hands over a strip of smoked meat. +1 cooked meat'); } },
           { key: 'no', label: 'no trade', act: () => say('the woodcutter drags his sled back into the dark.') },
@@ -2106,6 +2111,7 @@ function startDawn() {
   for (const e of eyes) e.out = true;
   achieve(`night_${S.nightNo}`);
   if (S.nightNo >= LAST_NIGHT) { S.ending = finalEnding(); achieve(`end_${S.ending}`); }
+  if (S.nightNo >= LAST_NIGHT && S.ch) achieve(`ch_${S.ch}`);
   if (S.nightNo >= LAST_NIGHT && S.diff === 'hard') achieve('hard_win');
   if (S.nightNo >= LAST_NIGHT && S.diff === 'insane') { achieve('hard_win'); achieve('insane_win'); }
   if (lvl() >= 3) achieve('awake_3');
@@ -2157,7 +2163,7 @@ function updateToasts(dt) {
   toastT = 3.6;
 }
 
-const ACH_GROUPS = [['nights', 'nights survived'], ['endings', 'endings'], ['feats', 'feats'], ['deaths', 'ways to die']];
+const ACH_GROUPS = [['nights', 'nights survived'], ['endings', 'endings'], ['challenges', 'challenges'], ['feats', 'feats'], ['deaths', 'ways to die']];
 
 function renderAchievements() {
   const got = achievements.unlocked();
@@ -2583,14 +2589,14 @@ const BUILDS = [
     show: () => !S.boardsBuilt, cost: () => ({ wood: 8 }),
     done: () => { S.boardsBuilt = true; S.boards = 3; say('you nail three boards across the window.'); } },
   { id: 'trap', name: 'trap', desc: () => `the only way to get meat at night. catches meat and blood, checked on every trip. wears out after a few catches. the smell keeps the thing in the trees close. (${S.traps}/3)`,
-    show: () => S.traps < 3, cost: () => ({ wood: 6 }),
+    show: () => S.traps < trapMax(), cost: () => ({ wood: 6 }),
     done: () => { S.trapUses.push(makeTrap()); syncTraps(); say('you set a trap out in the snow. it will only last so long.'); } },
   { id: 'lantern', name: 'blood lantern', desc: 'hangs by the door. its red light shows what is really standing outside. burns a jar of blood every so often.',
-    show: () => !S.lantern, cost: () => ({ wood: 8, blood: 4 }),
+    show: () => !S.lantern && S.ch !== 'noLantern', cost: () => ({ wood: 8, blood: 4 }),
     done: () => { S.lantern = true; S.lanternLit = true; S.lanternT = 60; say('you fill the lantern with blood and light it. the door glows red. it will need more blood to keep burning.'); } },
   { id: 'shed', name: () => (S.shedBuilt ? `woodshed (${S.shedBuilt}/${PILE_CAP} built)` : 'woodshed'),
     desc: () => `a shed against the outside wall that holds ${shedCap()} more logs, so the pile never topples. it takes ${PILE_CAP} logs, built in a second each outside. you carry out what wood you have and build log by log; run back any time and what you built stays.`,
-    show: () => !S.shed, cost: () => ({}), ok: () => S.wood >= 1, costText: 'the wood you carry',
+    show: () => !S.shed && S.ch !== 'noShed', cost: () => ({}), ok: () => S.wood >= 1, costText: 'the wood you carry',
     done: () => { startTrip('shed'); } },
   { id: 'rack', name: 'drying rack', desc: 'a frame by the fire. thaws frozen wood three times faster, eight logs at a time.',
     show: () => !S.rack && S.nightNo >= 3, cost: () => ({ wood: 12 }),   // from the first blizzard, when logs come in frozen
@@ -2635,7 +2641,7 @@ const BUILDS = [
   ...TORCHES.map((tc) => ({
     id: `torch_${tc.id}`, name: () => (S.torches && S.torches[tc.id] === 'out' ? `relight the torch in ${tc.name}` : `a torch in ${tc.name}`),
     desc: 'an iron sconce and a torch that burns all night. a faint glow, and nothing opens its eyes inside it.',
-    show: () => goblinNight() && !(S.torches && S.torches[tc.id] === true) && !(tc.id === 'br' && S.shed && !(S.torches && S.torches.br)) && !bloodHour(),   // from night 4, when the goblins come   // the woodshed's candle already lights that corner; nothing catches in the blood hour
+    show: () => goblinNight() && S.ch !== 'noTorches' && !(S.torches && S.torches[tc.id] === true) && !(tc.id === 'br' && S.shed && !(S.torches && S.torches.br)) && !bloodHour(),   // from night 4, when the goblins come   // the woodshed's candle already lights that corner; nothing catches in the blood hour
     cost: () => (S.torches && S.torches[tc.id] === 'out' ? {} : { wood: 2 }),   // relighting one is free: carry it to the fire and back
     done: () => lightTorch(tc),
   })),
@@ -5595,7 +5601,7 @@ function syncUI() {
   ui.douse.classList.toggle('hidden', !blazing);
   ui.saltFlare.classList.toggle('hidden', !saltFlareReady() || blazing);
   if (blazing) ui.douse.style.setProperty('--cd', `${(S.blaze / 9) * 100}%`);
-  ui.clock.textContent = mode === 'day' ? `day · ${dayClock(S.dayHours)} · dark at 10` : S.won ? '6:00 am · dawn' : S.lit ? `${S.diff && S.diff !== 'normal' ? `${S.diff} · ` : ''}${S.nightNo > 1 ? `night ${S.nightNo} · ` : ''}${clockText(S.night)} · dawn at 6` : '';
+  ui.clock.textContent = mode === 'day' ? `day · ${dayClock(S.dayHours)} · dark at 10` : S.won ? '6:00 am · dawn' : S.lit ? `${S.diff && S.diff !== 'normal' ? `${S.diff} · ` : ''}${challengeById(S.ch) ? `${challengeById(S.ch).name} · ` : ''}${S.nightNo > 1 ? `night ${S.nightNo} · ` : ''}${clockText(S.night)} · dawn at 6` : '';
   const [hl, hc] = hungerLabel();
   ui.hunger.textContent = S.lit ? hl + (S.sick > 0 ? ' · sick' : '') + ['', ' · tired', ' · seeing things', ' · coming apart'][mode === 'playing' ? lvl() : 0] : '';
   ui.hunger.className = hc;
@@ -5677,7 +5683,7 @@ function renderBoard(el, highlight = -1, diff = S.diff) {
     const li = document.createElement('li');
     if (i === highlight) li.className = 'mine';
     li.innerHTML = `<span class="rank">${i + 1}.</span><span class="who"></span><span class="pts">${e.score}</span><span class="sun">${'☀'.repeat(e.nights || 1)}</span>`;
-    li.querySelector('.who').textContent = e.name;
+    li.querySelector('.who').textContent = e.name + (challengeById(e.ch) ? ` · ${challengeById(e.ch).name}` : '');
     el.appendChild(li);
   });
 }
@@ -5692,7 +5698,7 @@ function showTitle(panel = 'menu') {
   ui.boardPanel.classList.toggle('hidden', panel !== 'board');
   ui.devPanel.classList.toggle('hidden', panel !== 'dev');
   $('diffPanel').classList.toggle('hidden', panel !== 'diff');
-  if (panel === 'diff') document.querySelector(`[data-diff="${lastDiff}"]`)?.focus({ preventScroll: true });
+  if (panel === 'diff') { renderChallenges(lastDiff); document.querySelector(`[data-diff="${lastDiff}"]`)?.focus({ preventScroll: true }); }
   ui.achPanel.classList.toggle('hidden', panel !== 'ach');
   if (panel === 'ach') renderAchievements();
   $('devBtn').classList.toggle('hidden', !devMode);
@@ -5706,12 +5712,13 @@ function showTitle(panel = 'menu') {
   ui.title.querySelector(`${sel} button:not(.hidden)`)?.focus({ preventScroll: true });
 }
 
-function newNight(skipConfirm = false, diff = 'normal') {
+function newNight(skipConfirm = false, diff = 'normal', ch = null) {
   if (!skipConfirm && S.lit && !S.ended && !confirm('Start a new night? The one in progress will be lost.')) return;
   const sound = S.sound;
   S = freshState();
   S.sound = sound;
   S.diff = DIFFS[diff] ? diff : 'normal';
+  S.ch = challengeById(ch) ? ch : null;
   S.wood = D().startWood;
   if (D().trader) S.traderTonight = true;
   resetTransients();
@@ -5813,6 +5820,12 @@ function showEnding(won) {
   if (ending) { ui.endTitle.textContent = ending.title; ui.endText.textContent = ending.text; }
   for (const [label, k, pts, items] of result.lines) scoreRow(label, k, pts, '', items);
   S.final = result.total;
+  const chal = challengeById(S.ch);
+  if (chal) {
+    const extra = Math.round(result.total * (chal.mult - 1));
+    scoreRow(`challenge: ${chal.name}`, `×${chal.mult}`, extra);
+    S.final += extra;
+  }
   if (n > 1) {
     scoreRow(n === 2 ? 'the first night' : `the first ${n - 1} nights`, '', S.carry);
     scoreRow(`the ${ORD[n]} dawn`, '', 100);
@@ -5821,6 +5834,7 @@ function showEnding(won) {
   if (ending) { scoreRow(ending.title.replace(/\.$/, ''), '', ending.bonus); S.final += ending.bonus; }
   S.runNights = n;
   scoreRow('score', '', S.final, 'total');
+  if (n >= LAST_NIGHT) noteChRecord();
   if (result.lines.at(-1)[2] >= 200) achieve('well_stocked');
   if (S.final >= 1000) achieve('four_figures');
   if (n < LAST_NIGHT) {
@@ -5833,6 +5847,25 @@ function showEnding(won) {
   }
   ui.ending.classList.remove('hidden');
   save();
+}
+
+// The best finished run you've had at each challenge (by difficulty), kept on this computer for now; shown under the
+// challenge in place of the bot's record. (With accounts, these become everyone's records.)
+const CH_KEY = 'firelight-challenge-records';
+function loadChRecords() { try { return JSON.parse(localStorage.getItem(CH_KEY)) || {}; } catch (e) { return {}; } }
+function noteChRecord() {
+  if (!S.ch || S.dev || window.__simulating || S.chNoted) return;
+  S.chNoted = true;
+  const all = loadChRecords(), key = `${S.diff}:${S.ch}`;
+  if (!all[key] || S.final > all[key].score) {
+    all[key] = { name: 'you', score: S.final, t: Date.now(), mine: true };
+    try { localStorage.setItem(CH_KEY, JSON.stringify(all)); } catch (e) { /* not remembered */ }
+  }
+}
+function nameChRecord(name) {
+  if (!S.ch) return;
+  const all = loadChRecords(), r = all[`${S.diff}:${S.ch}`];
+  if (r && r.score === S.final) { r.name = name; try { localStorage.setItem(CH_KEY, JSON.stringify(all)); } catch (e) { /* not remembered */ } }
 }
 
 // Put the run's score up for the board, if it earns a place.
@@ -5856,7 +5889,8 @@ function endRun() {
 ui.initials.addEventListener('submit', (e) => {
   e.preventDefault();
   if (S.scored) return;
-  const entry = { name: cleanInitials(ui.initialsInput.value), score: S.final, nights: S.runNights || 1, t: Date.now() };
+  const entry = { name: cleanInitials(ui.initialsInput.value), score: S.final, nights: S.runNights || 1, t: Date.now(), ...(S.ch ? { ch: S.ch } : {}) };
+  nameChRecord(entry.name);
   const { list, rank } = insertScore(loadBoard(), entry);
   saveBoard(list);
   S.scored = true;
@@ -5909,8 +5943,7 @@ function toggleFullscreen() {
   else document.documentElement.requestFullscreen?.();
 }
 $('fullBtn').addEventListener('click', toggleFullscreen);
-$('titleFullBtn').addEventListener('click', toggleFullscreen);
-document.addEventListener('fullscreenchange', () => { $('titleFullBtn').textContent = document.fullscreenElement ? 'leave fullscreen' : 'fullscreen'; });
+document.addEventListener('fullscreenchange', () => { $('fullBtn').textContent = document.fullscreenElement ? 'leave fullscreen' : 'fullscreen'; });
 ui.sound.addEventListener('click', () => { S.sound = !S.sound; sfx.setEnabled(S.sound); save(); });
 
 const MUSIC_KEY = 'firelight-music';
@@ -5935,11 +5968,45 @@ const musicTension = () => (mode === 'playing' && S.lit ? hour() / 8 + S.dread /
 $('newBtn').addEventListener('click', () => showTitle('diff'));
 let lastDiff = 'normal';
 try { lastDiff = localStorage.getItem('firelight-diff') || 'normal'; } catch (e) { /* default */ }
+// the challenge picked for the next run ('' for none), and the records shown for whichever difficulty you point at
+let chosenCh = '';
+try { chosenCh = localStorage.getItem('firelight-ch') || ''; } catch (e) { /* none */ }
+if (!challengeById(chosenCh)) chosenCh = '';
+function recordText(diff, id) {
+  const r = recordFor(diff, id, loadChRecords());
+  if (r.human) return [`record: ${r.who} ${r.score}`, 'mine'];
+  if (r.impossible) return [`presumed impossible (no bot in ${r.tested.toLocaleString('en-US')} tries)`, 'impossible'];
+  if (r.untested) return ['not yet tried', ''];
+  return [`best so far: a bot, ${r.score}`, ''];
+}
+function renderChallenges(diff = lastDiff) {
+  $('chFor').textContent = `(records on ${diff})`;
+  const list = $('chList');
+  list.innerHTML = '';
+  for (const c of [{ id: '', name: 'none', desc: 'the winter as it comes.' }, ...CHALLENGES]) {
+    const b = document.createElement('button');
+    b.className = c.id === chosenCh ? 'on' : '';
+    b.title = c.desc;
+    b.innerHTML = '<span class="name"></span><span class="mult"></span><span class="rec"></span>';
+    b.querySelector('.name').textContent = c.name;
+    b.querySelector('.mult').textContent = c.mult ? `×${c.mult}` : '';
+    const [text, cls] = c.id ? recordText(diff, c.id) : [c.desc, ''];
+    b.querySelector('.rec').textContent = text;
+    if (cls) b.querySelector('.rec').classList.add(cls);
+    b.addEventListener('click', () => {
+      chosenCh = c.id;
+      try { localStorage.setItem('firelight-ch', chosenCh); } catch (e) { /* not remembered */ }
+      renderChallenges(diff);
+    });
+    list.appendChild(b);
+  }
+}
 document.querySelectorAll('[data-diff]').forEach((b) => {
   b.querySelector('.desc').textContent = DIFFS[b.dataset.diff].blurb;
+  for (const ev of ['mouseenter', 'focus']) b.addEventListener(ev, () => renderChallenges(b.dataset.diff));
   b.addEventListener('click', () => {
     try { localStorage.setItem('firelight-diff', b.dataset.diff); } catch (e) { /* not remembered */ }
-    newNight(false, b.dataset.diff);
+    newNight(false, b.dataset.diff, chosenCh || null);
   });
 });
 let boardDiff = 'normal';
@@ -6317,7 +6384,7 @@ window.addEventListener('orientationchange', () => setTimeout(resize, 150));
 window.visualViewport?.addEventListener('resize', resize);
 if (touch) document.body.classList.add('touch');
 // iOS has no fullscreen for pages; hide the button where it can't work
-if (!document.documentElement.requestFullscreen) { $('fullBtn').classList.add('hidden'); $('titleFullBtn').classList.add('hidden'); }
+if (!document.documentElement.requestFullscreen) $('fullBtn').classList.add('hidden');
 
 /* -------------------------------------------------------------------- run */
 
@@ -6369,7 +6436,7 @@ window.__firelight = {
   get lossT() { return lossT; },
   diffs: DIFFS,   // for balance experiments from the console (tools/sim.js); changes last until reload
   choose,
-  newNight: (diff) => newNight(true, diff),
+  newNight: (diff, ch) => newNight(true, diff, ch),
   backToTitle,
   // advance the game by `sec` seconds; draw = false skips rendering (for fast simulations)
   step(sec, draw = true) {

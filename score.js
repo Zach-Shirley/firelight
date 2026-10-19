@@ -64,7 +64,8 @@ export function sanitizeBoard(raw, max = BOARD_SIZE) {
   if (!Array.isArray(raw)) return [];
   return raw
     .filter((e) => e && typeof e.score === 'number' && Number.isFinite(e.score) && typeof e.name === 'string')
-    .map((e) => ({ name: cleanInitials(e.name), score: Math.max(0, Math.round(e.score)), nights: [1, 2, 3, 4, 5].includes(e.nights) ? e.nights : 1, t: Number(e.t) || 0 }))
+    .map((e) => ({ name: cleanInitials(e.name), score: Math.max(0, Math.round(e.score)), nights: [1, 2, 3, 4, 5].includes(e.nights) ? e.nights : 1, t: Number(e.t) || 0,
+      ...(typeof e.ch === 'string' && /^[a-zA-Z]{1,20}$/.test(e.ch) ? { ch: e.ch } : {}) }))   // the challenge it was played under, if any
     .sort((a, b) => b.score - a.score || a.t - b.t)
     .slice(0, max);
 }
