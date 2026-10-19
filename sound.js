@@ -58,14 +58,17 @@ export function setHidden(h) {
 export function isEnabled() { return enabled; }
 
 const FIRE_VOL = [0, 0.03, 0.05, 0.075, 0.1];
+// the room's constant sound (the fire's roar and crackle, the wind) sits a little under everything else, and
+// further down still with the music off: nobody wants a wall of noise and nothing else
+const ambient = () => 0.8 * (musicOn ? 1 : 0.5);
 
 export function setLevels(fire, time, doorOpen, windowOpen = 0) {
   if (!ctx) return;
   const t = ctx.currentTime;
-  fireGain.gain.setTargetAtTime(FIRE_VOL[fire] || 0, t, 0.6);
+  fireGain.gain.setTargetAtTime((FIRE_VOL[fire] || 0) * ambient(), t, 0.6);
   const gust = 0.5 + 0.5 * Math.sin(time * 0.37) * Math.sin(time * 0.11 + 1);
   const wind = (fire <= 1 ? 0.07 : 0.035) * (0.5 + gust) + doorOpen * 0.08 + windowOpen * 0.06 * (0.6 + gust);
-  windGain.gain.setTargetAtTime(wind, t, 0.8);
+  windGain.gain.setTargetAtTime(wind * ambient(), t, 0.8);
 }
 
 // One crackle or pop from the fire.
@@ -78,7 +81,7 @@ export function crackle(fire) {
   hp.type = 'highpass';
   hp.frequency.value = 1500 + Math.random() * 2500;
   const g = ctx.createGain();
-  const vol = (0.05 + Math.random() * 0.12) * (0.5 + fire * 0.2);
+  const vol = (0.05 + Math.random() * 0.12) * (0.5 + fire * 0.2) * ambient();
   g.gain.setValueAtTime(vol, t);
   g.gain.exponentialRampToValueAtTime(0.0001, t + 0.02 + Math.random() * 0.04);
   src.connect(hp).connect(g).connect(master);
@@ -555,6 +558,43 @@ export function shiver(strength = 1) {
   g.gain.linearRampToValueAtTime(0.0001, at + 0.9);
   src.connect(bp).connect(g).connect(master);
   src.start(at, Math.random(), 1);
+}
+
+// The front door on its iron hinges: the dry stick-and-slip squeal of a hinge pin, rising as the door gets going
+// and dragging out as it slows, through the hollow of the wood.
+export function door() {
+  if (!ctx || !enabled) return;
+  const t = ctx.currentTime, len = 1.15;
+  const o = ctx.createOscillator();
+  o.type = 'sawtooth';                               // each cycle is one stick and slip of the pin
+  o.frequency.setValueAtTime(14, t);
+  o.frequency.linearRampToValueAtTime(48, t + 0.35);
+  o.frequency.linearRampToValueAtTime(36, t + 0.7);
+  o.frequency.linearRampToValueAtTime(22, t + len);
+  const wob = ctx.createOscillator(), wobG = ctx.createGain();   // the hand on the door is never quite steady
+  wob.frequency.value = 7; wobG.gain.value = 5;
+  wob.connect(wobG).connect(o.frequency);
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.linearRampToValueAtTime(0.5, t + 0.12);
+  g.gain.linearRampToValueAtTime(0.38, t + 0.6);
+  g.gain.linearRampToValueAtTime(0.0001, t + len);
+  // the squeal rings in the hinge (high) and the wood of the door (low)
+  for (const [f, q, v] of [[620, 9, 0.5], [1380, 12, 0.35], [2650, 16, 0.18], [240, 4, 0.25]]) {
+    const bp = ctx.createBiquadFilter();
+    bp.type = 'bandpass'; bp.frequency.setValueAtTime(f, t); bp.frequency.linearRampToValueAtTime(f * 1.12, t + 0.35);
+    bp.frequency.linearRampToValueAtTime(f * 0.95, t + len); bp.Q.value = q;
+    const bg = ctx.createGain(); bg.gain.value = v;
+    o.connect(bp).connect(bg).connect(g);
+  }
+  // and the faint scrape of the door along the floorboards
+  const src = ctx.createBufferSource(); src.buffer = noiseBuf;
+  const lp = ctx.createBiquadFilter(); lp.type = 'bandpass'; lp.frequency.value = 900; lp.Q.value = 0.8;
+  const ng = ctx.createGain(); ng.gain.value = 0.05;
+  src.connect(lp).connect(ng).connect(g);
+  g.connect(master);
+  o.start(t); wob.start(t); src.start(t, Math.random(), len);
+  o.stop(t + len + 0.05); wob.stop(t + len + 0.05);
 }
 
 // Old floorboards taking weight from below.

@@ -1,6 +1,6 @@
 {
   "note": "Best evolved genomes for the perfect player in tools/sim.js, and their best runs. Replay one in the console with (await import('/tools/sim.js')).replayBest('hard', 0). A replay only matches on the game version it was recorded on.",
-  "version": "0.69",
+  "version": "0.70",
   "made": "2026-10-19",
   "genomes": {
     "normal": {"bold":23.892853446304798,"flee":30,"trapsFirst":1,"boardsAt":11,"boardsLate":2.4,"reserve":8.171772043220699,"trap2At":12,"stokeAt":12,"stokeAtCold":5.489548140764237,"eatAt":60,"feedAt":11.898503447137774,"shopBlood":3.8610421700403093,"saltBelow":12,"tradeMin":6,"hungryTrade":3,"saltKeep":4,"gobMax":2,"shedAt":20,"coldGo":7.978825959935785,"coldGoLow":59.043087899684906,"lowWood":20.7074970100075,"lanternSpare":8,"rackSpare":15.248809352517128,"meatBelow":5.603365881368518,"dayChop":2.712601820938289,"dayHunt":1,"dayScav":1},

@@ -56,6 +56,7 @@ button:disabled { opacity: 0.4; cursor: default; }
 
 #hud {
   position: absolute;
+  pointer-events: none;   /* read-only, and it lies over the window's build ember */
   left: calc(6px * var(--s));
   top: calc(4px * var(--s));
   font-size: calc(7px * var(--s));

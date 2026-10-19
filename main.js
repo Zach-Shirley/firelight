@@ -6,7 +6,7 @@ import * as sfx from './sound.js';
 import { ACHIEVEMENTS, createStore } from './achievements.js';
 import { computeScore, qualifies, insertScore, cleanInitials, sanitizeBoard } from './score.js';
 
-const VERSION = '0.69';   // one step per commit to the repository
+const VERSION = '0.70';   // one step per commit to the repository
 const W = 320, H = 180;
 const FIRE = { x: 160, y: 136 };          // base of the flames
 const LIGHT_Y = 130;                       // centre of the light pool
@@ -332,6 +332,7 @@ let dispR = 0;
 let door = 0;              // 0 closed .. 1 open
 let doorTarget = 0;
 let doorCloseIn = -1;
+let doorCreaked = false;   // the hinge sound has played for this opening
 let walker = null;         // the stranger walking in: { x, y, step }
 let visitorAtDoor = null;  // who is standing in the open doorway
 let figure = 0;            // the tall thing in the doorway
@@ -893,14 +894,15 @@ function updateGoblins(dt) {
 }
 
 // throwing salt at one: the ember over its corner
-function saltGoblin(id) {
-  const i = S.goblins.findIndex((g) => g.corner === id);
+function saltGoblin(id, which = null) {
+  const i = which ? S.goblins.indexOf(which) : S.goblins.findIndex((g) => g.corner === id);
   if (i < 0 || S.salt < 1) return;
   S.salt -= 1;
   S.goblins.splice(i, 1);
   sfx.scream();
   sfx.scuttle();
   fx.push({ kind: 'gobOut', from: GOB_CORNERS[id], life: 0, max: 0.6 });
+  doorTarget = 0.8; doorCloseIn = 0.7;   // and out through the door
   say('you throw a fistful of salt into the corner. it shrieks and bolts for the door, and out into the snow.');
 }
 
@@ -948,6 +950,13 @@ function drawGoblin(s, x, y, sc = 1, face = 1, alpha = 1, eyes = true, pose = 'r
   lx.restore();
 }
 
+// where a settled goblin's eyes are: its corner, a little apart from any others sharing it
+function gobEyes(g) {
+  const c = GOB_CORNERS[g.corner];
+  const j = Math.max(0, S.goblins.filter((o) => o.corner === g.corner && !o.act).indexOf(g));
+  return { x: c.x + (c.x < 160 ? 1 : -1) * j * 4, y: c.y - (j % 2) * 2.5 + j * 1.5, j };
+}
+
 function drawGoblins(s, t) {
   if (!S.goblins || !S.goblins.length) return;
   for (const g of S.goblins) {
@@ -974,8 +983,7 @@ function drawGoblins(s, t) {
     }
     // in its corner only its eyes show, small and dim and low, blinking out of rhythm; more than one in a
     // corner sit a little apart, so you can count the pairs
-    const j = S.goblins.filter((o) => o.corner === g.corner && !o.act).indexOf(g);
-    const ex = c.x + (c.x < 160 ? 1 : -1) * j * 4, ey = c.y - (j % 2) * 2.5 + j * 1.5;
+    const { x: ex, y: ey, j } = gobEyes(g);
     const blink = Math.sin(t * 1.3 + c.x + j * 2.1) > 0.93 ? 0 : 1;
     lx.fillStyle = `rgba(200, 210, 160, ${0.55 * blink})`;
     lpx(s, ex - 1.5, ey, 0.8, 0.6);
@@ -1408,7 +1416,6 @@ function swingDoor() {
   if (pendingVisit || dialog) return;
   doorTarget = 0.8;
   doorCloseIn = 0.5;
-  sfx.creak();
 }
 
 function runBack() {
@@ -2586,25 +2593,25 @@ const BUILDS = [
     show: () => !S.shed, cost: () => ({}), ok: () => S.wood >= 1, costText: 'the wood you carry',
     done: () => { startTrip('shed'); } },
   { id: 'rack', name: 'drying rack', desc: 'a frame by the fire. thaws frozen wood three times faster, eight logs at a time.',
-    show: () => !S.rack, cost: () => ({ wood: 12 }),
+    show: () => !S.rack && S.nightNo >= 3, cost: () => ({ wood: 12 }),   // from the first blizzard, when logs come in frozen
     done: () => { S.rack = true; say('you lash a drying rack together beside the fire.'); } },
   { id: 'coat', name: 'fur coat', desc: 'you get cold 35% more slowly. with the hat, the trousers and the socks, the cold can hardly touch you. (fur is also worth 3 points each at dawn.)',
-    show: () => !S.coat && (S.fur > 0 || blizzard()), cost: () => ({ fur: 6 }),
+    show: () => !S.coat && S.nightNo >= 3, cost: () => ({ fur: 6 }),
     done: () => { S.coat = true; say('you stitch the pelts into a rough coat. it stinks, and it is warm.'); } },
   { id: 'pants', name: 'fur trousers', desc: 'you get cold 20% more slowly.',
-    show: () => !S.pants && (S.fur > 0 || blizzard()), cost: () => ({ fur: 5 }),
+    show: () => !S.pants && S.nightNo >= 3, cost: () => ({ fur: 5 }),
     done: () => { S.pants = true; say('you sew fur trousers. you look ridiculous. you are warm.'); } },
   { id: 'hat', name: 'fur hat', desc: 'you get cold 20% more slowly.',
-    show: () => !S.hat && (S.fur > 0 || blizzard()), cost: () => ({ fur: 4 }),
+    show: () => !S.hat && S.nightNo >= 3, cost: () => ({ fur: 4 }),
     done: () => { S.hat = true; say('you sew a fur hat with flaps over the ears.'); } },
   { id: 'socks', name: 'fur socks', desc: 'you get cold 15% more slowly.',
-    show: () => !S.socks && (S.fur > 0 || blizzard()), cost: () => ({ fur: 3 }),
+    show: () => !S.socks && S.nightNo >= 3, cost: () => ({ fur: 3 }),
     done: () => { S.socks = true; say('you pull on fur socks. your toes come back.'); } },
   { id: 'curtains', name: 'fur curtains', desc: 'heavy curtains for the window. shut, they keep the wind out and the house far warmer, but you can\'t see out at all, and you can barely see her when she comes. click the window to open or shut them.',
-    show: () => !S.curtains && (S.fur > 0 || blizzard()), cost: () => ({ fur: 5 }),
+    show: () => !S.curtains && S.nightNo >= 3, cost: () => ({ fur: 5 }),
     done: () => { S.curtains = true; S.curtainsShut = true; say('you hang fur curtains over the window and draw them shut. the wind stops.'); } },
   { id: 'insulate', name: 'insulate the walls', desc: 'stuff fur into the cracks between the logs. the house loses heat more slowly and the fire warms you a little faster.',
-    show: () => !S.insulated && (S.fur > 0 || blizzard()), cost: () => ({ fur: 6 }),
+    show: () => !S.insulated && S.nightNo >= 3, cost: () => ({ fur: 6 }),
     done: () => { S.insulated = true; say('you pack fur into every crack in the walls. the draft eases.'); } },
   { id: 'cure', name: 'cure meat with salt', desc: () => `rub salt into 2 cooked meat so it never goes bad. (${curedCount()} cured)`,
     show: () => S.salt > 0 && S.cooked - curedCount() >= 2, cost: () => ({ salt: 1 }),
@@ -2628,7 +2635,7 @@ const BUILDS = [
   ...TORCHES.map((tc) => ({
     id: `torch_${tc.id}`, name: () => (S.torches && S.torches[tc.id] === 'out' ? `relight the torch in ${tc.name}` : `a torch in ${tc.name}`),
     desc: 'an iron sconce and a torch that burns all night. a faint glow, and nothing opens its eyes inside it.',
-    show: () => !(S.torches && S.torches[tc.id] === true) && !(tc.id === 'br' && S.shed && !(S.torches && S.torches.br)) && !bloodHour(),   // the woodshed's candle already lights that corner; nothing catches in the blood hour
+    show: () => goblinNight() && !(S.torches && S.torches[tc.id] === true) && !(tc.id === 'br' && S.shed && !(S.torches && S.torches.br)) && !bloodHour(),   // from night 4, when the goblins come   // the woodshed's candle already lights that corner; nothing catches in the blood hour
     cost: () => (S.torches && S.torches[tc.id] === 'out' ? {} : { wood: 2 }),   // relighting one is free: carry it to the fire and back
     done: () => lightTorch(tc),
   })),
@@ -2710,15 +2717,39 @@ const SPOTS = [
   { id: 'shed', x: 307, y: 72, builds: ['shed', 'saltCab', 'barCab', 'unbarCab'] },
   { id: 'bedroll', x: 252, y: 121, builds: ['coat', 'pants', 'hat', 'socks'] },
   { id: 'walls', x: 22, y: 64, builds: ['insulate'] },
-  ...TORCHES.map((tc) => ({ id: `torch_${tc.id}`, x: tc.x, y: tc.y - 7, builds: [`saltGob_${tc.id}`, `torch_${tc.id}`] })),
+  ...TORCHES.map((tc) => ({ id: `torch_${tc.id}`, x: tc.x, y: tc.y, builds: [`torch_${tc.id}`] })),
 ];
 const buildable = (b) => b.show() && canAfford(b.cost()) && (!b.ok || b.ok());
 const spotBuilds = (spot) => spot.builds.map((id) => BUILDS.find((b) => b.id === id)).filter((b) => b && b.show());
 let openSpot = null;
 let spotKey = '';
 
+// an ember on every goblin settled in a corner, riding along with its eyes: click it to throw salt
+const gobSpots = [];
+function syncGobSpots(live) {
+  const targets = live && S.salt >= 1 && S.goblins ? S.goblins.filter((g) => g.corner && !g.act) : [];
+  while (gobSpots.length < targets.length) {
+    const b = document.createElement('button');
+    b.className = 'spot gob';
+    b.title = 'throw salt';
+    b.addEventListener('click', (e) => { e.stopPropagation(); if (b.goblin && canAct()) saltGoblin(b.goblin.corner, b.goblin); });
+    ui.spots.appendChild(b);
+    gobSpots.push(b);
+  }
+  gobSpots.forEach((b, i) => {
+    const g = targets[i];
+    b.goblin = g || null;
+    b.classList.toggle('hidden', !g);
+    if (!g) return;
+    const { x, y } = gobEyes(g);
+    b.style.left = `${(x / W) * 100}%`;
+    b.style.top = `${((y + 3) / H) * 100}%`;   // just under its eyes, clear of the torch above
+  });
+}
+
 function syncSpots() {
   const live = mode === 'playing' && S.lit && !S.away && !dialog;
+  syncGobSpots(live);
   const on = live ? SPOTS.filter((sp) => spotBuilds(sp).some(buildable)).map((sp) => sp.id) : [];
   const key = on.join(',');
   if (key !== spotKey) {
@@ -2854,6 +2885,8 @@ function updateAmbient(dt) {
   hunterEyes = clamp(hunterEyes + dt * ((S.hunter.near || phantomEyes > 0) && mode === 'playing' ? 0.8 : -0.8), 0, 1);
 
   dispR += (targetRadius() - dispR) * Math.min(1, dt * (mode === 'lost' ? 3 : 1.8));
+  if (doorTarget > 0.3 && door < 0.05 && !doorCreaked) { doorCreaked = true; if (!window.__simulating) sfx.door(); }   // the hinges, as it starts to swing
+  if (doorTarget < 0.1 && door < 0.05) doorCreaked = false;
   door += (doorTarget - door) * Math.min(1, dt * (mode === 'lost' ? (S.cause === 'hunter' ? 0.7 : 10) : 4));
 
   const slow = dialog && mode === 'playing' ? 0.5 : 1;
@@ -4087,14 +4120,21 @@ function drawHandBody(s, t) {
     const rise = ease(clamp((4 - hd.t) / 2.8, 0, 1));
     herGlow(s, 61, 58, 16 + rise * 6, 0.15 + rise * 0.3);
     throughWindow(s, () => {
-      drawHerHead(s, t, 62, 76 - rise * 30, 1, rise > 0.85 ? 1 : 0.25);
+      const cy = 76 - rise * 30;
+      drawHerHead(s, t, 62, cy, 1, rise > 0.85 ? 1 : 0.25);
       if (!S.glassBroken) {
         const drag = (4 - hd.t) * 3.2;
-        for (let i = 0; i < 4; i++) {
-          limbSeg(s, 50 + i * 2.6, 34 + drag * 0.6, 50.5 + i * 2.6, 38 + drag, 0.7);
-          lx.fillStyle = 'rgba(190, 200, 215, 0.35)';   // scratches left on the glass
-          lpx(s, 50.3 + i * 2.6, 38, 0.4, drag);
-        }
+        // her forearm, from the elbow at the end of her shoulder up to the hand on the glass; it shortens as the
+        // hand claws down toward the elbow, and is gone once the hand has come down past it
+        const elX = 55, elY = cy + 11.5, palmX = 54.2, palmY = 33 + drag * 0.6;
+        const parts = [];
+        if (palmY < elY - 1) parts.push([[[elX, elY], [palmX + 0.6, (elY + palmY) / 2], [palmX, palmY]], [2.6, 2.1, 1.7]], [[[palmX - 1.5, palmY + 0.6], [palmX + 1.5, palmY + 0.6]], [2.4, 2.4]]);
+        for (let i = 0; i < 4; i++) parts.push([[[50 + i * 2.6, 34 + drag * 0.6], [50.5 + i * 2.6, 38 + drag]], [0.8, 0.7]]);
+        // one outline round the whole arm and hand, then the fill, so the fingers don't read as a cage
+        for (const [pts, ws] of parts) tubePass(s, pts, ws, HER.rim, 0.45);
+        for (const [pts, ws] of parts) tubePass(s, pts, ws, HER.black, 0);
+        lx.fillStyle = 'rgba(190, 200, 215, 0.35)';   // scratches left on the glass
+        for (let i = 0; i < 4; i++) lpx(s, 50.3 + i * 2.6, 38, 0.4, drag);
       }
     });
     return;
@@ -4711,7 +4751,7 @@ const DEATH_CUES = {
   burn: [[0.05, () => sfx.roar()], [1.3, () => sfx.crack()], [2.6, () => sfx.roar()], [3.25, () => { sfx.crack(); sfx.thump(1); shake = 0.5; for (let i = 0; i < 40; i++) spawnEmber(true); }]],
   mimic: [[0, () => sfx.slam()], [1.35, () => sfx.crack()], [2.2, () => sfx.crack()], [2.8, () => sfx.growl(1.2)], [3.4, () => sfx.footsteps(3)]],
   hand: [[0.1, () => sfx.scratch()], [1.2, () => sfx.scratch()], [2.1, () => sfx.scream()], [2.6, () => sfx.scratch()]],
-  hunter: [[0, () => sfx.growl(1.4)], [1.45, () => sfx.scream()], [2.0, () => sfx.drag()], [3.3, () => { sfx.gust(); sfx.creak(); }]],
+  hunter: [[0, () => sfx.growl(1.4)], [1.45, () => sfx.scream()], [2.0, () => sfx.drag()], [3.3, () => { sfx.gust(); }]],
   risen: [[0.7, () => sfx.crack()], [1.4, () => sfx.crack()], [2.1, () => sfx.breath()], [2.9, () => sfx.growl(1.1)], [3.1, () => sfx.footsteps(4)]],
   cellar: [[0, () => sfx.slam()], [1.0, () => sfx.scratch()], [2.9, () => { sfx.drag(); sfx.thump(1); shake = 0.3; }]],
   falseStranger: [[0.7, () => sfx.crack()], [1.8, () => sfx.breath()], [3.2, () => sfx.growl(1.3)]],
