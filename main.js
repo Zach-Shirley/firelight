@@ -6,7 +6,7 @@ import * as sfx from './sound.js';
 import { ACHIEVEMENTS, createStore } from './achievements.js';
 import { computeScore, qualifies, insertScore, cleanInitials, sanitizeBoard } from './score.js';
 
-const VERSION = '0.68';   // one step per commit to the repository
+const VERSION = '0.69';   // one step per commit to the repository
 const W = 320, H = 180;
 const FIRE = { x: 160, y: 136 };          // base of the flames
 const LIGHT_Y = 130;                       // centre of the light pool
@@ -43,13 +43,16 @@ const SAVE_KEY = 'firelight-save-v8';
 // Difficulty, chosen for each run. Hard is the same game with less to go around and quicker threats. Insane is very
 // lean, but the trader comes every night, charges less, and sells an iron trap that never breaks.
 const DIFFS = {
-  normal: { name: 'normal', wood: 1, traps: 1, hunger: 1, spoil: 1, grin: 1, quick: 1, mimic: 0, decay: 1, shedCap: 100, startWood: 6,
+  normal: { name: 'normal', wood: 1, traps: 1, dayWood: 1, dayTraps: 1, dayHunt: 1, traderMeat: 0, hunger: 1, spoil: 1, grin: 1, quick: 1, mimic: 0, decay: 1, shedCap: 100, startWood: 6,
     blurb: 'the night as it was meant to be. a hard first night, and fair once you know it.' },
-  hard: { name: 'hard', wood: 0.75, traps: 0.7, hunger: 1.15, spoil: 0.8, grin: 4 / 3, quick: 0.8, mimic: 0.08, decay: 0.9, shedCap: 70, startWood: 5,
+  // hard and insane were tuned against evolved bots (tools/sim.js evolve and sweep), 2026-10-19
+  hard: { name: 'hard', wood: 0.9, traps: 0.7, dayWood: 0.85, dayTraps: 0.7, dayHunt: 1, traderMeat: 1, hunger: 1.15, spoil: 0.8, grin: 4 / 3, quick: 0.8, mimic: 0.08, decay: 1, shedCap: 70, startWood: 5,
     blurb: 'less wood, fewer catches, meat goes bad sooner. the grin takes three seconds; she and the hatch are quicker. more of the knocks are mimics.' },
-  insane: { name: 'insane', wood: 0.55, traps: 0.5, hunger: 1.3, spoil: 0.65, grin: 4 / 3, quick: 0.7, mimic: 0.12, decay: 0.85, shedCap: 50, startWood: 4,
+  // insane: the traps barely feed you and the trader's smoked meat is the lifeline, so a night with no one knocking
+  // is nearly always the last; the fire burns a touch slower than normal so the blizzard is survivable at all
+  insane: { name: 'insane', wood: 0.75, traps: 0.42, dayWood: 0.55, dayTraps: 0.5, dayHunt: 1, traderMeat: 3, hunger: 1.3, spoil: 0.65, grin: 4 / 3, quick: 0.7, mimic: 0.12, decay: 1.05, shedCap: 50, startWood: 4,
     trader: true, rot: true,
-    blurb: 'almost nothing to live on, and the woodshed rots. but the trader comes every night, charges less, and sells an iron trap that never breaks.' },
+    blurb: 'almost nothing to live on, and the woodshed rots. without the people who knock, you will not last. the trader charges less, trades smoked meat for logs, and sells an iron trap that never breaks.' },
 };
 const D = () => DIFFS[S.diff] || DIFFS.normal;
 const boardKey = (diff) => (diff && diff !== 'normal' ? `${BOARD_KEY}-${diff}` : BOARD_KEY);
@@ -351,6 +354,11 @@ function resetTransients() {
   particles = []; fx = []; eyes = []; doze = 0; pileLean = -1; traderOpen = 0; dialog = null; pendingVisit = null; msgQueue = []; msgTimer = 0;
   door = doorTarget = 0; doorCloseIn = -1; walker = null; visitorAtDoor = null; figure = 0;
   dispR = 0; shake = 0; hunterEyes = 0; dawnT = 0; lossT = 0; trapWreck = 0;
+  // and every other clock the night keeps outside S, so a run from a given random seed always plays the same
+  heartTimer = 0; eyeSpawn = 0.5; animT = 0; growlT = 0; dozeLen = 1.4; phantomEyes = 0; phantomGrin = 0;
+  flareT = 0; blueT = 0; jumpT = 0; windowScareT = 0; cabOpen = 0; cabT = 0; cabHeld = false; flameAcc = 0;
+  deathCue = 0; deathEyes = []; saveTimer = 3;
+  for (const f of snow) Object.assign(f, { x: rand(45, 76), y: rand(35, 66), v: rand(3, 7) });
   ui.dialogue.classList.add('hidden');
   ui.message.classList.remove('show');
   toggleJournal(false);
@@ -1280,14 +1288,14 @@ function syncTraps() {
 }
 const saltedTraps = () => (S.trapSalt || []).filter(Boolean).length;
 
-function checkTraps(rolls = 1) {
+function checkTraps(rolls = 1, mult = D().traps) {
   let m = 0, b = 0, broke = 0, f = 0;
   syncTraps();
   for (let r = 0; r < rolls; r++) {
     const uses = [], salt = [];
     S.trapUses.forEach((u, i) => {
       const salted = S.trapSalt[i];
-      const caughtMeat = Math.random() < (salted ? 0.6 : 0.3) * D().traps, caughtBlood = Math.random() < (salted ? 0.6 : 0.3) * D().traps;   // salt draws them in
+      const caughtMeat = Math.random() < (salted ? 0.6 : 0.3) * mult, caughtBlood = Math.random() < (salted ? 0.6 : 0.3) * mult;   // salt draws them in
       if (caughtMeat) m += 1;
       if (caughtBlood) b += 1;
       if (S.nightNo >= 2 && Math.random() < (salted ? 0.3 : 0.15)) f += 1;   // from the second night, now and then a pelt
@@ -1324,6 +1332,9 @@ const SHOP = [
   { id: 'ironTrap', name: 'iron trap', price: { blood: 5 }, desc: 'a heavy iron trap that never wears out and never breaks. it takes the place of your next trap. (insane only)',
     has: () => S.trapUses.some((u) => u >= 999) || S.traps >= 3, avail: () => !!D().trader,
     buy: () => { S.trapUses.push(999); syncTraps(); return 'he sets down an iron trap so heavy you can barely lift it. it will outlast you.'; } },
+  { id: 'meat', name: 'smoked meat', price: { blood: 1, wood: 2 }, desc: 'two strips of smoked meat, wrapped in cloth. +2 cooked meat.',   // on insane: just the logs
+    has: () => (S.traderMeatN || 0) >= D().traderMeat, avail: () => D().traderMeat > 0,
+    buy: () => { S.traderMeatN = (S.traderMeatN || 0) + 1; addCooked(2); return 'he unwraps two strips of dark smoked meat. you do not ask what it was. +2 cooked meat'; } },
   { id: 'salt', name: 'a bag of salt', price: { blood: 1 }, desc: '3 salt. cures cooked meat so it keeps.', has: () => false,
     buy: () => { S.salt += 3; return 'he pours salt from a pocket that should not be that deep. +3 salt'; } },
 ];
@@ -1347,6 +1358,7 @@ function pay(p) {
 
 function openShop(first) {
   visitorAtDoor = 'trader';
+  if (first) S.traderMeatN = 0;   // his smoked meat: so much a visit
   const wares = SHOP.filter((w) => !w.has() && (!w.avail || w.avail()));
   openDialogue({
     id: 'shop', portrait: 'trader', door: true,
@@ -2373,16 +2385,16 @@ function hatchMissed() {
 // takes six of them.
 const DAY_ACTIONS = [
   { id: 'chop', name: 'chop wood', hours: 2, desc: 'a big pile of split logs.', show: () => true,
-    act: () => { const n = Math.round((9 + Math.floor(Math.random() * 4)) * D().wood); const before = S.wood + S.shedWood; addWood(n); const kept = Math.min(n, S.wood + S.shedWood - before); if (!S.shed && S.wood > PILE_CAP) S.wood = PILE_CAP; const got = S.wood + S.shedWood - before; return got < n ? `you chop more than the room can hold. you keep ${got} and leave the rest to the snow.` : `you chop wood until your arms shake. +${n} wood`; } },
+    act: () => { const n = Math.round((9 + Math.floor(Math.random() * 4)) * D().dayWood); const before = S.wood + S.shedWood; addWood(n); const kept = Math.min(n, S.wood + S.shedWood - before); if (!S.shed && S.wood > PILE_CAP) S.wood = PILE_CAP; const got = S.wood + S.shedWood - before; return got < n ? `you chop more than the room can hold. you keep ${got} and leave the rest to the snow.` : `you chop wood until your arms shake. +${n} wood`; } },
   { id: 'hunt', name: 'hunt in daylight', hours: 2, desc: 'nothing hunts you while the sun is up.', show: () => true,
     act: () => {
-      const n = 2 + Math.floor(Math.random() * 2); addRaw(n);
+      const n = Math.round((2 + Math.floor(Math.random() * 2)) * D().dayHunt); addRaw(n);
       const b = Math.random() < 0.45 ? 1 : 0; S.blood += b;
       return `tracks in the fresh snow lead you to food. +${n} raw meat${b ? ', +1 blood' : ''}`;
     } },
   { id: 'traps', name: 'check the traps', hours: 1, desc: 'reset them and collect what they caught overnight.', show: () => S.traps > 0 && !S.dayDone.traps,
     act: () => {
-      const c = checkTraps(2);
+      const c = checkTraps(2, D().dayTraps);
       S.dayDone.traps = true;
       return (c.m + c.b + c.f ? `the traps held something. +${c.m} raw meat, +${c.b} blood${c.f ? `, +${c.f} fur` : ''}` : 'every trap is sprung and empty. something got there first.') + (c.broke ? ` ${c.broke} broke.` : '');
     } },
@@ -5907,34 +5919,34 @@ try {
   devMode = localStorage.getItem('firelight-dev') === 'on';
 } catch (e) { devMode = new URLSearchParams(location.search).has('dev'); }
 
-// What a strong player holds by then, from the perfect bot in tools/sim.js (fullReport, medians over 80 runs on
-// normal and hard). "day" is the morning after night n-1 (uncured meat already spoiled); "night" is after that day's
-// work. Insane is estimated from hard: the bot almost never gets through an insane night 1 (it starves).
+// What a strong player holds by then: medians from the best evolved bots in tools/sim.js (kitsFrom, 60 runs each,
+// after the 2026-10-19 balance). "day" is the morning after night n-1 (uncured meat already spoiled); "night" is
+// after that day's work. Insane nights 4 and 5 rest on very few runs: almost nobody gets that far.
 // [wood, raw, cooked, cured, blood, salt, fur, traps, score so far, what's built]
 const DEV_KITS = {
   normal: {
-    day: { 2: [10, 0, 0, 0, 10, 0, 0, 3, 285, 'axe'], 3: [20, 0, 0, 4, 20, 0, 10, 3, 840, 'axe shed stove shoes spear'],
-      4: [29, 0, 0, 9, 28, 0, 2, 3, 1538, 'axe shed stove shoes spear rack coat curtains'],
-      5: [42, 0, 0, 12, 39, 1, 4, 3, 2416, 'axe shed stove shoes spear rack coat curtains'] },
-    night: { 2: [25, 1, 0, 0, 13, 5, 0, 2, 285, 'axe'], 3: [42, 2, 0, 4, 21, 5, 11, 2, 840, 'axe shed stove shoes spear'],
-      4: [50, 2, 0, 9, 30, 6, 3, 2, 1538, 'axe shed stove shoes spear rack coat curtains'],
-      5: [67, 1, 0, 12, 41, 6, 4, 2, 2416, 'axe shed stove shoes spear rack coat curtains'] },
+    day: { 2: [10, 0, 0, 0, 11, 0, 0, 3, 297, 'axe'], 3: [32, 0, 0, 8, 24, 0, 12, 3, 913, 'axe shed stove shoes spear'],
+      4: [33, 0, 0, 12, 32, 0, 2, 3, 1624, 'axe shed stove shoes spear rack coat curtains'],
+      5: [31, 0, 0, 16, 40, 1, 3, 3, 2533, 'axe shed stove shoes spear rack coat curtains'] },
+    night: { 2: [22, 4, 0, 0, 13, 5, 0, 2, 297, 'axe'], 3: [43, 4, 0, 8, 27, 5, 12, 2, 913, 'axe shed stove shoes spear'],
+      4: [44, 4, 0, 12, 34, 6, 3, 2, 1624, 'axe shed stove shoes spear rack coat curtains'],
+      5: [44, 4, 0, 16, 43, 6, 4, 2, 2533, 'axe shed stove shoes spear rack coat curtains'] },
   },
   hard: {
-    day: { 2: [6, 0, 0, 0, 8, 0, 0, 1, 243, ''], 3: [7, 0, 0, 2, 11, 0, 8, 2, 690, 'axe'],
-      4: [7, 0, 0, 4, 13, 2, 3, 2, 1194, 'axe stove shoes spear rack coat curtains'],
-      5: [9, 0, 0, 3, 11, 1, 3, 2, 1699, 'axe shed stove shoes spear rack coat curtains'] },
-    night: { 2: [23, 0, 0, 0, 9, 5, 0, 1, 243, ''], 3: [25, 1, 0, 2, 12, 5, 9, 1, 690, 'axe'],
-      4: [25, 1, 0, 4, 14, 8, 3, 1, 1194, 'axe stove shoes spear rack coat curtains'],
-      5: [27, 1, 0, 3, 11, 7, 3, 1, 1699, 'axe shed stove shoes spear rack coat curtains'] },
+    day: { 2: [9, 0, 0, 0, 10, 0, 0, 2, 274, 'axe'], 3: [14, 0, 0, 5, 16, 0, 10, 3, 796, 'axe shed'],
+      4: [13, 0, 0, 6, 21, 0, 2, 3, 1393, 'axe shed stove shoes spear rack coat curtains'],
+      5: [27, 0, 0, 5, 22, 1, 4, 3, 2057, 'axe shed stove shoes spear rack coat curtains'] },
+    night: { 2: [18, 3, 0, 0, 12, 6, 0, 2, 274, 'axe'], 3: [24, 4, 0, 5, 18, 5, 11, 2, 796, 'axe shed'],
+      4: [25, 4, 0, 6, 22, 5, 3, 2, 1393, 'axe shed stove shoes spear rack coat curtains'],
+      5: [36, 3, 0, 5, 23, 6, 4, 2, 2057, 'axe shed stove shoes spear rack coat curtains'] },
   },
   insane: {
-    day: { 2: [4, 0, 0, 0, 5, 0, 0, 1, 209, ''], 3: [5, 0, 0, 1, 8, 0, 5, 1, 500, 'axe'],
-      4: [5, 0, 0, 3, 9, 1, 2, 1, 850, 'axe stove rack coat curtains'],
-      5: [6, 0, 0, 2, 8, 1, 2, 1, 1200, 'axe shed stove shoes spear rack coat curtains'] },
-    night: { 2: [14, 0, 0, 0, 6, 4, 0, 1, 209, ''], 3: [16, 1, 0, 1, 8, 4, 6, 1, 500, 'axe'],
-      4: [16, 1, 0, 3, 10, 5, 2, 1, 850, 'axe stove rack coat curtains'],
-      5: [18, 1, 0, 2, 8, 5, 2, 1, 1200, 'axe shed stove shoes spear rack coat curtains'] },
+    day: { 2: [7, 0, 0, 2, 5, 1, 0, 1, 240, ''], 3: [7, 0, 0, 2, 5, 3, 10, 1, 667, ''],
+      4: [8, 0, 0, 1, 8, 5, 3, 1, 1149, 'stove shoes rack coat curtains'],
+      5: [6, 0, 0, 3, 10, 2, 11, 2, 1613, 'stove shoes spear rack coat curtains'] },
+    night: { 2: [14, 3, 0, 2, 6, 6, 0, 1, 240, ''], 3: [17, 3, 0, 2, 6, 9, 10, 1, 667, ''],
+      4: [18, 3, 0, 1, 9, 10, 4, 1, 1149, 'stove shoes rack coat curtains'],
+      5: [12, 4, 0, 3, 12, 8, 11, 2, 1613, 'stove shoes spear rack coat curtains'] },
   },
 };
 
@@ -6315,6 +6327,7 @@ window.__firelight = {
   dev: (which) => devStart(which),
   lab: { open: () => openLab(), close: () => closeLab(), scenes: LAB_SCENES.map((sc) => sc.id), load: (id, t) => labLoad(LAB_SCENES.find((sc) => sc.id === id), t), get t() { return lab && lab.t; } },
   get lossT() { return lossT; },
+  diffs: DIFFS,   // for balance experiments from the console (tools/sim.js); changes last until reload
   choose,
   newNight: (diff) => newNight(true, diff),
   backToTitle,

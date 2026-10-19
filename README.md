@@ -150,8 +150,8 @@ Pick a difficulty for each run; each has its own leaderboard.
 | | |
 | --- | --- |
 | **Normal** | The night as it was meant to be |
-| **Hard** | A quarter less wood, 30% fewer catches, hungrier, meat goes bad sooner, a smaller woodshed (70). The grin takes three seconds; she and the hatch are quicker; more of the knocks are mimics |
-| **Insane** | About half the wood and catches, much hungrier, a 50-log woodshed that loses some logs to damp each day. But the trader comes every night (from 11 pm), charges a jar of blood less, and sells an **iron trap** that never wears out or breaks |
+| **Hard** | A little less wood (90% on trips, 85% chopping), 30% fewer catches, hungrier, meat goes bad sooner, a smaller woodshed (70). The grin takes three seconds; she and the hatch are quicker; more of the knocks are mimics. The trader sells one bundle of **smoked meat** a visit (1 blood + 2 logs for 2 cooked meat) |
+| **Insane** | The traps barely feed you (42% of normal catches), much hungrier, less wood, a 50-log woodshed that loses some logs to damp each day. The trader comes every night (from 11 pm), charges a jar of blood less, sells an **iron trap** that never wears out, and trades **smoked meat for logs** (2 logs for 2 cooked meat, three times a visit). A night with no one knocking is nearly always the last |
 
 **Scares** (on the title screen) is separate from difficulty:
 - **Eerie** keeps the dread and no jump scares.
@@ -293,11 +293,31 @@ Tuning changes along the way:
 - trimmed trap yields;
 - had 60% of late mimics fake footsteps.
 
+### The perfect player, evolved (2026-10-19)
+
+`perfect` in [tools/sim.js](tools/sim.js) plays whole five-night runs, days included, and knows every defense from nights 3 to 5 (fur clothes and curtains, torches, salting and planking against the goblins, the slot, the blood hour and the flood). Every choice it makes is a number in a **genome** (`GENES`: how bold its trips are, its log reserves, when it eats, trades and buys, how it spends the day).
+
+- **Replayable.** Every random roll in a run comes from one seeded generator and the game steps in fixed time, so a genome and a seed always play out exactly the same: `sim.replay(genome, seed, diff)`.
+- **Evolvable.** `sim.evolve(diff)` keeps the best genomes, mutates them, and tests each generation on fresh seeds; `sim.pickBest(evo)` checks the leaders on validation seeds so a lucky one can't win.
+- **Saved.** The best genomes and their best runs are in [tools/genomes.json](tools/genomes.json); `sim.replayBest('hard', 0)` replays one.
+- **Balance experiments.** `sim.sweep(diff, genome, [{ traps: 0.45 }, ...])` measures difficulty variants on the same seeds; `sim.measure` reports survival per night, scores, causes of death, and night-1 survival with and without a woodcutter or trader knocking.
+
+Hard and insane were rebalanced against the evolved players. Results with the best genome for each, 100 to 150 seeded runs:
+
+| | Survive night 1 | Reach dawn 1 / 2 / 3 / 4 / 5 | Night 1: no visitor / a visitor | Final score (median) |
+| --- | --- | --- | --- | --- |
+| Normal | 91% | 91 / 86 / 79 / 77 / 75% | 9 of 9 / 82 of 91 | 3,898 |
+| Hard | 77% | 77 / 64 / 51 / 43 / 31% | 15 of 20 / 62 of 80 | 3,212 |
+| Insane | 51% | 51 / 41 / 11 / 6 / 2% | 8 of 40 / 69 of 110 | 2,772 |
+
+Before the rebalance the evolved hard player finished 13% of runs and the insane one never got past night 2. The playtest kits (`DEV_KITS` in main.js) are the best genomes' median holdings at each dawn and after each day (`sim.kitsFrom`).
+
 To rerun the simulation, open the game locally and run this in the browser console:
 
 ```js
 const sim = await import('/tools/sim.js');
-sim.report(120);
+sim.report(120);                                        // night 1, the five older players
+sim.measure((await sim.genomes()).genomes.hard, 'hard', 100);   // whole runs, the evolved player
 ```
 
 ## How it's built
@@ -340,7 +360,8 @@ main.js             the night, threats, trips, doors, drawing, UI wiring
 sound.js            procedural audio
 score.js            scoring and leaderboard logic (pure, tested)
 tests/              Node test runner tests
-tools/sim.js        difficulty simulation (not deployed)
+tools/sim.js        difficulty simulation, the evolved perfect player (not deployed)
+tools/genomes.json  its best genomes and replayable best runs
 docs/               README screenshots
 ```
 
@@ -416,7 +437,7 @@ Open the game once with `?dev` on the address (https://firelight-topaz.vercel.ap
 
 The playtest menu also opens the **death lab** (or go straight there with `?lab`, https://firelight-topaz.vercel.app/?lab): every death on its own in an empty lit cabin, set up the way the room looks when it really happens (night 4's goblins, night 5's blood hour, out in the trees for the hunter and the whiteout), plus the flood from each way in, the goblins from one, two or three corners, the jump scare for every death, the face at the window on a close call, and the mimic stopped at the salt line. Play, pause, restart, scrub, slow it to 0.25x or 0.5x, switch scares between eerie and terrifying, and turn sound on or off (space, R, the arrow keys for one frame, Esc to leave). Scenes run from a fixed seed, so scrubbing shows the same frames each time. Nothing in the lab touches your saved night, the stats, the leaderboard or achievements.
 
-The version is in the bottom-right corner (v0.68 is the 68th commit; the number counts every commit, docs included), so you can tell a refresh picked up the latest build.
+The version is in the bottom-right corner (v0.69 is the 69th commit; the number counts every commit, docs included), so you can tell a refresh picked up the latest build.
 
 ## Future ideas
 
