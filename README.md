@@ -6,7 +6,13 @@ A short horror-survival game in chunky pixel art. One night lasts about seven mi
 
 **Play:** https://firelight-topaz.vercel.app (desktop browser with keyboard or mouse, or a phone held sideways)
 
+**Status:** playable and complete, still being polished. Five nights, three difficulties, six challenges and five endings are in. Online leaderboards (a Render + MongoDB backend) are planned but not built, so scores, challenge records and achievements stay in your browser for now.
+
 ![Title screen](docs/title.jpg)
+
+## Story
+
+Zach made Firelight as a game for his sister: something genuinely scary that she'd want to beat. It started on 2026-10-15 as a single night in a dark room and grew, round by round, from what happened when they played it: she and Zach playtested every version, and their deaths, complaints and "that was too easy" drove each redesign (the difficulty modes, the two scare settings, nights 3 to 5, the challenges). It's built entirely in the browser with no assets: the pixel art is drawn in code, and the sound and music are synthesized live. Balance is tuned by simulation: bots play thousands of seeded runs, and an evolutionary search finds the strongest play for each mode (see *Difficulty, tuned by simulation*).
 
 ## How to play
 
@@ -62,7 +68,7 @@ Keep the door shut on a real visitor and you hear their footsteps leave. Keep it
 | ![The stranger, starving](docs/plea.jpg) | ![The grin beneath its eyes, while you're out](docs/away.jpg) |
 | ![The false stranger, demanding food](docs/false-stranger.jpg) | |
 
-## The day, and nights 2 and 3
+## The day, and nights 2 to 5
 
 Make it to dawn and you choose: **end here** and bank your score, or **rest through the day** and face the next night. A run is up to five nights: the blizzard on nights 3 and 4, and the blood moon on night 5. Longer runs score far more, and the leaderboard marks them with one ☀ per night.
 
@@ -417,21 +423,14 @@ Pushes to `main` deploy to Vercel automatically.
 
 ## Verification
 
-Checked on 2026-10-16:
+As of 2026-10-22 (v0.72):
 
-- **The simulation runs above,** about 1,000 full nights across the three players during tuning.
-- **Each threat triggered directly in a desktop browser preview,** using the test hook (`window.__firelight`). The rules behind them were checked the same way: the stranger-mimic text is identical to the real knock; she dies 22 s after an ignored third plea; feeding on the third plea lasts to dawn while feeding early needs a second meat; dragging her out sets the carcass effect; refusing the fleeing man raises dread, brings the hunter close and hurries the window; the lantern burns its blood and sputters out. Visually checked:
-  - the hunter's eyes in the treeline;
-  - her claws through the boards;
-  - her crawling through a bare window, and the broken glass;
-  - the stranger's plea;
-  - the blood lantern's shadow under the door;
-  - a trip, and running back;
-  - the mimic death, with the figure in the doorway;
-  - the death screen with cause and hint;
-  - dawn, the score screen and initials.
-- **9 unit tests pass,** with no console errors.
-- **Screenshots** were staged with the test hook, so their numbers aren't from real play.
+- **18 unit tests** (`npm test`): scoring and the leaderboard, the achievement store, and the challenges (multipliers, their achievements, records, board entries).
+- **Simulation:** thousands of seeded full runs across every difficulty and challenge (`tools/sim.js`). Runs are deterministic: a saved seed and bot genome replay to the exact same score, checked after page reloads and with other runs in between.
+- **Random-input stress runs** on every night and difficulty (random builds, choices and timing), checked for script errors and broken state (NaN or negative counts). None found.
+- **Every death and jump scare** reviewed frame by frame in the death lab, and every playtest start and challenge rule checked in the browser.
+- **Played by people:** Zach and his sister have played every version on desktop, including a full Normal run to the Keeper ending (3,765 points), Insane nights, and a no-visitors run, plus the sound and the scare settings.
+- **Never tested:** a physical phone or tablet (only the browser's phone emulation), a Chromebook, Safari, or players outside the family. Screenshots in `docs/` are staged with the test hook, so their numbers aren't from real play.
 
 ## Music
 
@@ -439,9 +438,11 @@ The background music is generated in the browser like the rest of the sound: a l
 
 ## Achievements
 
-30 achievements, under **achievements** on the title screen, with a toast and a chime when you earn one:
-- **A death for every way to die**, 13 in all, including the very rare death lost in the white. Two are secret, shown as ??? with a hint until you find them.
-- **Surviving nights 1, 2 and 3.** Nights 4 and 5 are listed for a later version.
+54 achievements, under **achievements** on the title screen, with a toast and a chime when you earn one:
+- **A death for every way to die**, 19 in all, including the very rare death lost in the white. A few are secret, shown as ??? with a hint until you find them.
+- **Surviving each of the five nights**, and finishing on hard and on insane.
+- **The five endings.**
+- **The six challenges**, one for surviving all five nights under each.
 - **Feats.** A few that mean something:
   - keeping her alive to the third dawn;
   - seeing through the false stranger;
@@ -458,30 +459,30 @@ They're stored in this browser for now (`achievements.js`). Each unlock keeps it
 
 ## Playtesting
 
-Open the game once with `?dev` on the address (https://firelight-topaz.vercel.app/?dev) and the title menu gets a **playtest** button, remembered in that browser. Pick a difficulty, then start at the day before a night or straight into night 2, 3 or 4 (optionally a few days awake), with a basic kit (the axe included): boarded window, two traps (three on night 3), the lantern, the stranger, some food and wood, and on night 3 a woodshed and the drying rack. Playtest runs don't count toward the stats or the leaderboard.
+Open the game once with `?dev` on the address (https://firelight-topaz.vercel.app/?dev) and the title menu gets a **playtest** button, remembered in that browser. Pick a difficulty, then start at the day before a night or straight into night 2, 3 or 4 (optionally a few days awake), with the kit a strong player typically has by then on that difficulty (the evolved bots' median holdings: wood, meat, blood, salt, fur, traps, and what's built). Playtest runs don't count toward the stats or the leaderboard.
 
 The playtest menu also opens the **death lab** (or go straight there with `?lab`, https://firelight-topaz.vercel.app/?lab): every death on its own in an empty lit cabin, set up the way the room looks when it really happens (night 4's goblins, night 5's blood hour, out in the trees for the hunter and the whiteout), plus the flood from each way in, the goblins from one, two or three corners, the jump scare for every death, the face at the window on a close call, and the mimic stopped at the salt line. Play, pause, restart, scrub, slow it to 0.25x or 0.5x, switch scares between eerie and terrifying, and turn sound on or off (space, R, the arrow keys for one frame, Esc to leave). Scenes run from a fixed seed, so scrubbing shows the same frames each time. Nothing in the lab touches your saved night, the stats, the leaderboard or achievements.
 
-The version is in the bottom-right corner (v0.72 is the 72nd commit; the number counts every commit, docs included), so you can tell a refresh picked up the latest build.
+The version is in the bottom-right corner (v0.73 is the 73rd commit; the number counts every commit, docs included), so you can tell a refresh picked up the latest build.
 
 ## Future ideas
 
 Noted for later and very much subject to change:
-- **Night 4:** the blizzard again, with a new monster (concepts in `docs/spec-next-pass.md`), mimics that stand on two feet, and a slot in the door to see a visitor's face. A smoker for the stove.
-- **Night 5:** a blood moon.
-- **The stranger's story** and its endings.
-- **The day overhaul:** trips that make sense in hours, a village worth exploring.
-- **Accounts and a backend**, so scores, achievements and stats follow a player between devices.
+- **Accounts and a backend** (Render + MongoDB), so scores, challenge records, achievements and stats are shared between players and devices.
+- **Stacking challenges.**
+- **Custom ending animations, sounds and sprites.**
+- **The day overhaul:** a village worth exploring.
 
 ## Known limits
 
-- **Untested hardware:** never tested on a Chromebook or a touch device, and nobody has listened to the sound yet.
+- **Untested hardware:** never tested on a Chromebook, Safari, or a physical touch device.
+- **Everything is per-browser:** the leaderboard, challenge records, achievements and stats live in local storage until there's a backend.
+- **The bots are weaker than a careful person on the lean challenges.** "Presumed impossible" means no bot managed it in thousands of tries, not that it can't be done: a person beat night one of no visitors easily while the bots were still failing it.
 - **The simulated players are approximations.** Real players may find a threat harder or easier than the numbers suggest, especially the footsteps tell, which is text plus a sound.
-- **Per-browser leaderboard.**
 - **Phones are landscape only:** held upright, the game shows a "turn your phone sideways" screen and pauses. Checked in the browser's phone emulation at 375×812 upright and at 812×375 and 568×320 sideways, not on a physical phone.
 - **School web filters** may block `vercel.app`.
 
-## Credits
+## Credits and AI assistance
 
 Inspired by *A Dark Room* by Michael Townsend / Doublespeak Games. No code, text or art was copied from it.
 
@@ -531,13 +532,20 @@ Built with heavy AI assistance (Claude Code) under Zach Shirley's direction:
 
     Zach asked for a second day and left the design to Claude; the outline came from an earlier recommendation he had approved in principle.
   - **Her rebuild:** a scarier design with real animations for rising, grabbing, being burned, stealing and climbing in; the glass always breaking on her first visit; wind and cold through the broken window.
+  - **Nights 3 to 5 and everything after,** from playtesting with his sister:
+    - difficulty modes and the eerie/terrifying scare setting;
+    - the night 3–4 redesign (room temperature, the whiteout, frozen logs, fur clothes and curtains, the goblins through the woodshed cabinet, torches, the 2 am calm);
+    - the blood moon night and its constraints (the blood hour, the flood, a non-human stranger, an escape that makes sense), choosing its ending direction;
+    - achievements, the death lab, and fixes to sprites, sounds and controls he spotted in play;
+    - the economy targets for each difficulty, challenges with records under each, and calling out the bots when he beat a challenge they'd called impossible.
+  - **Checked and corrected throughout:** played every version, reported what felt wrong, and approved or rejected each design.
 - **Claude Code:**
   - the mechanics design within that direction;
   - the code, art, sound and writing;
-  - the simulation-based tuning and testing.
+  - the simulation-based tuning and testing, including the evolved bots and the challenge records.
 
 The font is [VT323](https://fonts.google.com/specimen/VT323) (SIL Open Font License).
 
 ## License
 
-No open-source license has been chosen. The code is public to read, and all rights are reserved.
+All rights reserved; source is public to read. No open-source license has been chosen yet.
