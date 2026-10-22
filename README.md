@@ -166,15 +166,15 @@ Pick a difficulty for each run; each has its own leaderboard.
 
 Under each challenge is its record for the difficulty you're pointing at: the best finished run by a person (kept on this computer until there are accounts), otherwise the best finished run by the evolved bots (`sim.certifyChallenges`), otherwise **presumed impossible**: no bot survived all five nights in hundreds of tries. Presumed-impossible challenges can still be played.
 
-Bot records on 2026-10-19 (each a replayable seed and genome in [tools/challenge-records.json](tools/challenge-records.json); 640 to 1,200 runs tried per cell):
+Bot records (2026-10-22; each a replayable seed and genome in [tools/challenge-records.json](tools/challenge-records.json); 640 to 3,500 runs tried per cell):
 
 | | No axe | No woodshed | No lantern | One trap | No torches | No visitors |
 | --- | --- | --- | --- | --- | --- | --- |
-| Normal | 5,399 | 5,514 | 6,267 | 3,385 | 5,605 | presumed impossible |
+| Normal | 5,399 | 5,514 | 6,267 | 3,385 | 5,605 | 3,222 |
 | Hard | 3,991 | 3,825 | 4,819 | presumed impossible | 4,317 | presumed impossible |
 | Insane | 3,403 | 3,759 | 4,107 | presumed impossible | 3,724 | presumed impossible |
 
-No visitors fails for the bots because the woodcutter is most of the wood: without his trades a night-2 pile hovers between empty and a dozen logs, the woodshed never gets built, and the first blizzard puts the fire out.
+The bots first called no visitors impossible on normal, and a person beat night one easily: the bot was spending 86 of the 125 logs it gathered in a night rebuilding worn-out traps, and lighting a lantern it had no use for. New genes (`trapMax`, `trapFood`, `shedEarly`, `skipSleep`) let it hold back on traps and put the woodshed up on night one; it then finished once in about 80 tries. The bots are good at the ordinary game and still weaker than a careful person on the lean challenges, so treat "presumed impossible" as "no bot has managed it", not proof.
 
 **Scares** (on the title screen) is separate from difficulty:
 - **Eerie** keeps the dread and no jump scares.
@@ -462,7 +462,7 @@ Open the game once with `?dev` on the address (https://firelight-topaz.vercel.ap
 
 The playtest menu also opens the **death lab** (or go straight there with `?lab`, https://firelight-topaz.vercel.app/?lab): every death on its own in an empty lit cabin, set up the way the room looks when it really happens (night 4's goblins, night 5's blood hour, out in the trees for the hunter and the whiteout), plus the flood from each way in, the goblins from one, two or three corners, the jump scare for every death, the face at the window on a close call, and the mimic stopped at the salt line. Play, pause, restart, scrub, slow it to 0.25x or 0.5x, switch scares between eerie and terrifying, and turn sound on or off (space, R, the arrow keys for one frame, Esc to leave). Scenes run from a fixed seed, so scrubbing shows the same frames each time. Nothing in the lab touches your saved night, the stats, the leaderboard or achievements.
 
-The version is in the bottom-right corner (v0.71 is the 71st commit; the number counts every commit, docs included), so you can tell a refresh picked up the latest build.
+The version is in the bottom-right corner (v0.72 is the 72nd commit; the number counts every commit, docs included), so you can tell a refresh picked up the latest build.
 
 ## Future ideas
 

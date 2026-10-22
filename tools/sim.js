@@ -328,7 +328,12 @@ export const GENES = {
   meatBelow: [4, 0, 10],      // buys the trader's smoked meat with less food than this
   dayChop: [3, 0, 5],         // day: hours of chopping (2 each), hunting (2 each) and scavenging (3 each)
   dayHunt: [1, 0, 4],
-  dayScav: [1, 0, 2],
+  dayScav: [1, 0, 3],
+  // added 2026-10-22; the defaults are the old behavior, so older genomes and their replays are unchanged
+  trapMax: [3, 1, 3],         // traps it keeps
+  trapFood: [99, 2, 99],      // with this much food in hand it doesn't build or rebuild a trap
+  shedEarly: [0, 0, 1],       // the woodshed first, from the first night
+  skipSleep: [0, 0, 1],       // skips the day's sleep when rested (every other day at most)
 };
 export const defaultGenome = () => Object.fromEntries(Object.entries(GENES).map(([k, [v]]) => [k, v]));
 
@@ -392,17 +397,19 @@ function perfect(f, S, mem) {
   if (n >= 2) { f.act.build('bar'); if (S.salt >= 4) f.act.build('saltHatch'); }
   // boards come first, then the traps; everything else waits on a reserve of logs (bare window: she takes ten).
   // trapsFirst: Zach's order, three traps as fast as possible and the boards by 1 am
-  if (G.trapsFirst >= 0.5 && n === 1 && !S.boardsBuilt && S.traps < 3 && clock(S) < 2.3) { if (S.wood >= 7) f.act.build('trap'); }
+  const wantTrap = S.traps < Math.round(G.trapMax) && S.meat + S.cooked < G.trapFood;
+  if (G.trapsFirst >= 0.5 && n === 1 && !S.boardsBuilt && S.traps < 3 && clock(S) < 2.3) { if (S.wood >= 7 && wantTrap) f.act.build('trap'); }
   else if (!S.boardsBuilt && (S.wood >= G.boardsAt || (S.wood >= 8 && clock(S) > G.boardsLate) || (G.trapsFirst >= 0.5 && S.wood >= 8))) f.act.build('boards');   // keep a few for the fire
   // from night 2, the woodshed comes before anything else that costs logs: without one the blizzard eats the pile
-  if (n >= 2 && !S.shed && S.wood >= G.shedAt && S.boardsBuilt && !S.hunter.near && S.hand.phase === 'idle' && S.stalk < 3 && !bloodHourNow(S) && !floodSoon(S)) {
+  if ((n >= 2 || G.shedEarly >= 0.5) && !S.shed && S.wood >= G.shedAt && S.boardsBuilt && !S.hunter.near && S.hand.phase === 'idle' && S.stalk < 3 && !bloodHourNow(S) && !floodSoon(S)) {
     if (S.fire < 4) return f.act.stoke();
     return f.act.build('shed');
   }
   const spare = S.wood - (S.boardsBuilt ? G.reserve : 16);
-  if (S.boardsBuilt && S.traps < 2 && S.wood >= G.trap2At) f.act.build('trap');
-  if (S.traps < 3 && spare >= 6) f.act.build('trap');
-  if (!S.lantern && S.blood >= 4 && spare >= G.lanternSpare) f.act.build('lantern');
+  if (wantTrap && S.boardsBuilt && S.traps < 2 && S.wood >= G.trap2At) f.act.build('trap');
+  if (wantTrap && S.traps < 3 && spare >= 6) f.act.build('trap');
+  // the lantern only tells you who is at the door; with nobody let in it is wasted wood and blood
+  if (!S.lantern && S.ch !== 'noVisitors' && S.blood >= 4 && spare >= G.lanternSpare) f.act.build('lantern');
   if (S.salt >= 3 + saltKeep && S.traps) f.act.build('saltTrap');
   if (n >= 3 && !S.rack && spare >= G.rackSpare) f.act.build('rack');
   if (n >= 3) for (const [k, c] of CLOTHES) if (S.fur >= c) f.act.build(k);
@@ -440,7 +447,8 @@ players.perfect = perfect;
 dayPlans.perfect = ['sit', 'sleep', 'traps', 'window', 'chop', 'chop', 'scavenge', 'chop', 'hunt'];
 // the day, from the genome: the essentials, then its mix of chopping, hunting and scavenging, then fill
 function perfectDay(f, g) {
-  const plan = ['sit', 'sleep', 'traps', 'window'];
+  const skip = g.skipSleep >= 0.5 && (f.state.awake || 0) < 1;   // one night awake is survivable; two in a row starts to hurt
+  const plan = ['sit', ...(skip ? [] : ['sleep']), 'traps', 'window'];
   for (let i = 0; i < Math.round(g.dayScav); i++) plan.push('scavenge');
   for (let i = 0; i < 5; i++) { if (i < Math.round(g.dayChop)) plan.push('chop'); if (i < Math.round(g.dayHunt)) plan.push('hunt'); }
   for (const id of [...plan, 'chop', 'hunt', 'chop']) f.day.do(id);
@@ -711,11 +719,11 @@ export async function replayBest(diff = 'normal', i = 0) {
 // genome under the challenge's rule, then check the leaders on fresh seeds. Any finished run proves the challenge
 // possible and its best score becomes the bot record; none finished in all those tries means "presumed impossible".
 // Results land in window.__cert as they come, in the BOT_RECORDS format of challenges.js.
-export async function certifyChallenges(combos, { pop = 10, gens = 6, seeds = 8, validate = 20 } = {}) {
+export async function certifyChallenges(combos, { pop = 10, gens = 6, seeds = 8, validate = 20, starts = {} } = {}) {
   const gj = await genomes();
   const cert = (window.__cert = window.__cert || {});
   for (const [diff, ch] of combos) {
-    const evo = await evolve(diff, { pop, gens, seeds, keep: 3, start: gj.genomes[diff], seedBase: 50 + Object.keys(cert).length, ch });
+    const evo = await evolve(diff, { pop, gens, seeds, keep: 3, start: starts[`${diff}:${ch}`] || starts[diff] || gj.genomes[diff], seedBase: 50 + Object.keys(cert).length, ch });
     await pickBest(evo, validate, 860000);
     const b = evo.bestFinish;
     cert[`${diff}:${ch}`] = b ? { score: b.score, nights: 5, seed: b.seed, g: b.g, tested: evo.tested } : { impossible: true, tested: evo.tested };

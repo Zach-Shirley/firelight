@@ -13,7 +13,7 @@ export const CHALLENGES = [
 ];
 export const challengeById = (id) => CHALLENGES.find((c) => c.id === id) || null;
 
-// from tools/sim.js certifyChallenges() (full records with genomes, for replays: tools/challenge-records.json, v0.71);
+// from tools/sim.js certifyChallenges() (full records with genomes, for replays: tools/challenge-records.json, v0.72);
 // key `${difficulty}:${challenge}`.
 // { score, nights, seed } for a bot that finished all five nights, or { impossible: true, tested } if none did
 export const BOT_RECORDS = {
@@ -22,19 +22,19 @@ export const BOT_RECORDS = {
   'normal:noLantern': { score: 6267, nights: 5, seed: 5205002 },
   'normal:oneTrap': { score: 3385, nights: 5, seed: 5305007 },
   'normal:noTorches': { score: 5605, nights: 5, seed: 90006 },
-  'normal:noVisitors': { impossible: true, tested: 1200 },
+  'normal:noVisitors': { score: 3222, nights: 5, seed: 9106004 },
   'hard:noAxe': { score: 3991, nights: 5, seed: 5600001 },
   'hard:noShed': { score: 3825, nights: 5, seed: 5703003 },
   'hard:noLantern': { score: 4819, nights: 5, seed: 860002 },
-  'hard:oneTrap': { impossible: true, tested: 1200 },
+  'hard:oneTrap': { impossible: true, tested: 2400 },
   'hard:noTorches': { score: 4317, nights: 5, seed: 90021 },
-  'hard:noVisitors': { impossible: true, tested: 1200 },
+  'hard:noVisitors': { impossible: true, tested: 2400 },
   'insane:noAxe': { score: 3403, nights: 5, seed: 6204003 },
   'insane:noShed': { score: 3759, nights: 5, seed: 6305000 },
   'insane:noLantern': { score: 4107, nights: 5, seed: 90025 },
-  'insane:oneTrap': { impossible: true, tested: 1200 },
+  'insane:oneTrap': { impossible: true, tested: 2400 },
   'insane:noTorches': { score: 3724, nights: 5, seed: 6602001 },
-  'insane:noVisitors': { impossible: true, tested: 1200 },
+  'insane:noVisitors': { impossible: true, tested: 2400 },
 };
 
 // the record to show for a challenge: a person's finished run beats any bot's
