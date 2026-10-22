@@ -463,7 +463,7 @@ Open the game once with `?dev` on the address (https://firelight-topaz.vercel.ap
 
 The playtest menu also opens the **death lab** (or go straight there with `?lab`, https://firelight-topaz.vercel.app/?lab): every death on its own in an empty lit cabin, set up the way the room looks when it really happens (night 4's goblins, night 5's blood hour, out in the trees for the hunter and the whiteout), plus the flood from each way in, the goblins from one, two or three corners, the jump scare for every death, the face at the window on a close call, and the mimic stopped at the salt line. Play, pause, restart, scrub, slow it to 0.25x or 0.5x, switch scares between eerie and terrifying, and turn sound on or off (space, R, the arrow keys for one frame, Esc to leave). Scenes run from a fixed seed, so scrubbing shows the same frames each time. Nothing in the lab touches your saved night, the stats, the leaderboard or achievements.
 
-The version is in the bottom-right corner (v0.74 is the 74th commit; the number counts every commit, docs included), so you can tell a refresh picked up the latest build.
+The version is in the bottom-right corner (v0.75 is the 75th commit; the number counts every commit, docs included), so you can tell a refresh picked up the latest build.
 
 ## Future ideas
 
