@@ -709,13 +709,12 @@ body.lab #stage #slam, body.lab #stage #swat, body.lab #stage #strike, body.lab 
 }
 
 /* experimental features: a faint switch at the bottom of the achievements */
-.exp { margin-top: calc(2px * var(--s)); opacity: 0.16; font-size: calc(4.5px * var(--s)); transition: opacity 0.3s; }
-.exp:hover, .exp:focus-within { opacity: 0.55; }
-.exp button, .exp .exp-file { all: unset; cursor: pointer; color: var(--ink-dim); font: inherit; margin-right: calc(2px * var(--s)); }
-.exp .exp-file { text-decoration: underline; }
-.exp input[type=file] { display: none; }
+.ach-list li.exp { display: block; margin-top: calc(8px * var(--s)); opacity: 0.14; font-size: calc(4.5px * var(--s)); transition: opacity 0.3s; }
+.ach-list li.exp:hover, .ach-list li.exp:focus-within { opacity: 0.5; }
+.ach-list li.exp button { all: unset; cursor: pointer; color: var(--ink-dim); font: inherit; }
 /* the doom layer: low-res and pixel-sharp over everything, never in the way of a click */
 #doom { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; pointer-events: none; z-index: 36; }
+#doomGun { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 37; }
 #doomTint { position: absolute; inset: 0; pointer-events: none; z-index: 35; opacity: 0; transition: opacity 0.8s; background: rgba(170, 0, 0, 0.13); }
 #doomTint.on { opacity: 1; }
-#stage.doom #actions { transform: translateX(calc(-30px * var(--s))); transition: transform 0.4s; }
+#stage.doom #actions { transform: translateX(calc(-14px * var(--s))) scale(0.82); transform-origin: left center; transition: transform 0.4s; }

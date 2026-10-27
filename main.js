@@ -8,7 +8,7 @@ import { computeScore, qualifies, insertScore, cleanInitials, sanitizeBoard } fr
 import { CHALLENGES, challengeById, recordFor } from './challenges.js';
 import { createDoom } from './doom.js';
 
-const VERSION = '0.77';   // one step per commit to the repository
+const VERSION = '0.78';   // one step per commit to the repository
 const W = 320, H = 180;
 const FIRE = { x: 160, y: 136 };          // base of the flames
 const LIGHT_Y = 130;                       // centre of the light pool
@@ -2135,22 +2135,22 @@ function startDawn() {
 const EXP_KEY = 'firelight.experimental';
 let expOn = (() => { try { return localStorage.getItem(EXP_KEY) === '1'; } catch (e) { return false; } })();
 const doom = createDoom({ stage, audioOut: sfx.audioOut, soundOn: () => S.sound !== false });
-function syncExp() {
-  $('expBtn').textContent = `experimental features: ${expOn ? 'on' : 'off'}`;
-  $('expTrack').classList.toggle('hidden', !expOn);
-  $('expTrackName').textContent = doom.hasTrack() ? 'yours' : 'built in';
-  $('expClear').classList.toggle('hidden', !doom.hasTrack());
+// the switch is the last line of the achievement list, so you only see it if you scroll all the way down
+function expRow() {
+  const li = document.createElement('li');
+  li.className = 'exp';
+  const b = document.createElement('button');
+  b.id = 'expBtn';
+  b.textContent = `experimental features: ${expOn ? 'on' : 'off'}`;
+  b.addEventListener('click', () => {
+    expOn = !expOn;
+    try { localStorage.setItem(EXP_KEY, expOn ? '1' : '0'); } catch (e) { /* only for this visit */ }
+    if (!expOn) doom.off();
+    b.textContent = `experimental features: ${expOn ? 'on' : 'off'}`;
+  });
+  li.appendChild(b);
+  return li;
 }
-$('expBtn').addEventListener('click', () => {
-  expOn = !expOn;
-  try { localStorage.setItem(EXP_KEY, expOn ? '1' : '0'); } catch (e) { /* only for this visit */ }
-  if (!expOn) doom.off();
-  syncExp();
-});
-$('expFile').addEventListener('change', async (e) => { const f = e.target.files && e.target.files[0]; if (f) { await doom.setTrack(f); syncExp(); } e.target.value = ''; });
-$('expClear').addEventListener('click', async () => { await doom.setTrack(null); syncExp(); });
-doom.loadTrack().then(syncExp);
-syncExp();
 
 // Click the thing in the trees five times, quickly, and something rises in the corner. Then anything you click on,
 // you shoot, and anything you hit comes apart. Whatever you kill comes back, sooner than it would have.
@@ -2163,7 +2163,7 @@ function doomClick(x, y) {
     const now = performance.now();
     if (doomTaps.length && now - doomTaps[doomTaps.length - 1] > 1500) doomTaps = [];
     doomTaps.push(now);
-    if (doomTaps.length >= 5) { doomTaps = []; doom.unlock(); S.dev = true; }
+    if (doomTaps.length >= 5) { doomTaps = []; doom.unlock(); S.dev = true; say('music: "Rip & Tear", Mick Gordon, from DOOM (id Software). the shotgun is DOOM Eternal\'s.'); }
     return true;
   }
   if (!doom.shown) return false;
@@ -2303,6 +2303,7 @@ function renderAchievements() {
       ui.achList.appendChild(li);
     }
   }
+  ui.achList.appendChild(expRow());
 }
 
 /* --------------------------------------------------------------- messages */
@@ -5862,6 +5863,7 @@ function renderBoard(el, highlight = -1, diff = S.diff) {
 }
 
 function showTitle(panel = 'menu') {
+  doom.off();   // the easter egg lasts one game; it has to be found again
   setMode('title');
   ui.ending.classList.add('hidden');
   ui.title.classList.remove('hidden');
@@ -5887,6 +5889,7 @@ function showTitle(panel = 'menu') {
 
 function newNight(skipConfirm = false, diff = 'normal', ch = null) {
   if (!skipConfirm && S.lit && !S.ended && !confirm('Start a new night? The one in progress will be lost.')) return;
+  doom.off();
   const sound = S.sound;
   S = freshState();
   S.sound = sound;

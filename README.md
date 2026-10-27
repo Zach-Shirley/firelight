@@ -438,7 +438,13 @@ The background music is generated in the browser like the rest of the sound: a l
 
 ## Experimental features
 
-At the bottom of the achievements there's a faint "experimental features" switch, off by default. With it on, a few silly, deliberately unbalanced extras can be found in the game. How to set them off is left for players to discover. A night that uses one counts as a playtest night: no stats, no leaderboard, no achievements. Their art, sound effects and music are original and generated in code like the rest of the game. An optional "use a file" button plays a music file of your own choosing instead; it stays in your browser and is never uploaded.
+Scroll to the very bottom of the achievements and there's a faint "experimental features" switch, off by default. With it on, a few silly, deliberately unbalanced extras can be found in the game; how to set them off is left for players to discover. One lasts only for the game it's found in, and a night that uses one counts as a playtest night: no stats, no leaderboard, no achievements.
+
+**Third-party material (not ours).** One of these extras is a DOOM tribute and uses two things that belong to others, in a small non-commercial fan project shared with friends. We'll remove either at once if the owners ask:
+- **Music:** `music/rip-and-tear.mp3`, a close variant of "Rip & Tear" by Mick Gordon, from the DOOM (2016) soundtrack, © id Software / Bethesda.
+- **Shotgun art:** `assets/doom-shotgun.webp`, the super shotgun cut out of a DOOM Eternal screenshot and colour-graded, © id Software / Bethesda.
+
+The gore, bullet puffs, muzzle flash, shot and reload sounds are original, made in code.
 
 ## Achievements
 
@@ -467,7 +473,7 @@ Open the game once with `?dev` on the address (https://firelight-topaz.vercel.ap
 
 The playtest menu also opens the **death lab** (or go straight there with `?lab`, https://firelight-topaz.vercel.app/?lab): every death on its own in an empty lit cabin, set up the way the room looks when it really happens (night 4's goblins, night 5's blood hour, out in the trees for the hunter and the whiteout), plus the flood from each way in, the goblins from one, two or three corners, the jump scare for every death, the face at the window on a close call, and the mimic stopped at the salt line. Play, pause, restart, scrub, slow it to 0.25x or 0.5x, switch scares between eerie and terrifying, and turn sound on or off (space, R, the arrow keys for one frame, Esc to leave). Scenes run from a fixed seed, so scrubbing shows the same frames each time. Nothing in the lab touches your saved night, the stats, the leaderboard or achievements.
 
-The version is in the bottom-right corner (v0.77 is the 77th commit; the number counts every commit, docs included), so you can tell a refresh picked up the latest build.
+The version is in the bottom-right corner (v0.78 is the 78th commit; the number counts every commit, docs included), so you can tell a refresh picked up the latest build.
 
 ## Future ideas
 
@@ -489,6 +495,8 @@ Noted for later and very much subject to change:
 ## Credits and AI assistance
 
 Inspired by *A Dark Room* by Michael Townsend / Doublespeak Games. No code, text or art was copied from it.
+
+The hidden DOOM tribute uses "Rip & Tear" (Mick Gordon, DOOM 2016) and DOOM Eternal's super shotgun, both © id Software / Bethesda, credited under [Experimental features](#experimental-features). They aren't covered by this project's rights and will be taken down on request. The game also credits them on screen when the tribute starts.
 
 Built with heavy AI assistance (Claude Code) under Zach Shirley's direction:
 
