@@ -436,6 +436,10 @@ As of 2026-10-22 (v0.72):
 
 The background music is generated in the browser like the rest of the sound: a low, slowly breathing drone under a warped music box picking out a minor-key lullaby one note at a time, never quite in tune. As the night goes on, and as the dark closes in, a sour note creeps into the drone and the music box plays faster, with notes that clash. It's quieter during the day, and silent at dawn and when you die. **N** or the music button turns it off (remembered per browser).
 
+## Experimental features
+
+At the bottom of the achievements there's a faint "experimental features" switch, off by default. With it on, a few silly, deliberately unbalanced extras can be found in the game. How to set them off is left for players to discover. A night that uses one counts as a playtest night: no stats, no leaderboard, no achievements. Their art, sound effects and music are original and generated in code like the rest of the game. An optional "use a file" button plays a music file of your own choosing instead; it stays in your browser and is never uploaded.
+
 ## Achievements
 
 54 achievements, under **achievements** on the title screen, with a toast and a chime when you earn one:
@@ -463,7 +467,7 @@ Open the game once with `?dev` on the address (https://firelight-topaz.vercel.ap
 
 The playtest menu also opens the **death lab** (or go straight there with `?lab`, https://firelight-topaz.vercel.app/?lab): every death on its own in an empty lit cabin, set up the way the room looks when it really happens (night 4's goblins, night 5's blood hour, out in the trees for the hunter and the whiteout), plus the flood from each way in, the goblins from one, two or three corners, the jump scare for every death, the face at the window on a close call, and the mimic stopped at the salt line. Play, pause, restart, scrub, slow it to 0.25x or 0.5x, switch scares between eerie and terrifying, and turn sound on or off (space, R, the arrow keys for one frame, Esc to leave). Scenes run from a fixed seed, so scrubbing shows the same frames each time. Nothing in the lab touches your saved night, the stats, the leaderboard or achievements.
 
-The version is in the bottom-right corner (v0.76 is the 76th commit; the number counts every commit, docs included), so you can tell a refresh picked up the latest build.
+The version is in the bottom-right corner (v0.77 is the 77th commit; the number counts every commit, docs included), so you can tell a refresh picked up the latest build.
 
 ## Future ideas
 

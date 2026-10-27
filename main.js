@@ -6,8 +6,9 @@ import * as sfx from './sound.js';
 import { ACHIEVEMENTS, createStore } from './achievements.js';
 import { computeScore, qualifies, insertScore, cleanInitials, sanitizeBoard } from './score.js';
 import { CHALLENGES, challengeById, recordFor } from './challenges.js';
+import { createDoom } from './doom.js';
 
-const VERSION = '0.76';   // one step per commit to the repository
+const VERSION = '0.77';   // one step per commit to the repository
 const W = 320, H = 180;
 const FIRE = { x: 160, y: 136 };          // base of the flames
 const LIGHT_Y = 130;                       // centre of the light pool
@@ -962,30 +963,36 @@ function gobEyes(g) {
   return { x: c.x + (c.x < 160 ? 1 : -1) * j * 4, y: c.y - (j % 2) * 2.5 + j * 1.5, j };
 }
 
+// where a goblin out in the room is: skittering along the walls, or climbing the rack
+function gobPos(g, t) {
+  if (!g.corner) {
+    // in plain view, skittering along the walls between the lit corners (it leaves when the door opens)
+    const k = (t * 0.35 + S.goblins.indexOf(g) * 0.37) % 1;
+    return { x: 20 + 280 * (k < 0.5 ? k * 2 : 2 - k * 2), y: 112, face: k < 0.5 ? 1 : -1, pose: 'run' };
+  }
+  const c = GOB_CORNERS[g.corner];
+  // up one side of the rack, a slip, across, and up the other side; then back down to its corner
+  const T = g.act.t, ty = g.act.to === 'blood' ? 64 : 52;
+  let x, y, face = 1;
+  if (T < 0.45) { const k = ease(T / 0.45); x = lerp(c.x, 196, k); y = lerp(c.y + 6, 112, k); face = c.x < 196 ? 1 : -1; }
+  else if (T < 0.95) { const k = ease((T - 0.45) / 0.5); x = 196; y = lerp(112, 78, k); }
+  else if (T < 1.2) { const k = (T - 0.95) / 0.25; x = 196; y = lerp(78, 104, k * k); }               // it slips
+  else if (T < 1.5) { const k = ease((T - 1.2) / 0.3); x = lerp(196, 216, k); y = 106; }
+  else if (T < 2.0) { const k = ease((T - 1.5) / 0.5); x = 216; y = lerp(106, ty, k); face = -1; }
+  else { const k = ease((T - 2.0) / (GOB_CLIMB - 2.0)); x = lerp(216, c.x, k); y = lerp(ty, c.y + 6, k); face = c.x < 216 ? -1 : 1; }
+  return { x, y, face, pose: T >= 0.45 && T < 0.95 || T >= 1.5 && T < 2.0 ? 'climb' : 'run' };
+}
+
 function drawGoblins(s, t) {
   if (!S.goblins || !S.goblins.length) return;
   for (const g of S.goblins) {
-    if (!g.corner) {
-      // in plain view, skittering along the walls between the lit corners (it leaves when the door opens)
-      const k = (t * 0.35 + S.goblins.indexOf(g) * 0.37) % 1;
-      const x = 20 + 280 * (k < 0.5 ? k * 2 : 2 - k * 2), y = 112;
-      drawGoblin(s, x, y, 1, k < 0.5 ? 1 : -1, 0.95);
+    if (!g.corner || g.act) {
+      const p = gobPos(g, t);
+      if (g.corner) drawGoblin(s, p.x, p.y, 0.9, p.face, 0.95, true, p.pose);
+      else drawGoblin(s, p.x, p.y, 1, p.face, 0.95);
       continue;
     }
     const c = GOB_CORNERS[g.corner];
-    if (g.act) {
-      // up one side of the rack, a slip, across, and up the other side; then back down to its corner
-      const T = g.act.t, ty = g.act.to === 'blood' ? 64 : 52;
-      let x, y, face = 1;
-      if (T < 0.45) { const k = ease(T / 0.45); x = lerp(c.x, 196, k); y = lerp(c.y + 6, 112, k); face = c.x < 196 ? 1 : -1; }
-      else if (T < 0.95) { const k = ease((T - 0.45) / 0.5); x = 196; y = lerp(112, 78, k); }
-      else if (T < 1.2) { const k = (T - 0.95) / 0.25; x = 196; y = lerp(78, 104, k * k); }               // it slips
-      else if (T < 1.5) { const k = ease((T - 1.2) / 0.3); x = lerp(196, 216, k); y = 106; }
-      else if (T < 2.0) { const k = ease((T - 1.5) / 0.5); x = 216; y = lerp(106, ty, k); face = -1; }
-      else { const k = ease((T - 2.0) / (GOB_CLIMB - 2.0)); x = lerp(216, c.x, k); y = lerp(ty, c.y + 6, k); face = c.x < 216 ? -1 : 1; }
-      drawGoblin(s, x, y, 0.9, face, 0.95, true, T >= 0.45 && T < 0.95 || T >= 1.5 && T < 2.0 ? 'climb' : 'run');
-      continue;
-    }
     // in its corner only its eyes show, small and dim and low, blinking out of rhythm; more than one in a
     // corner sit a little apart, so you can count the pairs
     const { x: ex, y: ey, j } = gobEyes(g);
@@ -2119,6 +2126,115 @@ function startDawn() {
   sfx.dawn();
   say('the sky outside is turning gray.');
   save();
+}
+
+/* ------------------------------------------------- experimental features */
+
+// A faint switch at the bottom of the achievements. With it on, a few things in the game do things they shouldn't,
+// if you find them. They are not balanced, so a night that uses one counts as a playtest night (no stats, no board).
+const EXP_KEY = 'firelight.experimental';
+let expOn = (() => { try { return localStorage.getItem(EXP_KEY) === '1'; } catch (e) { return false; } })();
+const doom = createDoom({ stage, audioOut: sfx.audioOut, soundOn: () => S.sound !== false });
+function syncExp() {
+  $('expBtn').textContent = `experimental features: ${expOn ? 'on' : 'off'}`;
+  $('expTrack').classList.toggle('hidden', !expOn);
+  $('expTrackName').textContent = doom.hasTrack() ? 'yours' : 'built in';
+  $('expClear').classList.toggle('hidden', !doom.hasTrack());
+}
+$('expBtn').addEventListener('click', () => {
+  expOn = !expOn;
+  try { localStorage.setItem(EXP_KEY, expOn ? '1' : '0'); } catch (e) { /* only for this visit */ }
+  if (!expOn) doom.off();
+  syncExp();
+});
+$('expFile').addEventListener('change', async (e) => { const f = e.target.files && e.target.files[0]; if (f) { await doom.setTrack(f); syncExp(); } e.target.value = ''; });
+$('expClear').addEventListener('click', async () => { await doom.setTrack(null); syncExp(); });
+doom.loadTrack().then(syncExp);
+syncExp();
+
+// Click the thing in the trees five times, quickly, and something rises in the corner. Then anything you click on,
+// you shoot, and anything you hit comes apart. Whatever you kill comes back, sooner than it would have.
+let doomTaps = [];
+function doomClick(x, y) {
+  if (!expOn || mode !== 'playing' || lab) return false;
+  if (!doom.on) {
+    const eyesUp = hunterEyes > 0.25 && treelineView(animT) > 0;
+    if (!eyesUp || Math.abs(x - 55.5) > 8 || Math.abs(y - 56.5) > 7) return false;
+    const now = performance.now();
+    if (doomTaps.length && now - doomTaps[doomTaps.length - 1] > 1500) doomTaps = [];
+    doomTaps.push(now);
+    if (doomTaps.length >= 5) { doomTaps = []; doom.unlock(); S.dev = true; }
+    return true;
+  }
+  if (!doom.shown) return false;
+  if (doom.inGun(x, y)) return true;   // double-click the gun to put it away
+  if (!doom.fire()) return true;
+  S.dev = true;
+  shake = Math.max(shake, 0.08);
+  let best = null, bd = 1e9;
+  for (const tg of doomTargets()) {
+    const d = Math.hypot(tg.x - x, (tg.y - y) * 1.1);
+    if (d < tg.r + 3 && d < bd) { bd = d; best = tg; }
+  }
+  if (best) { doom.gib(best.x, best.y, best.size); best.kill(); doom.puff(x, y, 2); }
+  else doom.puff(x, y, 6);
+  return true;
+}
+
+function closeDoorDialogue() {
+  if (dialog && dialog.door) { dialog = null; ui.dialogue.classList.add('hidden'); }
+  visitorAtDoor = null;
+  doorCloseIn = 0.5;
+}
+
+// everything on screen the gun can hit right now, in game coordinates
+function doomTargets() {
+  const T = [];
+  const add = (x, y, r, size, kill) => T.push({ x, y, r, size, kill });
+  const hn = S.hunter, hd = S.hand, hc = S.hatch;
+  if ((hunterEyes > 0.1 && treelineView(animT) > 0) || (S.away && hn.near && S.stalk >= 0.8)) {
+    add(55.5, 57, S.away ? 12 : 8, 9, () => {
+      hn.near = false; hn.since = 0; hn.t = rand(11, 20); S.stalk = 0;
+      hunterEyes = 0; phantomEyes = 0; phantomGrin = 0;
+      say('the thing in the trees comes apart all over the snow.');
+    });
+  }
+  if (hd.phase !== 'idle') {
+    const crawl = hd.phase === 'crawl' || hd.phase === 'steal';
+    const gp = handGrip();
+    add(crawl ? 60 : gp.x, crawl ? 62 : gp.y + 2, crawl ? 14 : 9, crawl ? 14 : 10, () => {
+      hd.phase = 'idle'; hd.phantom = false; hd.t = nextHand() * 0.5;
+      say('what was at the window is all over the window.');
+    });
+  }
+  if ((hc.phase === 'lift' && hc.p > 0.2) || hc.phase === 'feeding' || hc.phase === 'taking') {
+    add(HATCH.x + HATCH.w / 2, HATCH.y + 2, 9, 9, () => {
+      hc.phase = 'idle'; hc.phantom = false; hc.t = nextHatch() * 0.5;
+      say('something under the floor stops being something.');
+    });
+  }
+  for (const g of S.goblins || []) {
+    const out = !g.corner || g.act;
+    const p = out ? gobPos(g, animT) : gobEyes(g);
+    add(p.x, out ? p.y - 6 : p.y, 6, 6, () => { const i = S.goblins.indexOf(g); if (i >= 0) S.goblins.splice(i, 1); });
+  }
+  for (const e of eyes) if (e.alpha > 0.3) add(e.x, e.y, 5, 6, () => { const i = eyes.indexOf(e); if (i >= 0) eyes.splice(i, 1); });
+  if (door > 0.3 && (visitorAtDoor === 'woodcutter' || visitorAtDoor === 'trader')) {
+    const who = visitorAtDoor;
+    add(273, 86, 14, 15, () => { closeDoorDialogue(); say(who === 'trader' ? 'the trader is gone. his coat is still there, mostly.' : 'the woodcutter is gone. his sled is still out there.'); });
+  }
+  if (figure > 0 && door > 0.3) add(274, 80, 14, 14, () => { figure = 0; });
+  const strangerAt = walker ? { x: walker.x, y: walker.y - 9 }
+    : S.stranger === 'inside' && hc.phase !== 'taking' ? { x: 194, y: 132 }
+    : S.stranger === 'dead' && !S.carcass ? { x: 196, y: 137 } : null;
+  if (strangerAt) {
+    add(strangerAt.x, strangerAt.y, 10, 11, () => {
+      walker = null; S.stranger = 'taken'; S.riseT = -1;
+      if (dialog && !dialog.door && (dialog.portrait || 'stranger') === 'stranger') { dialog = null; ui.dialogue.classList.add('hidden'); }
+      say('there is not much left of the stranger.');
+    });
+  }
+  return T;
 }
 
 /* ----------------------------------------------------------- achievements */
@@ -6150,6 +6266,7 @@ light.addEventListener('pointerdown', (e) => {
   if (lab || (mode !== 'playing' && mode !== 'day')) return;
   const r = light.getBoundingClientRect();
   const lx0 = ((e.clientX - r.left) / r.width) * W, ly0 = ((e.clientY - r.top) / r.height) * H;
+  if (doomClick(lx0, ly0)) return;
   const out = TORCHES.find((tc) => S.torches && S.torches[tc.id] === 'out' && Math.abs(lx0 - tc.x) < 7 && Math.abs(ly0 - tc.y) < 9);
   if (out && mode === 'playing' && canAct()) { lightTorch(out); return; }
   if (cabinetHit(lx0, ly0)) { cabHeld = !cabHeld; sfx.creak(); }
@@ -6158,6 +6275,11 @@ light.addEventListener('pointerdown', (e) => {
     sfx.tap();
     say(S.curtainsShut ? 'you draw the curtains shut.' : 'you pull the curtains open.');
   }
+});
+light.addEventListener('dblclick', (e) => {
+  if (!doom.on || mode !== 'playing') return;
+  const r = light.getBoundingClientRect();
+  if (doom.inGun(((e.clientX - r.left) / r.width) * W, ((e.clientY - r.top) / r.height) * H)) doom.toggle();
 });
 $('achBtn').addEventListener('click', () => showTitle('ach'));
 function syncFright() { $('scareBtn').textContent = `scares: ${fright}`; }
@@ -6461,6 +6583,9 @@ function frame(now) {
   drawPixels();
   drawLight();
   syncUI();
+  doom.frame(dt, mode === 'playing' && !lab);
+  doom.syncSound();
+  sfx.setMusicDuck(doom.shown ? 0.12 : 1);
   sfx.setMusic(musicLevel(), musicTension());
   sfx.setShrill(terrifying() && mode === 'playing' && aboutToDie());
   $('musicBtn').textContent = musicOn ? 'music on' : 'music off';
@@ -6491,6 +6616,7 @@ window.__firelight = {
   dev: (which) => devStart(which),
   lab: { open: () => openLab(), close: () => closeLab(), scenes: LAB_SCENES.map((sc) => sc.id), load: (id, t) => labLoad(LAB_SCENES.find((sc) => sc.id === id), t), get t() { return lab && lab.t; } },
   get lossT() { return lossT; },
+  doom: { get layer() { return doom; }, targets: () => doomTargets(), click: (x, y) => doomClick(x, y) },
   diffs: DIFFS,   // for balance experiments from the console (tools/sim.js); changes last until reload
   set door(v) { door = doorTarget = v; doorCloseIn = -1; },   // hold the door open, for looking at what's outside
   choose,

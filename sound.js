@@ -57,6 +57,11 @@ export function setHidden(h) {
 
 export function isEnabled() { return enabled; }
 
+// for doom.js, the experimental easter egg: the audio graph to play into, and a way to push the night's own music down
+export function audioOut() { return ctx ? { ctx, out: master } : null; }
+let duck = 1;
+export function setMusicDuck(k) { duck = k; lastLevel = -1; }
+
 const FIRE_VOL = [0, 0.03, 0.05, 0.075, 0.1];
 // the room's constant sound (the fire's roar and crackle, the wind) sits a little under everything else, and
 // further down still with the music off: nobody wants a wall of noise and nothing else
@@ -802,7 +807,7 @@ export function setMusic(level, tension) {
   startMusic();
   musicLevel = level;
   musicTension = Math.max(0, Math.min(1, tension));
-  const target = musicOn ? level : 0;
+  const target = (musicOn ? level : 0) * duck;
   if (Math.abs(target - lastLevel) > 0.01) {
     lastLevel = target;
     musicGain.gain.setTargetAtTime(target * 0.9, ctx.currentTime, target > 0.1 ? 1.2 : 0.5);
