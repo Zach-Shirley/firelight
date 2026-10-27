@@ -32,7 +32,7 @@ export function computeScore({ wood = 0, raw = 0, cooked = 0, cured = 0, blood =
   const lines = [['made it to dawn', '', 100]];
   if (trusted > 0) lines.push(['people you let in', trusted, trusted * 10]);
   if (burned > 0) lines.push(['burned her back', burned, burned * 5]);
-  if (companion) lines.push(['not alone', '', 25]);
+  if (companion) lines.push(['the stranger made it too', '', 25]);
   lines.push(['what you held on to', '', held, items]);
   const total = lines.reduce((sum, [, , pts]) => sum + pts, 0);
   return { lines, total };

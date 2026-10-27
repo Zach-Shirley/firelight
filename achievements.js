@@ -61,7 +61,7 @@ export const ACHIEVEMENTS = [
   { id: 'well_stocked', group: 'feats', name: 'Well Stocked', desc: "Hold on to 200 points' worth at a single dawn." },
   { id: 'salt_flare', group: 'feats', name: 'Salt on the Embers', desc: 'Throw salt on a dying fire and drive the dark back.', hidden: true, hint: 'something nobody told you you could do.' },
   { id: 'awake_3', group: 'feats', name: 'Three Days Awake', desc: 'Survive a night after three days without sleep.' },
-  { id: 'not_tonight', group: 'feats', name: 'Not Tonight', desc: 'Stop a goblin at the salted doorway.' },
+  { id: 'not_tonight', group: 'feats', name: 'Not Tonight', desc: 'Stop a goblin with a line of salt.' },
   { id: 'nowhere_to_hide', group: 'feats', name: 'Nowhere to Hide', desc: 'Let a goblin in with every corner lit.' },
   { id: 'hard_win', group: 'nights', name: 'A Hard Winter', desc: 'Survive all five nights on hard.' },
   { id: 'insane_win', group: 'nights', name: 'Madness', desc: 'Survive all five nights on insane.' },

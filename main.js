@@ -7,7 +7,7 @@ import { ACHIEVEMENTS, createStore } from './achievements.js';
 import { computeScore, qualifies, insertScore, cleanInitials, sanitizeBoard } from './score.js';
 import { CHALLENGES, challengeById, recordFor } from './challenges.js';
 
-const VERSION = '0.75';   // one step per commit to the repository
+const VERSION = '0.76';   // one step per commit to the repository
 const W = 320, H = 180;
 const FIRE = { x: 160, y: 136 };          // base of the flames
 const LIGHT_Y = 130;                       // centre of the light pool
@@ -269,7 +269,7 @@ function recordNight(won) {
 function tallyText(st) {
   if (!st.nights) return '';
   const top = Object.entries(st.deaths).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k, n]) => `${k} ${n}`).join(', ');
-  return `${st.nights} night${st.nights === 1 ? '' : 's'} · ${st.dawns} dawn${st.dawns === 1 ? '' : 's'}${top ? ` · killed by: ${top}` : ''}`;
+  return `all your nights on this computer: ${st.nights} played · ${st.dawns} survived to dawn${top ? ` · most often killed by: ${top}` : ''}`;
 }
 
 // Close calls: for each threat, the nearest you came to it. The recap shows the nearest one overall,
@@ -300,7 +300,7 @@ function renderRecap() {
   ].filter(([, n]) => n > 0);
   const call = closestCall();
   if (call) rows.push(['closest call', call]);
-  rows.push(['hungriest', (r.hungriest || 0) >= 90 ? 'starving' : (r.hungriest || 0) >= 70 ? 'hungry' : 'never hungry']);
+  rows.push(['hungriest you got', (r.hungriest || 0) >= 90 ? 'starving' : (r.hungriest || 0) >= 70 ? 'hungry' : 'stayed fed']);   // the HUD's own words
   ui.endRecap.innerHTML = '';
   for (const [label, v] of rows) {
     const li = document.createElement('li');
@@ -1339,7 +1339,7 @@ const SHOP = [
   { id: 'stove', name: 'iron stove', price: { blood: 5, cooked: 2 }, desc: 'your fire in an iron box with a chimney pipe. it cooks faster, warms you more and burns longer, but it throws less light.',
     has: () => S.stove, avail: () => S.nightNo >= 2,
     buy: () => { S.stove = true; S.grate = false; S.decay = decayTime(); return 'he and you wrestle an iron stove over the fire pit and fit the pipe through the roof. the room goes dimmer, and warmer.'; } },
-  { id: 'charm', name: 'bone charm', price: { blood: 3, cooked: 2 }, desc: 'for the rest of tonight, the thing in the trees takes seven seconds to catch you instead of four. it crumbles at dawn.',
+  { id: 'charm', name: 'bone charm', price: { blood: 3, cooked: 2 }, desc: 'for the rest of tonight, the thing in the trees is much slower to catch you. it crumbles at dawn.',
     has: () => S.charm, avail: () => true,
     buy: () => { S.charm = true; return 'he ties a charm of knotted finger bones around your wrist. it is warm, like it has a pulse.'; } },
   { id: 'ironTrap', name: 'iron trap', price: { blood: 5 }, desc: 'a heavy iron trap that never wears out and never breaks. it takes the place of your next trap. (insane only)',
@@ -2051,10 +2051,10 @@ function strangerDies(text = 'The stranger slumps against the wall and stops bre
 
 const DEATHS = {
   dark: { text: 'The fire went out, and stayed out. The dark came in.', hint: 'keep the fire above smoldering. the dark gets hungrier every hour.' },
-  starve: { text: 'You starved.', hint: 'you have to keep eating all night, and meat goes bad. set traps early: they are the only meat at night. cook it and eat it.' },
+  starve: { text: 'You starved.', hint: 'you have to keep eating all night, and meat goes bad. set traps early, cook what they catch, and eat it.' },
   burn: { text: 'The cabin burned down around you.', hint: 'a wood pile taller than the room can hold will topple into the fire. keep it lower, build a woodshed, or keep two jars of blood to douse it.' },
-  cellar: { text: 'Something came up through the floor.', hint: 'on the second night, when the floor creaks, slam the hatch, or weigh it down with logs. it feeds twice; the third time it comes up.' },
-  cellarAway: { text: 'You came back to an open hatch.', hint: 'the thing under the floor comes up when no one is there to slam the hatch. weigh it down before you go out.' },
+  cellar: { text: 'Something came up through the floor.', hint: 'from the second night, when the floor creaks, slam the hatch. a beam across it buys you one miss. each time it gets out it takes half your meat; with nothing else to take, it takes you.' },
+  cellarAway: { text: 'You came back to an open hatch.', hint: 'the thing under the floor comes up when no one is there to slam the hatch. bar it before you go out.' },
   falseStranger: { text: 'She was never the stranger. It waited for the light.', hint: 'something was wrong with her. her eyes caught the firelight red, she never warned you of anything, and she demanded instead of asking. you could have told her to leave.' },
   mimic: { text: 'You opened the door. It was not a person.', hint: () => (S.mimicWalked
     ? 'after three in the morning, some of them walk. only the blood lantern shows what is really standing there.'
@@ -2288,8 +2288,8 @@ function cook() {
 /* --------------------------------------------------------- under the floor (night 2) */
 
 // A hatch in the floor. On the second night something lives under it. The boards creak and dust puffs up,
-// then the lid lifts and pale fingers curl out. Slam it, or weigh it down with wood. Miss it and it drags
-// your meat down; miss it three times and it comes up.
+// then the lid lifts and pale fingers curl out. Slam it, or bar it with a beam. Miss it and it takes half your
+// meat; with no meat it takes the stranger, and with no stranger it takes you.
 const nextHatch = () => rand(34, 52) * (1 - hour() * 0.04);
 
 function updateHatch(dt) {
@@ -2377,7 +2377,7 @@ function hatchMissed() {
     hc.took = n;
     sfx.retch();
     say(S.away ? `you come back to claw marks on the floor. half your meat is gone down the hatch. -${n} meat`
-      : `a long pale arm comes up out of the hatch and strips the rack. it drags it all down. -${n} meat`);
+      : `a long pale arm comes up out of the hatch and strips the rack. it drags half your meat down. -${n} meat`);
     return;
   }
   if (S.stranger === 'inside') {
@@ -2411,7 +2411,7 @@ const DAY_ACTIONS = [
       S.dayDone.traps = true;
       return (c.m + c.b + c.f ? `the traps held something. +${c.m} raw meat, +${c.b} blood${c.f ? `, +${c.f} fur` : ''}` : 'every trap is sprung and empty. something got there first.') + (c.broke ? ` ${c.broke} broke.` : '');
     } },
-  { id: 'scavenge', name: 'scavenge the empty village', hours: 3, desc: 'salt, maybe nails, maybe worse.', show: () => true,
+  { id: 'scavenge', name: 'scavenge the empty village', hours: 3, desc: 'salt, maybe nails, maybe something else.', show: () => true,
     act: () => {
       const first = !S.dayDone.scavenge;
       S.dayDone.scavenge = (S.dayDone.scavenge || 0) + 1;
@@ -2449,7 +2449,7 @@ const DAY_ACTIONS = [
 
 const SKIP_SLEEP = [
   '',
-  "skip it and tonight you'll be slow and hungrier, your eyes will close now and then, and meat cooking while they're shut will burn.",
+  "skip it and tonight you'll be slow and hungrier, and your eyes will close now and then, when you can't do anything at all.",
   "you didn't sleep last night either. skip it again and you'll start hearing and seeing things that aren't there.",
   'two days awake already. a third and you will hardly be able to tell what is real.',
   'three days awake. if you do not sleep now, you will not live through the night.',
@@ -2585,10 +2585,10 @@ function startNextNight() {
 /* ------------------------------------------------------------------ build */
 
 const BUILDS = [
-  { id: 'boards', name: 'window boards', desc: 'three boards over the window. burn her hand when she grabs them; if you don\'t, she tears every board off and takes them. through a bare window she climbs in and takes ten logs, or you.',
+  { id: 'boards', name: 'window boards', desc: 'three boards nailed across the window.',
     show: () => !S.boardsBuilt, cost: () => ({ wood: 8 }),
     done: () => { S.boardsBuilt = true; S.boards = 3; say('you nail three boards across the window.'); } },
-  { id: 'trap', name: 'trap', desc: () => `the only way to get meat at night. catches meat and blood, checked on every trip. wears out after a few catches. the smell keeps the thing in the trees close. (${S.traps}/3)`,
+  { id: 'trap', name: 'trap', desc: () => `a snare out in the snow, checked every time you go out. it catches meat, and sometimes blood, and wears out after a few catches. (${S.traps}/${trapMax()})`,
     show: () => S.traps < trapMax(), cost: () => ({ wood: 6 }),
     done: () => { S.trapUses.push(makeTrap()); syncTraps(); say('you set a trap out in the snow. it will only last so long.'); } },
   { id: 'lantern', name: 'blood lantern', desc: 'hangs by the door. its red light shows what is really standing outside. burns a jar of blood every so often.',
@@ -2598,19 +2598,19 @@ const BUILDS = [
     desc: () => `a shed against the outside wall that holds ${shedCap()} more logs, so the pile never topples. it takes ${PILE_CAP} logs, built in a second each outside. you carry out what wood you have and build log by log; run back any time and what you built stays.`,
     show: () => !S.shed && S.ch !== 'noShed', cost: () => ({}), ok: () => S.wood >= 1, costText: 'the wood you carry',
     done: () => { startTrip('shed'); } },
-  { id: 'rack', name: 'drying rack', desc: 'a frame by the fire. thaws frozen wood three times faster, eight logs at a time.',
+  { id: 'rack', name: 'drying rack', desc: 'a frame by the fire. frozen logs thaw on it much faster.',
     show: () => !S.rack && S.nightNo >= 3, cost: () => ({ wood: 12 }),   // from the first blizzard, when logs come in frozen
     done: () => { S.rack = true; say('you lash a drying rack together beside the fire.'); } },
-  { id: 'coat', name: 'fur coat', desc: 'you get cold 35% more slowly. with the hat, the trousers and the socks, the cold can hardly touch you. (fur is also worth 3 points each at dawn.)',
+  { id: 'coat', name: 'fur coat', desc: 'the cold gets into you more slowly. with the hat, the trousers and the socks, it can hardly touch you.',
     show: () => !S.coat && S.nightNo >= 3, cost: () => ({ fur: 6 }),
     done: () => { S.coat = true; say('you stitch the pelts into a rough coat. it stinks, and it is warm.'); } },
-  { id: 'pants', name: 'fur trousers', desc: 'you get cold 20% more slowly.',
+  { id: 'pants', name: 'fur trousers', desc: 'the cold gets into you more slowly.',
     show: () => !S.pants && S.nightNo >= 3, cost: () => ({ fur: 5 }),
     done: () => { S.pants = true; say('you sew fur trousers. you look ridiculous. you are warm.'); } },
-  { id: 'hat', name: 'fur hat', desc: 'you get cold 20% more slowly.',
+  { id: 'hat', name: 'fur hat', desc: 'the cold gets into you more slowly.',
     show: () => !S.hat && S.nightNo >= 3, cost: () => ({ fur: 4 }),
     done: () => { S.hat = true; say('you sew a fur hat with flaps over the ears.'); } },
-  { id: 'socks', name: 'fur socks', desc: 'you get cold 15% more slowly.',
+  { id: 'socks', name: 'fur socks', desc: 'the cold gets into you a little more slowly.',
     show: () => !S.socks && S.nightNo >= 3, cost: () => ({ fur: 3 }),
     done: () => { S.socks = true; say('you pull on fur socks. your toes come back.'); } },
   { id: 'curtains', name: 'fur curtains', desc: 'heavy curtains for the window. shut, they keep the wind out and the house far warmer, but you can\'t see out at all, and you can barely see her when she comes. click the window to open or shut them.',
@@ -2626,10 +2626,10 @@ const BUILDS = [
       for (const [, i] of fresh) S.cookedLife[i] = CURED;
       say('you rub salt into the meat. it will keep now.');
     } },
-  { id: 'saltDoor', name: 'salt the doorway', desc: 'a line across the threshold. the next thing you open the door to that is not a person cannot cross it.',
+  { id: 'saltDoor', name: 'salt the doorway', desc: 'a line of salt across the threshold. some things will not cross it. one use.',
     show: () => !S.saltDoor && (S.salt > 0 || S.nightNo >= 2), cost: () => ({ salt: 2 }),
     done: () => { S.saltDoor = true; say('you pour a line of salt across the threshold.'); } },
-  { id: 'saltWin', name: 'salt the window sill', desc: 'the next time she would get through the window, she recoils instead.',
+  { id: 'saltWin', name: 'salt the window sill', desc: 'a line of salt along the sill. some things will not cross it. one use.',
     show: () => !S.saltWin && (S.salt > 0 || S.nightNo >= 2), cost: () => ({ salt: 2 }),
     done: () => { S.saltWin = true; say('you pour a line of salt along the window sill.'); } },
   ...TORCHES.map((tc) => ({
@@ -2640,12 +2640,12 @@ const BUILDS = [
   })),
   ...TORCHES.map((tc) => ({
     id: `torch_${tc.id}`, name: () => (S.torches && S.torches[tc.id] === 'out' ? `relight the torch in ${tc.name}` : `a torch in ${tc.name}`),
-    desc: 'an iron sconce and a torch that burns all night. a faint glow, and nothing opens its eyes inside it.',
+    desc: 'an iron sconce and a torch that burns all night, so that corner is never dark.',
     show: () => goblinNight() && S.ch !== 'noTorches' && !(S.torches && S.torches[tc.id] === true) && !(tc.id === 'br' && S.shed && !(S.torches && S.torches.br)) && !bloodHour(),   // from night 4, when the goblins come   // the woodshed's candle already lights that corner; nothing catches in the blood hour
     cost: () => (S.torches && S.torches[tc.id] === 'out' ? {} : { wood: 2 }),   // relighting one is free: carry it to the fire and back
     done: () => lightTorch(tc),
   })),
-  { id: 'slot', name: 'a slot in the door', desc: 'a small sliding slot at eye height. at a knock, slide it open and see the face outside. under the blood moon that is the only way to tell. sometimes something puts its fingers through.',
+  { id: 'slot', name: 'a slot in the door', desc: 'a small sliding slot at eye height. at a knock, slide it open and see the face outside before you open the door.',
     show: () => S.nightNo >= 5 && !S.slot, cost: () => ({ wood: 6 }),
     done: () => { S.slot = true; say('you cut a slot in the door and fit a sliding cover over it.'); } },
   { id: 'saltCab', name: 'salt the woodshed cabinet', desc: 'a line of salt inside the cabinet. the next thing that comes through it from the woodshed shrieks and goes back. one use.',
@@ -2660,10 +2660,10 @@ const BUILDS = [
   { id: 'saltTrap', name: 'salt a trap', desc: () => `rub salt into a trap. a salted trap catches meat far more often, for as long as it lasts; when it breaks, the salt goes with it. (${saltedTraps()} of ${S.traps} salted)`,
     show: () => S.traps > saltedTraps() && S.salt > 0, cost: () => ({ salt: 1 }),
     done: () => { syncTraps(); S.trapSalt[S.trapSalt.indexOf(false)] = true; say('you rub salt into the jaws of a trap. the smell will carry.'); } },
-  { id: 'saltHatch', name: 'salt around the hatch', desc: 'a ring of salt around the cellar hatch. the next time it would get out, it touches the salt and recoils instead. one use.',
+  { id: 'saltHatch', name: 'salt around the hatch', desc: 'a ring of salt around the cellar hatch. some things will not cross it. one use.',
     show: () => S.nightNo >= 2 && !S.saltHatch && S.salt > 0, cost: () => ({ salt: 2 }),
     done: () => { S.saltHatch = true; say('you pour a ring of salt around the hatch.'); } },
-  { id: 'bar', name: 'bar the hatch', desc: 'nail a beam across the cellar hatch. if it comes up and you miss the slam, the beam breaks instead of it getting out. slam it in time and the beam stays whole.',
+  { id: 'bar', name: 'bar the hatch', desc: 'nail a beam across the cellar hatch. it will hold, for a while.',
     show: () => S.nightNo >= 2 && !S.hatchBar, cost: () => ({ wood: 4 }),
     done: () => { S.hatchBar = true; say('you nail a beam across the hatch. something underneath goes quiet.'); } },
 ];
@@ -3177,12 +3177,7 @@ function drawDawnWindow() {
 function drawDoor() {
   px.fillStyle = C.frame; px.fillRect(254, 48, 40, 64);
   px.fillStyle = '#050404'; px.fillRect(257, 51, 34, 61);
-  if (door > 0.05) {
-    px.fillStyle = '#0a1020'; px.fillRect(257, 51, 34, 61);
-    px.fillStyle = '#060a14'; for (let x = 258; x < 290; x += 5) px.fillRect(x, 70 + ((x * 7) % 9), 3, 30);
-    px.fillStyle = '#9aa4b8'; px.fillRect(257, 102, 34, 10);
-    px.fillStyle = C.snow; for (const f of snow) px.fillRect(Math.round(f.x + 212), Math.round(f.y + 30), 1, 1);
-  }
+  if (door > 0.05) drawOutside();
   const w = Math.max(3, Math.round(34 * (1 - door * 0.85)));
   const x0 = 291 - w;
   px.fillStyle = '#3b2717'; px.fillRect(x0, 51, w, 61);
@@ -3192,6 +3187,68 @@ function drawDoor() {
     px.fillStyle = '#2a1b10'; px.fillRect(x0, 62, w, 2); px.fillRect(x0, 96, w, 2);
     px.fillStyle = '#8a7a5a'; px.fillRect(x0 + 3, 80, 2, 2);
   }
+}
+
+// What you see through the open door: the night sky, the treeline in two rows of pines, the snow up to the step
+// with drifts and the trodden path to the door. Blizzard nights are hazed white and blowing; the blood moon's sky is
+// red-black. Drawn in the doorway, x 257 to 290, y 51 to 111.
+function drawOutside() {
+  const X = 257, Y = 51, Wd = 34, Hd = 61, horizon = 92;
+  const bliz = blizzard(), blood = S.nightNo >= 5;
+  px.save();
+  px.beginPath(); px.rect(X, Y, Wd, Hd); px.clip();
+  // the sky, darker at the top
+  for (let y = Y; y < horizon; y++) {
+    const k = (y - Y) / (horizon - Y);
+    px.fillStyle = blood ? (k < 0.4 ? '#0c0404' : k < 0.75 ? '#1a0707' : '#2a0b0a') : (k < 0.3 ? '#060a14' : k < 0.6 ? C.night : k < 0.85 ? '#16203a' : '#1e2a48');   // lighter at the horizon, so the pines stand out
+    px.fillRect(X, y, Wd, 1);
+  }
+  if (!bliz && !blood) {
+    px.fillStyle = C.star;
+    for (const [sx, sy] of [[260, 54], [267, 58], [279, 53], [286, 61], [271, 66], [283, 70]]) px.fillRect(sx, sy, 1, 1);
+  }
+  // far pines, then near ones, each a stack of widening rows
+  const pine = (cx, top, h, col) => {
+    px.fillStyle = col;
+    for (let i = 0; i < h; i++) {
+      const half = Math.floor((i / h) * (h * 0.4) + (i % 3 === 2 ? 1 : 0));   // a ragged edge, a branch every third row
+      px.fillRect(cx - half, top + i, half * 2 + 1, 1);
+    }
+  };
+  const farCol = blood ? '#100404' : '#0b1222', nearCol = blood ? '#040101' : '#020306';
+  for (let i = 0; i < 8; i++) pine(X + 2 + i * 4 + Math.floor(hash(i + 31) * 3), horizon - 10 - Math.floor(hash(i + 17) * 8), 12 + Math.floor(hash(i + 5) * 6), farCol);
+  pine(X + 2, horizon - 30, 32, nearCol);
+  pine(X + Wd - 3, horizon - 25, 27, nearCol);
+  px.fillStyle = nearCol; px.fillRect(X + 2, horizon, 2, 4); px.fillRect(X + Wd - 5, horizon, 2, 4);   // their trunks
+  // the snow, bluer far off, with drifts and the path up to the door
+  for (let y = horizon; y < Y + Hd; y++) {
+    const k = (y - horizon) / (Y + Hd - horizon);
+    px.fillStyle = blood ? (k < 0.4 ? '#3a2c30' : '#5a464a') : (k < 0.3 ? '#5f6a80' : k < 0.65 ? '#7f8aa0' : '#9aa4b8');
+    px.fillRect(X, y, Wd, 1);
+  }
+  px.fillStyle = blood ? '#6a5458' : '#b4bccc';
+  for (const [dx, dy, w] of [[2, 3, 7], [20, 6, 9], [9, 12, 6], [25, 15, 6]]) px.fillRect(X + dx, horizon + dy, w, 1);
+  px.fillStyle = blood ? '#241a1e' : '#4e586e';
+  for (let i = 0; i < 6; i++) {   // footprints coming up to the door, closer and bigger
+    const fy = horizon + 2 + i * 3, fx = X + 15 + (i % 2 ? 2 : -1) + Math.round(Math.sin(i * 1.3));
+    px.fillRect(fx, fy, 1 + (i > 2 ? 1 : 0), 1);
+  }
+  // falling snow; in the blizzard, a white haze over everything and long streaks blowing across
+  px.fillStyle = C.snow;
+  for (const f of snow) px.fillRect(Math.round(f.x + 212), Math.round(f.y + 30), 1, 1);
+  if (bliz) {
+    px.save();
+    px.globalAlpha = calm() ? 0.08 : 0.32;
+    px.fillStyle = '#c8d0e0'; px.fillRect(X, Y, Wd, Hd);
+    px.globalAlpha = 0.55;
+    const tt = animT * 60;
+    for (let i = 0; i < 14; i++) {
+      const sy = Y + Math.floor(hash(i + 3) * Hd), sx = X + ((Math.floor(hash(i + 9) * 60 + tt * (1 + hash(i)))) % (Wd + 10)) - 5;
+      px.fillRect(sx, sy, 3 + Math.floor(hash(i + 1) * 4), 1);
+    }
+    px.restore();
+  }
+  px.restore();
 }
 
 function drawPitLogs() {
@@ -5828,7 +5885,7 @@ function showEnding(won) {
   }
   if (n > 1) {
     scoreRow(n === 2 ? 'the first night' : `the first ${n - 1} nights`, '', S.carry);
-    scoreRow(`the ${ORD[n]} dawn`, '', 100);
+    scoreRow(`bonus for night ${n}`, '', 100);
     S.final += S.carry + 100;
   }
   if (ending) { scoreRow(ending.title.replace(/\.$/, ''), '', ending.bonus); S.final += ending.bonus; }
@@ -6435,6 +6492,7 @@ window.__firelight = {
   lab: { open: () => openLab(), close: () => closeLab(), scenes: LAB_SCENES.map((sc) => sc.id), load: (id, t) => labLoad(LAB_SCENES.find((sc) => sc.id === id), t), get t() { return lab && lab.t; } },
   get lossT() { return lossT; },
   diffs: DIFFS,   // for balance experiments from the console (tools/sim.js); changes last until reload
+  set door(v) { door = doorTarget = v; doorCloseIn = -1; },   // hold the door open, for looking at what's outside
   choose,
   newNight: (diff, ch) => newNight(true, diff, ch),
   backToTitle,
