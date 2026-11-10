@@ -8,7 +8,7 @@ import { computeScore, qualifies, insertScore, cleanInitials, sanitizeBoard } fr
 import { CHALLENGES, challengeById, recordFor } from './challenges.js';
 import { createDoom } from './doom.js';
 
-const VERSION = '0.78';   // one step per commit to the repository
+const VERSION = '0.79';   // one step per commit to the repository
 const W = 320, H = 180;
 const FIRE = { x: 160, y: 136 };          // base of the flames
 const LIGHT_Y = 130;                       // centre of the light pool
@@ -4110,18 +4110,49 @@ const HER = { black: 'rgba(6, 2, 3, 0.97)', rim: 'rgba(130, 16, 12, 0.85)', nail
 // a thick limb segment from a to b, rim first then the black core
 // Limbs are drawn as round brush strokes along a path: every outline (rim) first, then every fill, so joints are
 // seamless and the rim runs unbroken around elbows and shoulders.
+// Bodies are stamped onto a grid of half game pixels with hard edges, like the rest of the room's pixel art.
+const MON_PX = 2;
+function disc(s, cx, cy, r) {
+  const c = s / MON_PX, X = cx * MON_PX, Y = cy * MON_PX, R = r * MON_PX;
+  const q = (v) => Math.round(v * c);
+  if (R < 0.75) { const x = Math.floor(X), y = Math.floor(Y); lx.fillRect(q(x), q(y), q(x + 1) - q(x), q(y + 1) - q(y)); return; }
+  for (let y = Math.round(Y - R); y < Math.round(Y + R); y++) {
+    const dy = y + 0.5 - Y, h2 = R * R - dy * dy;
+    if (h2 <= 0) continue;
+    const hw = Math.sqrt(h2), x0 = Math.round(X - hw), x1 = Math.round(X + hw);
+    if (x1 > x0) lx.fillRect(q(x0), q(y), q(x1) - q(x0), q(y + 1) - q(y));
+  }
+}
+// where the light that catches them comes from, in whatever frame is being drawn in: the fire, or with the fire
+// dead, the window
+function lightFrom(s) {
+  const src = S.fire > 0 ? { x: FIRE.x, y: FIRE.y - 8 } : { x: 60, y: 48 };
+  const k = light.width / W;
+  const p = lx.getTransform().inverse().transformPoint(new DOMPoint(src.x * k, src.y * k));
+  return { x: p.x / s, y: p.y / s };
+}
+// A rim pass (pad > 0) is not an outline: it is the same stroke pushed toward the light, so when the body is
+// drawn over it a thing is edged only on the side the fire can reach, and its far side is lost in the dark.
 function tubePass(s, pts, widths, color, pad) {
   lx.fillStyle = color;
+  let ox = 0, oy = 0;
+  if (pad > 0) {
+    const [mx, my] = pts[pts.length >> 1], L = lightFrom(s);
+    const d = Math.hypot(L.x - mx, L.y - my) || 1;
+    const push = 0.6 + 0.035 * Math.max(...widths);
+    // snapped to the grid, so the lit edge is one even pixel and not a dotted line
+    const snap = (v) => Math.round(v * MON_PX) / MON_PX;
+    ox = snap(((L.x - mx) / d) * push); oy = snap(((L.y - my) / d) * push);
+    if (!ox && !oy) { if (Math.abs(L.x - mx) > Math.abs(L.y - my)) ox = Math.sign(L.x - mx) / MON_PX; else oy = Math.sign(L.y - my) / MON_PX; }
+    pad = 0;
+  }
   for (let k = 0; k < pts.length - 1; k++) {
     const [ax, ay] = pts[k], [bx, by] = pts[k + 1];
-    // circles every half pixel on thin strokes, further apart on thick ones (the edge stays smooth either way)
     const gap = Math.max(0.5, Math.min(widths[k], widths[k + 1]) * 0.3);
     const n = Math.max(1, Math.ceil(Math.hypot(bx - ax, by - ay) / gap));
     for (let i = 0; i <= n; i++) {
       const f = i / n, w = widths[k] + (widths[k + 1] - widths[k]) * f;
-      lx.beginPath();
-      lx.arc((ax + (bx - ax) * f) * s, (ay + (by - ay) * f) * s, Math.max(0.3, w / 2 + pad) * s, 0, Math.PI * 2);
-      lx.fill();
+      disc(s, ax + (bx - ax) * f + ox, ay + (by - ay) * f + oy, Math.max(0.3, w / 2 + pad));
     }
   }
 }
@@ -4193,21 +4224,40 @@ function drawHerHead(s, t, cx, cy, sc, eyeOpen = 1) {
   ];
   for (const [pts, ws] of parts) tubePass(s, pts, ws, HER.rim, 0.5);
   for (const [pts, ws] of parts) tubePass(s, pts, ws, HER.black, 0);
-  // the skull, wide at the brow and tapering to a point at the chin
+  // the skull, wide at the brow and tapering to a point at the chin: a drowned, grey face under black hair
   const hh = 17 * sc;
+  const lit = lightFrom(s).x < cx ? -1 : 1;          // which side the light is on
+  const SKIN = 'rgba(158, 154, 138, 0.97)', SKIN_LO = 'rgba(88, 86, 80, 0.97)', SKIN_HI = 'rgba(196, 190, 170, 0.97)';
   for (let y = 0; y < hh; y += 0.5) {
     const u = y / hh;
     const half = 4.8 * sc * (u < 0.38 ? Math.sqrt(Math.max(0, 1 - ((0.38 - u) / 0.38) ** 2)) : Math.max(0.12, 1 - (u - 0.38) / 0.72));
-    lx.fillStyle = HER.rim; lpx(s, cx - half - 0.5, cy - 8 * sc + y, half * 2 + 1, 0.5);
-    lx.fillStyle = HER.black; lpx(s, cx - half, cy - 8 * sc + y, half * 2, 0.5);
+    const yy = cy - 8 * sc + y;
+    if (u < 0.62) {
+      // the hair over the crown and down past the cheeks, edged red on the lit side
+      const hw = half + 1.1 * sc;
+      lx.fillStyle = HER.rim; lpx(s, cx - hw + lit * 0.5, yy, hw * 2, 0.5);
+      lx.fillStyle = HER.black; lpx(s, cx - hw, yy, hw * 2, 0.5);
+    }
+    if (u > 0.2) {
+      // the face in the parting: lit on one side, sunk in shadow on the other, hollow under the cheekbones
+      const fh = Math.max(0.5, half - (u < 0.62 ? 0.9 * sc : 0));
+      lx.fillStyle = SKIN; lpx(s, cx - fh, yy, fh * 2, 0.5);
+      lx.fillStyle = SKIN_LO; lpx(s, lit < 0 ? cx + fh * 0.35 : cx - fh, yy, fh * 0.65, 0.5);
+      if (u > 0.5 && u < 0.7) { lx.fillStyle = SKIN_LO; lpx(s, cx - fh, yy, fh * 0.3, 0.5); lpx(s, cx + fh * 0.7, yy, fh * 0.3, 0.5); }
+      if (u > 0.24 && u < 0.3) { lx.fillStyle = SKIN_HI; lpx(s, lit < 0 ? cx - fh * 0.8 : cx + fh * 0.2, yy, fh * 0.6, 0.5); }   // the brow
+    }
   }
+  // both sockets black and far too big
+  lx.fillStyle = 'rgba(0, 0, 0, 1)';
+  lpx(s, cx - 3.6 * sc, cy - 3.4 * sc, 2.8 * sc, 2.8 * sc);
+  lpx(s, cx + 0.4 * sc, cy - 3.6 * sc, 3.2 * sc, 3.2 * sc);
   // the eye: huge, pale, with a red pinprick pupil that wanders toward you
   const ex = cx + 1.9 * sc, ey = cy - 2 * sc;
   const eh = 2.4 * sc * eyeOpen;
   if (eh > 0.3) {
-    lx.fillStyle = 'rgba(232, 224, 206, 0.95)';
+    lx.fillStyle = 'rgba(240, 234, 214, 1)';
     for (let y = -eh / 2; y < eh / 2; y += 0.5) {
-      const w = 3.6 * sc * Math.sqrt(Math.max(0, 1 - (y / (eh / 2 + 0.01)) ** 2));
+      const w = 2.8 * sc * Math.sqrt(Math.max(0, 1 - (y / (eh / 2 + 0.01)) ** 2));
       lpx(s, ex - w / 2, ey + y, w, 0.5);
     }
     const look = Math.sin(t * 0.7) * 0.6 * sc;
@@ -4215,22 +4265,25 @@ function drawHerHead(s, t, cx, cy, sc, eyeOpen = 1) {
     lx.fillStyle = 'rgba(210, 20, 14, 1)';
     lpx(s, ex - pp / 2 + look, ey - pp / 2, pp, pp);
   } else {
-    lx.fillStyle = 'rgba(232, 224, 206, 0.6)'; lpx(s, ex - 1.6 * sc, ey, 3.2 * sc, 0.5);
+    lx.fillStyle = 'rgba(232, 224, 206, 0.6)'; lpx(s, ex - 1.4 * sc, ey, 2.8 * sc, 0.5);
   }
   // the other socket, empty, with a red glint deep inside
-  lx.fillStyle = 'rgba(0, 0, 0, 1)'; lpx(s, cx - 3.2 * sc, cy - 2.8 * sc, 2 * sc, 1.8 * sc);
-  lx.fillStyle = 'rgba(200, 20, 12, 0.8)'; lpx(s, cx - 2.4 * sc, cy - 2.1 * sc, 0.5, 0.5);
-  // the jaw hangs open, too long
-  lx.fillStyle = 'rgba(40, 0, 0, 0.95)'; lpx(s, cx - 0.9 * sc, cy + 3 * sc, 1.8 * sc, 3.2 * sc);
-  lx.fillStyle = 'rgba(0, 0, 0, 1)'; lpx(s, cx - 0.6 * sc, cy + 3.4 * sc, 1.2 * sc, 2.6 * sc);
-  // wet hair hanging in strands over the face and shoulders
-  for (let i = 0; i < 9; i++) {
-    const x0 = cx + (i - 4) * 1.25 * sc;
-    const len = (11 + (i % 3) * 4) * sc;
+  lx.fillStyle = 'rgba(200, 20, 12, 0.9)'; lpx(s, cx - 2.4 * sc, cy - 2.1 * sc, 0.5, 0.5);
+  // the jaw hangs open, too long: black, a row of small teeth at the top, something dark red far back
+  lx.fillStyle = 'rgba(0, 0, 0, 1)'; lpx(s, cx - 1.3 * sc, cy + 2.4 * sc, 2.6 * sc, 4.4 * sc);
+  lx.fillStyle = 'rgba(70, 4, 2, 1)'; lpx(s, cx - 0.7 * sc, cy + 4 * sc, 1.4 * sc, 2 * sc);
+  lx.fillStyle = 'rgba(214, 206, 180, 0.95)';
+  for (let i = 0; i < 4; i++) lpx(s, cx - 1.1 * sc + i * 0.62 * sc, cy + 2.4 * sc, 0.5 * Math.max(1, sc * 0.5), 0.5 * Math.max(1, sc * 0.6) * (i % 2 ? 1 : 1.6));
+  // wet hair: heavy curtains down both sides, and thin strands stuck across the face
+  for (let i = 0; i < 11; i++) {
+    const side = Math.abs(i - 5) >= 3;
+    const x0 = cx + (i - 5) * 1.05 * sc;
+    const len = (side ? 15 + (i % 3) * 4 : 5 + (i * 7 % 5)) * sc;
+    const wd = (side ? 1 : 0.5) * Math.max(1, sc * 0.45);
     for (let k = 0; k < len; k += 0.5) {
       const x = x0 + Math.sin(t * 1.2 + i * 1.7 + k * 0.22) * 0.5 * sc * (k / len);
-      lx.fillStyle = k < len * 0.3 ? HER.black : 'rgba(10, 4, 6, 0.85)';
-      lpx(s, x, cy - 7.5 * sc + k, 0.5 * Math.max(1, sc * 0.4), 0.6);
+      lx.fillStyle = HER.black;
+      lpx(s, x, cy - 7.5 * sc + k, wd, 0.6);
     }
   }
 }
@@ -5197,6 +5250,12 @@ function tallThing(s, t, cx, feet, h, o = {}) {
   // the body as one stroke: narrow hips, a sunken waist, a deep cage of a chest, then a sloped bar of shoulders
   tube(s, [[cx, hip + 1.2 * u], [cx, hip - (hip - sh) * 0.45], [cx, sh + 0.8 * u]], [3.4 * u, 2.4 * u, 6.4 * u], pal);
   tube(s, [[cx - 4 * u, sh + 0.9 * u], [cx, sh - 0.4 * u], [cx + 4 * u, sh + 0.9 * u]], [2.2 * u, 2.6 * u, 2.2 * u], pal);
+  // ribs, where the light falls across the chest
+  if (pal !== SHADOW_PAL) {
+    const lit = lightFrom(s).x < cx ? -1 : 1;
+    lx.fillStyle = pal.rim;
+    for (let i = 0; i < 4; i++) lpx(s, lit < 0 ? cx - (2.7 - i * 0.25) * u : cx + 0.5 * u, sh + (2 + i * 1.25) * u, (2.2 - i * 0.25) * u, 0.5 * Math.max(1, u * 0.6));
+  }
   // arms hanging past the knees, fingers almost on the floor
   const reach = o.reach ?? 0.9;
   for (const side of [-1, 1]) {
@@ -5214,6 +5273,7 @@ function tallThing(s, t, cx, feet, h, o = {}) {
   const at = (fx, fy) => [hcx + fx * Math.cos(tilt) - fy * Math.sin(tilt), hcy + fx * Math.sin(tilt) + fy * Math.cos(tilt)];
   { const [ex, ey] = at(0, -0.8 * hr), p = lx.getTransform().transformPoint(new DOMPoint(ex * s, ey * s)); tallThing.eyesAt = [p.x / s, p.y / s]; }
   const st = 0.5;
+  const hl = (() => { const L = lightFrom(s), d = Math.hypot(L.x - hcx, L.y - hcy) || 1; return { x: (L.x - hcx) / d, y: (L.y - hcy) / d }; })();
   for (let y = -hr * 1.4; y <= hr * 1.4; y += st) {
     for (let x = -hr * 1.4; x <= hr * 1.4; x += st) {
       // a long skull, narrow at the chin, in the head's own frame rotated by tilt
@@ -5221,7 +5281,7 @@ function tallThing(s, t, cx, feet, h, o = {}) {
       const wid = hr * (fy < 0 ? 0.85 : 0.85 - (fy / (hr * 1.3)) * 0.45);
       const d = (fx / wid) ** 2 + (fy / (hr * 1.3)) ** 2;
       if (d > 1) continue;
-      lx.fillStyle = d > 0.86 ? pal.rim : pal.black;
+      lx.fillStyle = d > 0.7 && x * hl.x + y * hl.y > 0.3 * hr ? pal.rim : pal.black;   // lit on the fire's side only
       lpx(s, hcx + x, hcy + y, st, st);
     }
   }
@@ -6619,6 +6679,25 @@ window.__firelight = {
   dev: (which) => devStart(which),
   lab: { open: () => openLab(), close: () => closeLab(), scenes: LAB_SCENES.map((sc) => sc.id), load: (id, t) => labLoad(LAB_SCENES.find((sc) => sc.id === id), t), get t() { return lab && lab.t; } },
   get lossT() { return lossT; },
+  // a sprite sheet for art work: every creature, large and still, drawn into the given canvas
+  sheet(cv, t = 1) {
+    const main = lx, k = cv.width / 160;
+    lx = cv.getContext('2d');
+    lx.setTransform(1, 0, 0, 1, 0, 0);
+    lx.fillStyle = '#1c1512'; lx.fillRect(0, 0, cv.width, cv.height);
+    const save = animT; animT = t;
+    drawGoblin(k * 2, 10, 20, 1, 1, 1, true, 'run');
+    drawGoblin(k * 2, 26, 20, 1, -1, 1, true, 'climb');
+    drawGoblin(k, 10, 60, 1, 1, 0.95);
+    tallThing(k, t, 75, 86, 60, { pal: MIMIC_PAL, eyes: 'rgba(235, 235, 255, 0.95)' });
+    tallThing(k, t, 100, 86, 60, { pal: MIMIC_IN_PAL, tilt: 1.2, reach: 0.8, mouth: 0.6, eyes: 'rgba(235, 235, 255, 0.95)' });
+    tallThing(k, t, 122, 86, 44, { pal: RISEN_PAL, walk: true, spread: 0.4, mouth: 1, eyes: 'rgba(255, 60, 30, 0.95)' });
+    drawHerHead(k, t, 142, 30, 1.6, 1);
+    claw(k, 140, 62, Math.PI / 2, 0.3, 1, 9, HER);
+    limb(k, 150, 50, 140, 62, 3, 2.2, HER);
+    animT = save;
+    lx = main;
+  },
   doom: { get layer() { return doom; }, targets: () => doomTargets(), click: (x, y) => doomClick(x, y) },
   diffs: DIFFS,   // for balance experiments from the console (tools/sim.js); changes last until reload
   set door(v) { door = doorTarget = v; doorCloseIn = -1; },   // hold the door open, for looking at what's outside
