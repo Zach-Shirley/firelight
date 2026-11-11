@@ -3,3 +3,6 @@
 *.log
 
 .vercel
+
+# local agent worktrees
+.claude/
