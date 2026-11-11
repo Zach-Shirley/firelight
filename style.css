@@ -288,7 +288,8 @@ button:disabled { opacity: 0.4; cursor: default; }
   font-size: calc(7px * var(--s));
   min-width: calc(120px * var(--s));
 }
-.board li { display: grid; grid-template-columns: 2.2em 3.5em 1fr auto; gap: calc(2px * var(--s)); align-items: baseline; }
+.board li { display: grid; grid-template-columns: 2.2em minmax(0, 1fr) auto auto; gap: calc(2px * var(--s)); align-items: baseline; }
+.board .who { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .board .rank { color: var(--ink-dim); }
 .board .pts { text-align: right; color: #ffcf6a; }
 .board .sun { color: #f0d8a0; text-align: right; white-space: nowrap; letter-spacing: -0.05em; }
@@ -299,8 +300,7 @@ button:disabled { opacity: 0.4; cursor: default; }
 .end-panel {
   width: calc(170px * var(--s));
   max-height: calc(170px * var(--s));
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: hidden;   /* only its .panel-body scrolls; the title and the buttons stay put */
   padding: calc(6px * var(--s)) calc(8px * var(--s));
   background: var(--panel-solid);
   border: calc(1px * var(--s)) solid var(--edge);
@@ -575,15 +575,31 @@ body.touch #dayList button { min-height: calc(14px * var(--s)); }
 .ach-list::-webkit-scrollbar-track { background: transparent; }
 .ach-list::-webkit-scrollbar-thumb { background: #5a3a22; border-radius: calc(1px * var(--s)); }
 
-/* ---- everything fits on the stage: panels scroll inside it, their buttons stay in view */
-.scroll-y, #dlgText, .subpanel .how, .board, .ach-list, #dayList, .end-panel {
+/* ---- everything fits on the stage: one pattern for every panel. a fixed header, a middle that scrolls
+   (only the middle, with the thin ember scrollbar), and a fixed row of buttons at the bottom */
+.scroll-y, #dlgText, #dlgChoices, .subpanel .how, .board, .ach-list, #dayList, #buildList, #journalList, #spotCard, .menu-col.dev-grid, #labList, #lab {
   scrollbar-width: thin; scrollbar-color: #5a3a22 transparent;
 }
+.scroll-y::-webkit-scrollbar, #dlgText::-webkit-scrollbar, #dlgChoices::-webkit-scrollbar, .subpanel .how::-webkit-scrollbar, .board::-webkit-scrollbar,
+#buildList::-webkit-scrollbar, #journalList::-webkit-scrollbar, #spotCard::-webkit-scrollbar, .menu-col.dev-grid::-webkit-scrollbar { width: calc(2px * var(--s)); }
+.scroll-y::-webkit-scrollbar-track, #dlgText::-webkit-scrollbar-track, #dlgChoices::-webkit-scrollbar-track, .subpanel .how::-webkit-scrollbar-track, .board::-webkit-scrollbar-track,
+#buildList::-webkit-scrollbar-track, #journalList::-webkit-scrollbar-track, #spotCard::-webkit-scrollbar-track, .menu-col.dev-grid::-webkit-scrollbar-track { background: transparent; }
+.scroll-y::-webkit-scrollbar-thumb, #dlgText::-webkit-scrollbar-thumb, #dlgChoices::-webkit-scrollbar-thumb, .subpanel .how::-webkit-scrollbar-thumb, .board::-webkit-scrollbar-thumb,
+#buildList::-webkit-scrollbar-thumb, #journalList::-webkit-scrollbar-thumb, #spotCard::-webkit-scrollbar-thumb, .menu-col.dev-grid::-webkit-scrollbar-thumb { background: #5a3a22; border-radius: calc(1px * var(--s)); }
+.end-panel > * { flex: none; }
+.end-panel > .panel-body {
+  flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden;
+  display: flex; flex-direction: column; gap: calc(3px * var(--s)); padding-right: calc(2px * var(--s));
+}
+.panel-body > * { flex: none; }
 #dialogue { max-height: calc(166px * var(--s)); }
-#dialogue .body { display: flex; flex-direction: column; min-height: 0; }
+#dialogue .body { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
 #dlgText { overflow-y: auto; min-height: calc(10px * var(--s)); flex: 0 1 auto; }
 #dlgChoices { flex: none; }
-#dlgChoices.list { flex-direction: column; flex-wrap: nowrap; gap: calc(1.5px * var(--s)); }
+/* a long list of choices (the trader's coat) scrolls too, under the words */
+#dlgChoices.list { flex: 0 1 auto; min-height: calc(24px * var(--s)); overflow-y: auto; flex-direction: column; flex-wrap: nowrap; gap: calc(1.5px * var(--s)); padding-right: calc(1px * var(--s)); }
+#dlgChoices.list button { flex: none; }
+#dlgText:has(+ #dlgChoices.list) { flex-shrink: 0; max-height: calc(40px * var(--s)); }   /* the words stay readable; the list gives way */
 #dlgChoices.list button { text-align: left; padding: calc(0.5px * var(--s)) calc(4px * var(--s)); }
 #dlgChoices .cdesc { display: block; font-size: calc(5px * var(--s)); color: var(--ink-dim); line-height: 1; padding-left: calc(6px * var(--s)); }
 
@@ -594,15 +610,21 @@ body.touch #dayList button { min-height: calc(14px * var(--s)); }
 .title-inner .subpanel > .how, .title-inner .subpanel > .board, .title-inner .subpanel > .ach-list { overflow-y: auto; min-height: 0; flex: 1 1 auto; max-height: none; }
 .title-inner .subpanel .backBtn { float: none; align-self: flex-end; margin-top: calc(2px * var(--s)); flex: none; }
 
-/* the ending: the buttons stay at the bottom of the panel while the rest scrolls */
-.end-panel .end-buttons { position: sticky; bottom: calc(-6px * var(--s)); background: var(--panel-solid); padding: calc(2px * var(--s)) 0; margin-top: auto; }
+/* the ending: the buttons (and the initials, when you've earned a place) sit under the part that scrolls */
+.end-panel .end-buttons { margin-top: 0; padding-top: calc(1px * var(--s)); }
+.end-panel #initials { justify-content: center; }
 
-/* the day: below the resource bar so you can always see what you have */
+/* the day: below the resource bar so you can always see what you have. the title and the hours stay at the
+   top, the warning and the choices scroll, and what you did today sits above "wait for dark" */
 #day { place-items: end center; padding-bottom: calc(4px * var(--s)); }
-#day .day-panel { max-height: calc(140px * var(--s)); }
+#day .day-panel { max-height: calc(148px * var(--s)); width: calc(236px * var(--s)); gap: calc(2px * var(--s)); padding-top: calc(4px * var(--s)); }
+#day .day-panel h2 { font-size: calc(9px * var(--s)); line-height: 1; }
 #stage.dlg #message { opacity: 0; }
-#day .day-panel { width: calc(236px * var(--s)); }
-#day .day-warn { font-size: calc(5.5px * var(--s)); line-height: 1.05; }
+#day .day-warn { font-size: calc(5.5px * var(--s)); line-height: 1.05; margin: 0 0 calc(1px * var(--s)); }
+#day .day-warn:empty { display: none; }
+#dayLog { max-height: calc(20px * var(--s)); border-top: calc(0.5px * var(--s)) solid var(--edge); padding-top: calc(1px * var(--s)); line-height: 1.05; }
+#dayLog:empty { display: none; }
+#dayLog li:first-child { color: #ffe0a0; }
 
 /* ---- building in place: an ember over each spot you could build at, and a card for it */
 #spots { position: absolute; inset: 0; pointer-events: none; }
@@ -702,10 +724,29 @@ body.lab #stage #slam, body.lab #stage #swat, body.lab #stage #strike, body.lab 
 #labScrub { width: 100%; accent-color: var(--ember); }
 .lab-row { display: flex; gap: 6px; }
 .lab-row button { flex: 1; }
-.lab-btn { margin-top: calc(3px * var(--s)); }
-@media (max-width: 760px) {
+.lab-btn { margin-top: calc(3px * var(--s)); font-size: calc(6.5px * var(--s)); padding: 0 calc(5px * var(--s)) calc(1px * var(--s)); flex: none; }
+#devPanel > * { flex: none; }
+#devPanel > .menu-col.dev-grid { flex: 0 1 auto; min-height: calc(20px * var(--s)); padding-right: calc(1px * var(--s)); }
+/* the lab's panel: only the list of scenes scrolls; the controls and the way out are always on screen */
+#lab { overflow: hidden; }
+#lab > * { flex: none; }
+#lab > #labList { flex: 1 1 auto; min-height: 48px; }
+@media (max-width: 760px) and (orientation: portrait) {
   body.lab { padding-right: 0; padding-bottom: 46vh; }
   #lab { top: auto; left: 0; width: auto; height: 46vh; border-left: 0; border-top: 1px solid var(--edge); }
+}
+/* a phone on its side: a narrower panel beside the scene, and everything in it smaller */
+@media (max-width: 760px) and (orientation: landscape) {
+  body.lab { padding-right: 210px; }
+  #lab { width: 210px; }
+}
+@media (max-height: 520px) {
+  #lab { gap: 4px; padding: 6px 8px 8px; font-size: 15px; }
+  #lab h2 { font-size: 20px; }
+  #lab .lab-note { font-size: 12px; line-height: 1.05; }
+  #lab button { font-size: 15px; padding: 1px 6px; }
+  #lab .lab-row { gap: 4px; }
+  #lab > #labList { min-height: 36px; gap: 2px; }
 }
 
 /* experimental features: a faint switch at the bottom of the achievements */

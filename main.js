@@ -8,7 +8,7 @@ import { computeScore, qualifies, insertScore, cleanInitials, sanitizeBoard } fr
 import { CHALLENGES, challengeById, recordFor } from './challenges.js';
 import { createDoom } from './doom.js';
 
-const VERSION = '0.82';   // one step per commit to the repository
+const VERSION = '0.83';   // one step per commit to the repository
 const W = 320, H = 180;
 const FIRE = { x: 160, y: 136 };          // base of the flames
 const LIGHT_Y = 130;                       // centre of the light pool
@@ -49,7 +49,7 @@ const DIFFS = {
     blurb: 'the night as it was meant to be. a hard first night, and fair once you know it.' },
   // hard and insane were tuned against evolved bots (tools/sim.js evolve and sweep), 2026-10-19
   hard: { name: 'hard', wood: 0.9, traps: 0.7, dayWood: 0.85, dayTraps: 0.7, dayHunt: 1, traderMeat: 1, hunger: 1.15, spoil: 0.8, grin: 4 / 3, quick: 0.8, mimic: 0.08, decay: 1, shedCap: 70, startWood: 5,
-    blurb: 'less wood, fewer catches, meat goes bad sooner. the grin takes three seconds; she and the hatch are quicker. more of the knocks are mimics.' },
+    blurb: 'less wood, fewer catches, meat goes bad sooner. everything that hunts you is quicker, and more of the knocks are not what they sound like.' },
   // insane: the traps barely feed you and the trader's smoked meat is the lifeline, so a night with no one knocking
   // is nearly always the last; the fire burns a touch slower than normal so the blizzard is survivable at all
   insane: { name: 'insane', wood: 0.75, traps: 0.42, dayWood: 0.55, dayTraps: 0.5, dayHunt: 1, traderMeat: 3, hunger: 1.3, spoil: 0.65, grin: 4 / 3, quick: 0.7, mimic: 0.12, decay: 1.05, shedCap: 50, startWood: 4,
@@ -267,9 +267,18 @@ function recordNight(won) {
   return st;
 }
 
+// what killed you, in words (the tally only ever lists what you have died to)
+const DEATH_NAMES = {
+  dark: 'the dark', starve: 'hunger', burn: 'the fire', cellar: 'the hatch', cellarAway: 'the hatch', falseStranger: 'the false stranger',
+  mimic: 'a mimic', hand: 'her at the window', handAway: 'her at the window', guest: 'a goblin', goblins: 'a goblin', bloodHour: 'the blood hour',
+  flood: 'all of them', ash: 'what came back of her', sleep: 'no sleep', lost: 'the white', freeze: 'the cold', hunter: 'the thing in the trees',
+  risen: 'the stranger, risen',
+};
 function tallyText(st) {
   if (!st.nights) return '';
-  const top = Object.entries(st.deaths).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k, n]) => `${k} ${n}`).join(', ');
+  const named = {};
+  for (const [k, n] of Object.entries(st.deaths || {})) { const name = DEATH_NAMES[k] || k; named[name] = (named[name] || 0) + n; }
+  const top = Object.entries(named).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k, n]) => `${k} ×${n}`).join(', ');
   return `all your nights on this computer: ${st.nights} played · ${st.dawns} survived to dawn${top ? ` · most often killed by: ${top}` : ''}`;
 }
 
@@ -1355,7 +1364,7 @@ const SHOP = [
   { id: 'meat', name: 'smoked meat', price: { blood: 1, wood: 2 }, desc: 'two strips of smoked meat, wrapped in cloth. +2 cooked meat.',   // on insane: just the logs
     has: () => (S.traderMeatN || 0) >= D().traderMeat, avail: () => D().traderMeat > 0,
     buy: () => { S.traderMeatN = (S.traderMeatN || 0) + 1; addCooked(2); return 'he unwraps two strips of dark smoked meat. you do not ask what it was. +2 cooked meat'; } },
-  { id: 'salt', name: 'a bag of salt', price: { blood: 1 }, desc: '3 salt. cures cooked meat so it keeps.', has: () => false,
+  { id: 'salt', name: 'a bag of salt', price: { blood: 1 }, desc: '3 salt. it keeps cooked meat from going bad, and some things will not cross a line of it.', has: () => false,
     buy: () => { S.salt += 3; return 'he pours salt from a pocket that should not be that deep. +3 salt'; } },
 ];
 
@@ -2529,15 +2538,20 @@ const DAY_ACTIONS = [
       S.dayDone.traps = true;
       return (c.m + c.b + c.f ? `the traps held something. +${c.m} raw meat, +${c.b} blood${c.f ? `, +${c.f} fur` : ''}` : 'every trap is sprung and empty. something got there first.') + (c.broke ? ` ${c.broke} broke.` : '');
     } },
-  { id: 'scavenge', name: 'scavenge the empty village', hours: 3, desc: 'salt, maybe nails, maybe something else.', show: () => true,
+  { id: 'scavenge', name: 'scavenge the empty village', hours: 3, desc: 'salt from the empty larders, and whatever else they left behind.', show: () => true,
     act: () => {
       const first = !S.dayDone.scavenge;
       S.dayDone.scavenge = (S.dayDone.scavenge || 0) + 1;
-      const salt = first ? 3 + Math.floor(Math.random() * 2) : 1 + Math.floor(Math.random() * 2);
+      const salt = first ? 4 + Math.floor(Math.random() * 2) : 2 + Math.floor(Math.random() * 2);
       S.salt += salt;
       const parts = [`+${salt} salt`];
-      if (!S.nails && Math.random() < (first ? 0.55 : 0.35)) { S.nails = true; parts.push('a jar of iron nails (your boards will hold longer)'); }
-      if (Math.random() < 0.4) { S.blood += 1; parts.push('+1 blood'); }
+      // iron nails aren't something you carry: they go straight into the window boards, which then hold longer
+      if (!S.nails && (first || Math.random() < 0.35)) {
+        S.nails = true;
+        parts.push(S.boardsBuilt ? 'a jar of iron nails, driven into the window boards. they will hold longer' : 'a jar of iron nails, for when you board the window. the boards will hold longer');
+      }
+      if (Math.random() < 0.5) { S.blood += 1; parts.push('+1 blood'); }
+      if (S.nightNo >= 2 && Math.random() < 0.4) { S.fur += 1; parts.push('+1 fur'); }
       const lead = pick([
         'the houses are empty. the doors were all barred from the inside.',
         'every window in the village is boarded. most of the boards are torn loose.',
@@ -2546,7 +2560,7 @@ const DAY_ACTIONS = [
       return `${lead} ${parts.join(', ')}`;
     } },
   { id: 'window', name: () => (S.boardsBuilt ? 'repair the window boards' : 'board up the window'), hours: 2,
-    desc: () => (S.boardsBuilt ? `back to three boards. (${S.boards} of 3 now) the glass is gone for good.` : 'three boards, with daylight to do it right. costs 6 wood.'),
+    desc: () => (S.boardsBuilt ? `${S.boards} of 3 boards still up. back to three; the glass is gone for good.` : 'three boards, with daylight to do it right. costs 6 wood.'),
     show: () => !S.boardsBuilt || S.boards < 3,
     can: () => S.boardsBuilt || S.wood >= 6,
     act: () => {
@@ -2621,6 +2635,7 @@ function startDay() {
 function showDay() {
   setMode('day');
   ui.day.classList.remove('hidden');
+  ui.day.querySelector('.panel-body').scrollTop = 0;
   renderDay();
 }
 
@@ -2643,6 +2658,7 @@ function renderDay() {
     li.textContent = line;
     ui.dayLog.appendChild(li);
   }
+  ui.dayLog.scrollTop = 0;   // the newest line is on top
   ui.dayNight.textContent = S.dayHours > 0 ? 'wait for dark' : 'night is falling';
 }
 
@@ -2898,6 +2914,9 @@ function openSpotCard(id) {
   ui.spotCard.style.left = `${(left / W) * 100}%`;
   ui.spotCard.style.top = above ? '' : `${((spot.y + 6) / H) * 100}%`;
   ui.spotCard.style.bottom = above ? `${((H - spot.y + 6) / H) * 100}%` : '';
+  // never taller than the room it has above or below the spot; past that it scrolls
+  ui.spotCard.style.maxHeight = `calc(${Math.min(120, (above ? spot.y - 6 : H - spot.y - 6) - 3)}px * var(--s))`;
+  ui.spotCard.scrollTop = 0;
   ui.spotCard.classList.remove('hidden');
 }
 
@@ -6079,6 +6098,7 @@ function showTitle(panel = 'menu') {
 function newNight(skipConfirm = false, diff = 'normal', ch = null) {
   if (!skipConfirm && S.lit && !S.ended && !confirm('Start a new night? The one in progress will be lost.')) return;
   doom.off();
+  ui.day.classList.add('hidden');
   const sound = S.sound;
   S = freshState();
   S.sound = sound;
@@ -6117,6 +6137,7 @@ function showEnding(won) {
   ui.initials.classList.add('hidden');
   ui.dayBtn.classList.add('hidden');
   ui.endRunBtn.classList.add('hidden');
+  ui.ending.querySelector('.panel-body').scrollTop = 0;
   renderRecap();
   ui.endTally.textContent = tallyText(recordNight(won));
   const scoreRow = (label, n, pts, cls = '', items = null) => {
@@ -6262,6 +6283,7 @@ ui.initials.addEventListener('submit', (e) => {
   save();
   ui.initials.classList.add('hidden');
   renderBoard(ui.endBoard, rank);
+  ui.endBoard.querySelector('.mine')?.scrollIntoView({ block: 'nearest' });
   sfx.chime();
   ui.retry.focus({ preventScroll: true });
 });
