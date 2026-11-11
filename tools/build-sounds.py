@@ -38,11 +38,10 @@ CUTS = {
     'crack':     ('p', -3,  [(753925, 1.8, 2.5), (753925, 3.4, 4.1), (753925, 4.4, 5.1)]),
     'bite':      ('m', -22, [(79243, 0.14, 2.5)]),
     # loops: the whole of a recording made to loop, or a stretch crossfaded into itself
-    'fire_loop': ('m', -24, [(813328, 0.0, 35.0)]),
+    'fire_loop': ('p', -3, [(729396, 60.0, 100.0)]),   # a campfire's pops and snaps, over the synthesized roar
     'wind_loop': ('m', -24, [(638434, 0.0, 20.57)]),
-    'drone_loop': ('m', -24, [(865550, 20.0, 64.0)]),
 }
-LOOPS = {'fire_loop': 0, 'wind_loop': 0, 'drone_loop': 4.0}   # seconds of crossfade to make a seam
+LOOPS = {'fire_loop': 2.0, 'wind_loop': 0}   # seconds of crossfade to make a seam
 
 def raw(fid):
     for f in os.listdir(RAW):

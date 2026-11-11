@@ -434,7 +434,7 @@ As of 2026-10-22 (v0.72):
 
 ## Music
 
-The background music is a recorded dark drone (a synthesized one if the file can't be played) under a warped music box picking out a minor-key lullaby one note at a time, never quite in tune. As the night goes on, and as the dark closes in, a sour note creeps into the drone and the music box plays faster, with notes that clash. It's quieter during the day, and silent at dawn and when you die. **N** or the music button turns it off (remembered per browser).
+The background music is generated in the browser: a low, slowly breathing drone under a warped music box picking out a minor-key lullaby one note at a time, never quite in tune. As the night goes on, and as the dark closes in, a sour note creeps into the drone and the music box plays faster, with notes that clash. It's quieter during the day, and silent at dawn and when you die. **N** or the music button turns it off (remembered per browser).
 
 ## Experimental features
 
@@ -473,7 +473,7 @@ Open the game once with `?dev` on the address (https://firelight-topaz.vercel.ap
 
 The playtest menu also opens the **death lab** (or go straight there with `?lab`, https://firelight-topaz.vercel.app/?lab): every death on its own in an empty lit cabin, set up the way the room looks when it really happens (night 4's goblins, night 5's blood hour, out in the trees for the hunter and the whiteout), plus the flood from each way in, the goblins from one, two or three corners, the jump scare for every death, the face at the window on a close call, and the mimic stopped at the salt line. Play, pause, restart, scrub, slow it to 0.25x or 0.5x, switch scares between eerie and terrifying, and turn sound on or off (space, R, the arrow keys for one frame, Esc to leave). Scenes run from a fixed seed, so scrubbing shows the same frames each time. Nothing in the lab touches your saved night, the stats, the leaderboard or achievements.
 
-The version is in the bottom-right corner (v0.80 is the 80th commit; the number counts every commit, docs included), so you can tell a refresh picked up the latest build.
+The version is in the bottom-right corner (v0.81 is the 81st commit; the number counts every commit, docs included), so you can tell a refresh picked up the latest build.
 
 ## Future ideas
 
@@ -496,7 +496,7 @@ Noted for later and very much subject to change:
 
 Inspired by *A Dark Room* by Michael Townsend / Doublespeak Games. No code, text or art was copied from it.
 
-**Recorded sounds.** The door, knocks, footsteps in snow, fire, wind, stomach, howl, scratching, creaks, slams, screams, growls, whispers, heartbeat, breaking glass, sizzling, stingers, trap, squeaks, hiss, wood cracks, the bite and the music's drone are recordings from [Freesound](https://freesound.org), all released by their makers as Creative Commons 0 (public domain). Thank you to kyles, flumpytripod, Hakren, MootMcnoodles, spookymodem, Valerie-Vivegnis, AUDACITIER, Nimlos, Breviceps, Stomachsfx, SamanthaCastleberry, the recordist of the Cooper Creek wolf, the contact-mic fingernail recordist, danthaiwang, Rudmer_Rotteveel, SoundDesignForYou, stondi, IENBA, courtneyeck, EricSueiro, kiddpark, celldroid, RaspberryTickle, EvaMusik, geoneo0, xUMR, RangoAnimations, LPHypeR, jimbo555, waffle.guy, zombieallen, OverlookHotelRecords, qubodup, ThePriest909, toefur, LandeAudio, Ekrcoaster, xkeril, RoofDog, NickTayloe, The_Isot_is_Back and the maker of the Dark Atmospheric Drone. Every source, with its page and licence, is listed in `tools/sound-sources.md`. They were chosen and cut by measurement, not by ear, by an AI that cannot hear; Zach listens and corrects.
+**Recorded sounds.** The door, knocks, footsteps in snow, fire, wind, stomach, howl, scratching, creaks, slams, screams, growls, whispers, heartbeat, breaking glass, sizzling, stingers, trap, squeaks, hiss, wood cracks and the bite are recordings from [Freesound](https://freesound.org), all released by their makers as Creative Commons 0 (public domain). Thank you to kyles, flumpytripod, Hakren, MootMcnoodles, spookymodem, Valerie-Vivegnis, AUDACITIER, Nimlos, Breviceps, Stomachsfx, SamanthaCastleberry, the recordist of the Cooper Creek wolf, the contact-mic fingernail recordist, danthaiwang, Rudmer_Rotteveel, SoundDesignForYou, stondi, IENBA, courtneyeck, EricSueiro, kiddpark, celldroid, RaspberryTickle, EvaMusik, geoneo0, xUMR, RangoAnimations, LPHypeR, jimbo555, waffle.guy, zombieallen, OverlookHotelRecords, qubodup, ThePriest909, toefur, LandeAudio, Ekrcoaster, xkeril, RoofDog, HECKFRICKER and The_Isot_is_Back. Every source, with its page and licence, is listed in `tools/sound-sources.md`. They were chosen and cut by measurement, not by ear, by an AI that cannot hear; Zach listens and corrects.
 
 The hidden DOOM tribute uses "Rip & Tear" (Mick Gordon, DOOM 2016) and DOOM Eternal's super shotgun, both © id Software / Bethesda, credited under [Experimental features](#experimental-features). They aren't covered by this project's rights and will be taken down on request. The game also credits them on screen when the tribute starts.
 

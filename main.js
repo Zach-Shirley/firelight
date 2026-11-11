@@ -8,7 +8,7 @@ import { computeScore, qualifies, insertScore, cleanInitials, sanitizeBoard } fr
 import { CHALLENGES, challengeById, recordFor } from './challenges.js';
 import { createDoom } from './doom.js';
 
-const VERSION = '0.80';   // one step per commit to the repository
+const VERSION = '0.81';   // one step per commit to the repository
 const W = 320, H = 180;
 const FIRE = { x: 160, y: 136 };          // base of the flames
 const LIGHT_Y = 130;                       // centre of the light pool
@@ -4963,6 +4963,17 @@ function drawLight() {
 
 /* ------------------------------------------------------------- deaths */
 
+// Things that come for you don't glide. Past the first third of one of their deaths, time moves in held frames,
+// like something filmed a frame at a time, and now and then the light drops out for an instant.
+const CREATURE_DEATHS = new Set(['dark', 'mimic', 'hand', 'handAway', 'hunter', 'risen', 'cellar', 'cellarAway', 'falseStranger', 'guest', 'goblins', 'bloodHour', 'flood', 'ash']);
+function deathTime() {
+  const L = deathLen(), p = lossT / L;
+  if (!CREATURE_DEATHS.has(S.cause) || p < 0.3) return { t: lossT, dark: false };
+  const held = Math.floor(lossT * 9) / 9;
+  const beat = Math.floor(lossT / 0.45), into = lossT - beat * 0.45;   // at most one blackout to a beat
+  return { t: held, dark: p < 0.88 && into < 0.07 && hash(beat * 7.3 + L) < 0.4 };
+}
+
 // Every way to die has its own few seconds before the red screen. lossT runs from 0 when you die.
 const DEATH_LEN = {
   dark: 6.4, starve: 5.6, burn: 5.8, mimic: 5.4, hand: 5.2, handAway: 5.2, hunter: 5.6,
@@ -5236,82 +5247,152 @@ function deathBurn(s, t) {
   flameRow(s, t, 184, 80, 24, 30, 0.7, 5);     // the floor right in front of you, in front of the smoke
 }
 
-// A thing standing at (cx, feet), h tall: long legs, a narrow body, arms that hang too low, a head on a
-// broken neck. tilt bends the head over (radians). Drawn on the light layer in the given palette.
+// The thing that knocks. It stands at (cx, feet), h tall, and it is wearing a person: a long ragged coat with too
+// many thin legs under the hem, and a small pale mask of a face on a neck that is far too long. `tilt` cranes the
+// neck over (radians). `mouth` splits the coat open down the front: the whole chest is a mouth, ringed with
+// teeth, and a second pair of arms reaches out of it. `reach` and `spread` move the long outer arms, `walk` sets
+// the legs going, `eyes` is the colour of the two points of light in the mask.
 function tallThing(s, t, cx, feet, h, o = {}) {
   const pal = o.pal || MIMIC_PAL;
+  const flat = pal.rim === pal.black;                 // a plain silhouette: no mask, no teeth
   const u = h / 40;
-  const step = o.walk ? Math.sin(t * 6) : 0;
-  const hip = feet - h * 0.44, sh = feet - h * 0.8;
-  // legs, the knees bent the wrong way
-  for (const side of [-1, 1]) {
-    const lift = side * step;
-    limb(s, cx + side * 1.7 * u, hip, cx + side * (2.6 + lift * 0.8) * u, feet - Math.max(0, lift) * 1.5 * u, -side * 1.6 * u, 2.2 * u, pal);
+  const px1 = 0.5 * Math.max(1, Math.floor(u / 3));   // its pixels get bigger as it does
+  const lit = lightFrom(s).x < cx ? -1 : 1;
+  const tilt = o.tilt || 0, open = clamp(o.mouth || 0, 0, 1);
+  const sh = feet - h * 0.8, hip = feet - h * 0.44, hem = feet - 4.5 * u;
+  const lean = Math.sin(tilt) * 1.6 * u;
+
+  // legs: four of them, thin, each ending in a hook, stepping one after another when it walks
+  for (let i = 0; i < 4; i++) {
+    const lx0 = cx + [-2.6, -0.9, 0.9, 2.6][i] * u;
+    const ph = t * 7 + i * 1.7;
+    const fx = lx0 + (o.walk ? Math.sin(ph) * 1.4 * u : 0) + (i - 1.5) * 0.5 * u;
+    const fy = feet - (o.walk ? Math.max(0, Math.cos(ph)) * 1.6 * u : 0);
+    limb(s, lx0, hem - u, fx, fy, (i < 2 ? -1 : 1) * 1.3 * u, 1.1 * u, pal);
+    lx.fillStyle = pal.rim; lpx(s, fx + (i < 2 ? -1.2 : 0.4) * u, fy - 0.5 * u, 0.8 * u, 0.5 * u);
   }
-  // the body as one stroke: narrow hips, a sunken waist, a deep cage of a chest, then a sloped bar of shoulders
-  tube(s, [[cx, hip + 1.2 * u], [cx, hip - (hip - sh) * 0.45], [cx, sh + 0.8 * u]], [3.4 * u, 2.4 * u, 6.4 * u], pal);
-  tube(s, [[cx - 4 * u, sh + 0.9 * u], [cx, sh - 0.4 * u], [cx + 4 * u, sh + 0.9 * u]], [2.2 * u, 2.6 * u, 2.2 * u], pal);
-  // ribs, where the light falls across the chest
-  if (pal !== SHADOW_PAL) {
-    const lit = lightFrom(s).x < cx ? -1 : 1;
+
+  // the coat: narrow shoulders, a pinched waist, flaring to a hem in tatters; edged with light on the fire's side
+  const rows = [];
+  for (let y = sh; y < hem; y += px1) {
+    const k = (y - sh) / (hem - sh);
+    const half = (k < 0.3 ? lerp(3.6, 3.0, k / 0.3) : lerp(3.0, 6.6, ((k - 0.3) / 0.7) ** 1.3)) * u;
+    const mid = cx + lean * (1 - k);
+    rows.push([y, mid, half]);
+    lx.fillStyle = pal.rim; lpx(s, mid - half + lit * px1, y, half * 2, px1);
+    lx.fillStyle = pal.black; lpx(s, mid - half, y, half * 2, px1);
+  }
+  for (let x = -6.6 * u; x < 6.6 * u; x += u) {       // the tatters
+    const len = (1 + 2.6 * hash(Math.round(x / u) + 31)) * u;
+    lx.fillStyle = pal.black; lpx(s, cx + x, hem, u * 0.8, len);
+    if (lit * x > 3 * u) { lx.fillStyle = pal.rim; lpx(s, cx + x + (lit > 0 ? u * 0.8 - px1 : 0), hem, px1, len); }
+  }
+  if (!flat) {
+    // folds in the cloth
+    lx.save();
+    lx.globalAlpha *= 0.4;
     lx.fillStyle = pal.rim;
-    for (let i = 0; i < 4; i++) lpx(s, lit < 0 ? cx - (2.7 - i * 0.25) * u : cx + 0.5 * u, sh + (2 + i * 1.25) * u, (2.2 - i * 0.25) * u, 0.5 * Math.max(1, u * 0.6));
+    for (const [fx, a0] of [[-0.45, 0.3], [0.5, 0.42], [0.1, 0.62]]) {
+      for (const [y, mid, half] of rows) { const k = (y - sh) / (hem - sh); if (k > a0) lpx(s, mid + fx * half, y, px1, px1); }
+    }
+    lx.restore();
   }
-  // arms hanging past the knees, fingers almost on the floor
+
+  // the long outer arms, hanging past where knees would be
   const reach = o.reach ?? 0.9;
   for (const side of [-1, 1]) {
-    const ax = cx + side * 4 * u, ay = sh + 0.4 * u;
+    const ax = cx + lean + side * 3.2 * u, ay = sh + 1.2 * u;
     const sway = Math.sin(t * 2 + side) * 0.6 * u;
-    const hx = cx + side * (6.4 + (o.spread || 0) * 10) * u + sway, hy = lerp(hip, feet - 2 * u, reach);
-    limb(s, ax, ay, hx, hy, side * (2.5 + (o.spread || 0) * 6) * u, 1.6 * u, pal);
-    claw(s, hx, hy, Math.PI / 2 + side * 0.2, 0.35, 1.5, 3.5 * u, pal);
+    const hx = cx + side * (6.6 + (o.spread || 0) * 10) * u + sway, hy = lerp(hip, feet - 2 * u, reach);
+    limb(s, ax, ay, hx, hy, side * (2.5 + (o.spread || 0) * 6) * u, 1.5 * u, pal);
+    claw(s, hx, hy, Math.PI / 2 + side * 0.2, 0.35, 1.5, 3.8 * u, pal);
   }
-  // the neck and head, bent over by tilt
-  const tilt = o.tilt || 0;
-  const nx = cx + Math.sin(tilt) * 3 * u, ny = sh - 1.2 * u - Math.cos(tilt) * 2.6 * u;
-  limbSeg(s, cx, sh - u, nx, ny, 1.8 * u, pal);
-  const hr = 3.2 * u, hcx = nx + Math.sin(tilt) * hr, hcy = ny - Math.cos(tilt) * hr;
-  const at = (fx, fy) => [hcx + fx * Math.cos(tilt) - fy * Math.sin(tilt), hcy + fx * Math.sin(tilt) + fy * Math.cos(tilt)];
-  { const [ex, ey] = at(0, -0.8 * hr), p = lx.getTransform().transformPoint(new DOMPoint(ex * s, ey * s)); tallThing.eyesAt = [p.x / s, p.y / s]; }
-  const st = 0.5;
-  const hl = (() => { const L = lightFrom(s), d = Math.hypot(L.x - hcx, L.y - hcy) || 1; return { x: (L.x - hcx) / d, y: (L.y - hcy) / d }; })();
-  for (let y = -hr * 1.4; y <= hr * 1.4; y += st) {
-    for (let x = -hr * 1.4; x <= hr * 1.4; x += st) {
-      // a long skull, narrow at the chin, in the head's own frame rotated by tilt
-      const fx = x * Math.cos(tilt) + y * Math.sin(tilt), fy = -x * Math.sin(tilt) + y * Math.cos(tilt);
-      const wid = hr * (fy < 0 ? 0.85 : 0.85 - (fy / (hr * 1.3)) * 0.45);
-      const d = (fx / wid) ** 2 + (fy / (hr * 1.3)) ** 2;
-      if (d > 1) continue;
-      lx.fillStyle = d > 0.7 && x * hl.x + y * hl.y > 0.3 * hr ? pal.rim : pal.black;   // lit on the fire's side only
-      lpx(s, hcx + x, hcy + y, st, st);
+
+  // the chest splits: black, then red, then teeth meeting like a zip
+  if (open > 0.02) {
+    const top = sh + 2 * u, len = (hem - 3 * u - top) * open;
+    for (let y = 0; y < len; y += px1) {
+      const f = y / len, k = (top + y - sh) / (hem - sh);
+      const mid = cx + lean * (1 - k);
+      const w = 2.9 * u * Math.sin(Math.PI * Math.min(1, f * 1.15)) ** 0.7 * open;
+      if (w < px1) continue;
+      lx.fillStyle = 'rgba(0, 0, 0, 1)'; lpx(s, mid - w, top + y, w * 2, px1);
+      if (!flat) {
+        lx.fillStyle = 'rgba(86, 6, 4, 1)'; lpx(s, mid - w * 0.55, top + y, w * 1.1, px1);
+        lx.fillStyle = 'rgba(0, 0, 0, 1)'; lpx(s, mid - w * 0.2, top + y, w * 0.4, px1);
+        if (Math.round(y / px1) % 3 === 0) {
+          const tl = Math.min(w * 0.7, 1.3 * u);
+          lx.fillStyle = 'rgba(222, 214, 190, 0.97)';
+          lpx(s, mid - w, top + y, tl, px1); lpx(s, mid + w - tl, top + y, tl, px1);
+        }
+      }
     }
-  }
-  // a mouth that splits down the length of the face, ringed with teeth
-  if (o.mouth > 0) {
-    const len = 1.5 * hr * o.mouth, top = -0.1 * hr;
-    for (let y = 0; y < len; y += st) {
-      const wid = 0.75 * u * Math.sin(Math.PI * (y / len)) * o.mouth;
-      for (let x = -wid; x <= wid; x += st) {
-        const [mx, my] = at(x, top + y);
-        const edge = Math.abs(x) > wid - st * 1.2;
-        lx.fillStyle = edge ? (Math.round(y / st) % 2 ? 'rgba(226, 216, 196, 0.95)' : 'rgba(60, 0, 0, 1)') : 'rgba(110, 4, 2, 1)';
-        lpx(s, mx, my, st, st);
+    // and something inside it reaches out
+    if (open > 0.6) {
+      const k = (open - 0.6) / 0.4;
+      for (const side of [-1, 1]) {
+        const ax = cx + lean * 0.6 + side * 0.8 * u, ay = sh + 8 * u;
+        const hx = ax + side * (2.5 + 3 * k + Math.sin(t * 3.1 + side * 2) * 0.8) * u, hy = ay + (5 + 2 * k) * u;
+        limb(s, ax, ay, hx, hy, -side * 1.6 * u, 0.9 * u, pal);
+        claw(s, hx, hy, Math.PI / 2 + side * 0.5, 0.4, 1.2, 2.2 * u, pal);
       }
     }
   }
-  // its eyes: pale and small, too far apart, with a faint glow
+
+  // the neck, too long, with the knobs of a spine down it
+  const nlen = 6.5 * u;
+  const nx = cx + lean + Math.sin(tilt) * nlen, ny = sh + 0.5 * u - Math.cos(tilt) * nlen;
+  const bow = Math.sin(tilt) * 1.5 * u;
+  tube(s, [[cx + lean, sh + u], [(cx + lean + nx) / 2 - bow * 0.3, (sh + ny) / 2 - Math.abs(bow)], [nx, ny]], [2.2 * u, 1.5 * u, 1.3 * u], pal);
+  if (!flat) {
+    lx.fillStyle = pal.rim;
+    for (let i = 1; i < 5; i++) { const f = i / 5; lpx(s, lerp(cx + lean, nx, f) + lit * 0.5 * u, lerp(sh + u, ny, f), px1, px1); }
+  }
+  // the head: a dark hood, and on the front of it a pale mask that doesn't quite sit straight
+  const hr = 3 * u, hcx = nx + Math.sin(tilt) * hr * 0.7, hcy = ny - Math.cos(tilt) * hr * 0.7;
+  const ct = Math.cos(tilt), sn = Math.sin(tilt);
+  const at = (fx, fy) => [hcx + fx * ct - fy * sn, hcy + fx * sn + fy * ct];
+  { const [ex, ey] = at(0, -0.3 * hr), p = lx.getTransform().transformPoint(new DOMPoint(ex * s, ey * s)); tallThing.eyesAt = [p.x / s, p.y / s]; }
+  const hl = (() => { const L = lightFrom(s), d = Math.hypot(L.x - hcx, L.y - hcy) || 1; return { x: (L.x - hcx) / d, y: (L.y - hcy) / d }; })();
+  const slip = 0.12;   // the mask is on crooked
+  for (let y = -hr * 1.5; y <= hr * 1.5; y += px1) {
+    for (let x = -hr * 1.5; x <= hr * 1.5; x += px1) {
+      const fx = x * ct + y * sn, fy = -x * sn + y * ct;       // into the head's own frame
+      const hood = (fx / (hr * 1.05)) ** 2 + (fy / (hr * 1.35)) ** 2;
+      if (hood > 1) continue;
+      // the mask: an egg, narrower at the chin, rotated a little off the head
+      const mx = fx * Math.cos(slip) + fy * Math.sin(slip), my = -fx * Math.sin(slip) + fy * Math.cos(slip) - 0.1 * hr;
+      const mw = hr * (my < 0 ? 0.72 : 0.72 - (my / (hr * 1.1)) * 0.3);
+      const m = (mx / mw) ** 2 + (my / (hr * 1.05)) ** 2;
+      let col = hood > 0.72 && x * hl.x + y * hl.y > 0.3 * hr ? pal.rim : pal.black;
+      if (!flat && m <= 1) {
+        const shade = mx * lit < -0.15 * mw;                   // the half away from the light
+        col = m > 0.8 ? (shade ? 'rgba(74, 72, 68, 0.98)' : 'rgba(150, 146, 132, 0.98)') : shade ? 'rgba(118, 114, 104, 0.98)' : 'rgba(206, 200, 180, 0.98)';
+        // two small round holes for eyes, a hairline crack, and no mouth at all
+        const ex = Math.abs(mx) - 0.36 * mw, ey = my + 0.18 * hr;
+        if (ex * ex + ey * ey < (0.2 * hr) ** 2) col = 'rgba(0, 0, 0, 1)';
+        else if (Math.abs(mx - 0.1 * mw - my * 0.12) < px1 * 0.5 && my > -0.7 * hr && my < 0.25 * hr * (1 + open)) col = 'rgba(20, 16, 14, 1)';
+        else if (open > 0.5 && my > 0.5 * hr && Math.abs(mx) < 0.22 * mw * open) col = 'rgba(0, 0, 0, 1)';   // it cracks through at the chin
+      }
+      lx.fillStyle = col;
+      lpx(s, hcx + x, hcy + y, px1, px1);
+    }
+  }
+  // the lights in the holes
   if (o.eyes) {
-    for (const ex of [-1.5, 1.5]) {
-      const [x, y] = at(ex * u, -0.8 * hr);
+    for (const side of [-1, 1]) {
+      const mx = side * 0.36 * 0.72 * hr, my = -0.18 * hr + 0.1 * hr;
+      const fx = mx * Math.cos(slip) - my * Math.sin(slip), fy = mx * Math.sin(slip) + my * Math.cos(slip);
+      const [x, y] = at(fx, fy);
       const gr = 2.5 * u * s;
       const g = lx.createRadialGradient(x * s, y * s, 0, x * s, y * s, gr);
-      g.addColorStop(0, o.eyes.replace(/[\d.]+\)$/, '0.25)'));
+      g.addColorStop(0, o.eyes.replace(/[\d.]+\)$/, '0.28)'));
       g.addColorStop(1, 'rgba(0, 0, 0, 0)');
       lx.fillStyle = g;
       lx.fillRect(x * s - gr, y * s - gr, gr * 2, gr * 2);
       lx.fillStyle = o.eyes;
-      const ew = Math.max(0.5, 1.1 * u), eh = Math.max(0.5, 0.6 * u);
-      lpx(s, x - ew / 2, y - eh / 2, ew, eh);
+      const e = Math.max(0.5, 0.6 * u);
+      lpx(s, x - e / 2, y - e / 2, e, e);
     }
   }
 }
@@ -5366,40 +5447,83 @@ function deathHand(s, t) {
   drawHerHead(s, t, hx, hy, sc, 1);
 }
 
-// Out in the trees. Its grin opens all the way, then something is dragged past the window, and nobody comes
-// home: the door blows open and the fire sinks. (The grin is drawn by drawGrin.)
+// The thing in the trees, close: a long skull under antlers like bare branches, on shoulders too wide for it,
+// two amber eyes and a grin with too many teeth. `open` drops the jaw.
+function hunterFace(s, t, cx, cy, sc, open = 0) {
+  const pal = { black: 'rgba(4, 4, 7, 0.99)', rim: 'rgba(64, 70, 96, 0.9)' };
+  tube(s, [[cx - 10 * sc, cy + 17 * sc], [cx - 4.5 * sc, cy + 9 * sc], [cx + 4.5 * sc, cy + 9 * sc], [cx + 10 * sc, cy + 17 * sc]], [7 * sc, 8 * sc, 8 * sc, 7 * sc], pal);
+  tube(s, [[cx, cy + 10 * sc], [cx, cy + 3 * sc]], [4 * sc, 3.4 * sc], pal);
+  for (const side of [-1, 1]) {
+    const bx = cx + side * 2.2 * sc, by = cy - 5 * sc;
+    tube(s, [[bx, by], [bx + side * 3 * sc, by - 5 * sc], [bx + side * 4.5 * sc, by - 11 * sc]], [1.3 * sc, sc, 0.6 * sc], pal);
+    tube(s, [[bx + side * 2 * sc, by - 3.4 * sc], [bx + side * 5.5 * sc, by - 5 * sc]], [0.8 * sc, 0.5 * sc], pal);
+    tube(s, [[bx + side * 3.4 * sc, by - 7 * sc], [bx + side * 1.6 * sc, by - 10.5 * sc]], [0.8 * sc, 0.5 * sc], pal);
+    tube(s, [[bx + side * 4 * sc, by - 8.5 * sc], [bx + side * 7 * sc, by - 10.5 * sc]], [0.7 * sc, 0.5 * sc], pal);
+  }
+  tube(s, [[cx, cy - 3 * sc], [cx, cy + (4 + open * 2.5) * sc]], [6.5 * sc, 4.2 * sc], pal);
+  for (const side of [-1, 1]) {
+    const ex = cx + side * 2.1 * sc, ey = cy - 1.4 * sc, gr = 5 * sc * s;
+    const g = lx.createRadialGradient(ex * s, ey * s, 0, ex * s, ey * s, gr);
+    g.addColorStop(0, 'rgba(255, 170, 60, 0.35)');
+    g.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    lx.fillStyle = g;
+    lx.fillRect(ex * s - gr, ey * s - gr, gr * 2, gr * 2);
+    lx.fillStyle = 'rgba(255, 190, 80, 1)';
+    lpx(s, ex - 0.8 * sc, ey - 0.45 * sc, 1.6 * sc, 0.9 * sc);
+    if (sc > 1.5) { lx.fillStyle = 'rgba(20, 8, 2, 1)'; lpx(s, ex - 0.15 * sc, ey - 0.45 * sc, 0.3 * sc, 0.9 * sc); }   // a slit of a pupil
+  }
+  if (sc < 0.8) return;
+  // the grin: one curved row of teeth, and when the jaw drops, a second row under a black gap
+  const n = 7, tw = 0.6 * sc, gap = (0.9 + open * 3.4) * sc;
+  for (let i = -n; i <= n; i++) {
+    const x = cx + i * tw - tw * 0.4, top = cy + 1.7 * sc - (i / n) ** 2 * 1.5 * sc;
+    lx.fillStyle = 'rgba(0, 0, 0, 1)'; lpx(s, x, top, tw, gap);
+    if (open > 0.3 && Math.abs(i) < 4) { lx.fillStyle = 'rgba(90, 6, 4, 1)'; lpx(s, x, top + gap * 0.45, tw, gap * 0.3); }
+    lx.fillStyle = 'rgba(226, 214, 186, 0.96)';
+    lpx(s, x, top, tw * 0.8, (i % 2 ? 0.7 : 1) * 0.75 * sc);
+    if (open > 0.1) lpx(s, x, top + gap - 0.6 * sc, tw * 0.8, (i % 2 ? 1 : 0.7) * 0.6 * sc);
+  }
+}
+
+// Out in the trees, where you are. You run. Its eyes are between the trunks, a long way off; then the dark takes
+// the trees for a moment and they are nearer, and somewhere else; and then it is in front of you. (The grin in
+// the treeline, before this, is drawn by drawGrin.)
 function deathHunter(s, t) {
   if (lossT < 1.9) return;
-  const k = seg(1.9, 3.4);
-  // a little moonlight on the snow outside, so you can see what goes past
-  const m = seg(1.6, 2.0) * (1 - seg(3.6, 4.2));
+  const W2 = light.width, H2 = light.height;
+  if (lossT >= 4.8) { lx.fillStyle = '#000'; lx.fillRect(0, 0, W2, H2); return; }
+  const still = seg(3.5, 4.0);                                   // you stop running
+  const bob = Math.sin(lossT * 11) * 1.4 * (1 - still), sway = Math.sin(lossT * 5.5) * 2.5 * (1 - still);
+  // night sky down to a pale line of snow, then the snow at your feet
+  const sky = lx.createLinearGradient(0, 0, 0, H2);
+  sky.addColorStop(0, '#04050b'); sky.addColorStop(0.55, '#121829'); sky.addColorStop(0.58, '#2a3144'); sky.addColorStop(1, '#0b0d15');
+  lx.fillStyle = sky;
+  lx.fillRect(0, 0, W2, H2);
   lx.save();
-  lx.globalCompositeOperation = 'destination-out';
-  const mg = lx.createRadialGradient(61 * s, 60 * s, 0, 61 * s, 60 * s, 22 * s);
-  mg.addColorStop(0, `rgba(0, 0, 0, ${0.7 * m})`);
-  mg.addColorStop(1, 'rgba(0, 0, 0, 0)');
-  lx.fillStyle = mg;
-  lx.fillRect(39 * s, 38 * s, 44 * s, 44 * s);
+  lx.translate(0, bob * s);
+  // the far trees
+  for (let i = 0; i < 16; i++) {
+    lx.fillStyle = '#080a12';
+    lpx(s, hash(i + 5) * 350 - 15 + sway * 0.4, -4, 2.5 + hash(i) * 4, 108 + hash(i + 9) * 3);
+  }
+  const face = lossT < 2.75 ? [212 + sway * 0.4, 86, 0.5, 0] : lossT < 3.5 ? [92 + sway * 0.7, 84, 1.05, 0]
+    : lossT < 4.2 ? [171, 78, 2.5, 0.12] : [160, lerp(76, 64, seg(4.2, 4.8)), lerp(4.6, 8.5, seg(4.2, 4.8)), seg(4.2, 4.6)];
+  if (lossT < 3.5) hunterFace(s, t, ...face);
+  // the near trees, black, each with a thin edge of moonlight
+  for (let i = 0; i < 7; i++) {
+    const x = hash(i + 40) * 370 - 25 + sway * 1.6, w = 10 + hash(i + 3) * 15;
+    lx.fillStyle = '#020203'; lpx(s, x, -4, w, 190);
+    lx.fillStyle = '#161a28'; lpx(s, x + w - 1, -4, 1, 190);
+  }
+  if (lossT >= 3.5) hunterFace(s, t, ...face);
   lx.restore();
-  throughWindow(s, () => {
-    const x = lerp(40, 84, k), y = 62;
-    for (let i = 40; i < x - 6; i++) {         // the smear it leaves in the snow, fading back where it started
-      lx.fillStyle = `rgba(120, 8, 6, ${0.35 + 0.5 * (i - 40) / Math.max(1, x - 46)})`;
-      lpx(s, i, y + (hash(i) > 0.7 ? 0.5 : 0), 1, 1 + (hash(i + 3) > 0.5 ? 0.5 : 0));
-    }
-    const pal = { black: 'rgba(6, 3, 3, 0.97)', rim: 'rgba(70, 70, 92, 0.6)' };
-    const st = Math.sin(lossT * 9);
-    // what it is dragging: a body on its back, one arm trailing in the snow
-    tube(s, [[x - 7, y - 0.6], [x - 3, y - 1.2], [x, y - 1.4]], [1.8, 2.4, 2], pal);
-    tube(s, [[x - 7, y - 0.8], [x - 9.5, y + 0.4]], [0.9, 0.7], pal);
-    // and the thing dragging it, bent double, one long arm back to the ankle
-    tube(s, [[x + 1.5 + st * 0.8, y + 1], [x + 2, y - 3]], [0.9, 1.1], pal);
-    tube(s, [[x + 3.2 - st * 0.8, y + 1], [x + 2.6, y - 3]], [0.9, 1.1], pal);
-    tube(s, [[x + 2.2, y - 3], [x + 3.4, y - 6.5], [x + 5.2, y - 7.6]], [1.6, 2.2, 1.6], pal);
-    tube(s, [[x + 3.6, y - 6.4], [x + 1.4, y - 3.6], [x - 0.2, y - 1.4]], [0.8, 0.9, 0.6], pal);
-    tube(s, [[x + 5.2, y - 7.6], [x + 6.4, y - 7.2]], [2, 1.6], pal);
-    lx.fillStyle = 'rgba(255, 190, 80, 0.9)'; lpx(s, x + 6.1, y - 7.8, 0.5, 0.5);
-  });
+  // snow coming down across it all
+  lx.fillStyle = 'rgba(200, 210, 230, 0.55)';
+  for (let i = 0; i < 46; i++) {
+    lpx(s, (hash(i) * 340 + t * (10 + hash(i + 2) * 14)) % 330 - 5, (hash(i + 7) * 190 + t * (26 + hash(i + 4) * 22)) % 186 - 3, 1, 1);
+  }
+  const red = seg(4.25, 4.8);
+  if (red > 0) { lx.fillStyle = `rgba(120, 0, 0, ${0.3 * red})`; lx.fillRect(0, 0, W2, H2); }
 }
 
 // The stranger gets up: in jerks, then taller than she was, then she walks toward you.
@@ -5674,7 +5798,11 @@ function drawDeath(s, t) {
     return;
   }
   if (mode !== 'lost') return;
+  const dt = deathTime(), real = lossT;
+  lossT = dt.t;
   DEATH_SCENES[S.cause]?.(s, t);
+  lossT = real;
+  if (dt.dark) { lx.fillStyle = 'rgba(0, 0, 0, 0.94)'; lx.fillRect(0, 0, light.width, light.height); }
   if (jumpT > 0) drawJumpScare(s, t);
   // and then black
   const L = deathLen();

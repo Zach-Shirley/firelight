@@ -399,7 +399,7 @@ button:disabled { opacity: 0.4; cursor: default; }
 #res canvas { width: calc(7px * var(--s)); height: calc(7px * var(--s)); image-rendering: pixelated; }
 #menu { z-index: 10; }
 #stage[data-mode="title"] #menu { display: flex; }
-#stage[data-mode="title"] #menu button:not(#soundBtn):not(#fullBtn) { display: none; }
+#stage[data-mode="title"] #menu button:not(#soundBtn):not(#musicBtn):not(#fullBtn) { display: none; }
 
 /* ---- phones and touch screens */
 html, body { touch-action: manipulation; -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; overscroll-behavior: none; }

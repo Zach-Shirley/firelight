@@ -31,7 +31,7 @@ function loop(filterType, freq, q, gainNode) {
 const SAMPLES = {};          // name -> [AudioBuffer, ...]
 const lastPick = {};
 let room = null, samplesAsked = false;
-let noiseFire = null, noiseWind = null, fireLoopOn = false, windLoopOn = false, droneLoopOn = false, droneGain = null;
+let noiseFire = null, noiseWind = null, fireLoopOn = false, windLoopOn = false;
 const SAMPLE_LEVEL = 0.55;   // recordings are levelled near full scale; this sits them with everything else
 
 function loadSamples() {
@@ -59,10 +59,8 @@ function startLoops() {
     src.connect(g).connect(gainNode);
     src.start(0, Math.random() * src.buffer.duration);
   };
-  if (!fireLoopOn && SAMPLES.fire_loop && SAMPLES.fire_loop[0]) { fireLoopOn = true; if (noiseFire) noiseFire.gain.value = 0; go('fire_loop', fireGain, 6); }
+  if (!fireLoopOn && SAMPLES.fire_loop && SAMPLES.fire_loop[0]) { fireLoopOn = true; go('fire_loop', fireGain, 6); }   // crackle over the noise's roar
   if (!windLoopOn && SAMPLES.wind_loop && SAMPLES.wind_loop[0]) { windLoopOn = true; if (noiseWind) noiseWind.gain.value = 0; go('wind_loop', windGain, 3); }
-  // and a recorded drone under the music box, in place of the two saws
-  if (!droneLoopOn && musicGain && SAMPLES.drone_loop && SAMPLES.drone_loop[0]) { droneLoopOn = true; if (droneGain) droneGain.gain.value = 0; go('drone_loop', musicGain, 0.7); }
 }
 
 // Play a recording if there is one; false means the caller should synthesize instead.
@@ -863,7 +861,7 @@ function startMusic() {
   lfoAmt.gain.value = 70;
   lfo.connect(lfoAmt).connect(lp.frequency);
   lfo.start();
-  droneGain = ctx.createGain();
+  const droneGain = ctx.createGain();
   droneGain.gain.value = 0.05;
   lp.connect(droneGain).connect(musicGain);
   droneGain.connect(verb);
@@ -886,7 +884,6 @@ function startMusic() {
   sour.start();
 
   scheduleNote();
-  startLoops();
 }
 
 // one music-box note: a soft sine with a faint, slightly sharp overtone that beats against it
