@@ -8,7 +8,7 @@ import { computeScore, qualifies, insertScore, cleanInitials, sanitizeBoard } fr
 import { CHALLENGES, challengeById, recordFor } from './challenges.js';
 import { createDoom } from './doom.js';
 
-const VERSION = '0.83';   // one step per commit to the repository
+const VERSION = '0.84';   // one step per commit to the repository
 const W = 320, H = 180;
 const FIRE = { x: 160, y: 136 };          // base of the flames
 const LIGHT_Y = 130;                       // centre of the light pool
@@ -176,7 +176,6 @@ function freshState() {
     salt: 0,
     saltDoor: false,
     saltWin: false,
-    nails: false,
     boardLoose: false,
     hatch: { phase: 'idle', t: 18, total: 1, p: 0 },
     hatchFed: 0,
@@ -1585,7 +1584,7 @@ function updateHand(dt) {
     if (hd.t <= 0) {
       if (S.boards > 0) {
         hd.phase = 'reach';
-        hd.total = hd.t = Math.max(3.2, 5.5 - (hour() - 3) * 0.45) * (blizzard() ? 0.7 : 1) * (S.nails ? 1.35 : 1) * D().quick * (S.curtainsShut ? 0.6 : 1);   // through shut curtains you see her late   // nails make her work longer
+        hd.total = hd.t = Math.max(3.2, 5.5 - (hour() - 3) * 0.45) * (blizzard() ? 0.7 : 1) * D().quick * (S.curtainsShut ? 0.6 : 1);   // through shut curtains you see her late
         hd.beat = 0;
         say('a long black hand punches through a gap in the boards and takes hold.');
       } else {
@@ -2545,11 +2544,6 @@ const DAY_ACTIONS = [
       const salt = first ? 4 + Math.floor(Math.random() * 2) : 2 + Math.floor(Math.random() * 2);
       S.salt += salt;
       const parts = [`+${salt} salt`];
-      // iron nails aren't something you carry: they go straight into the window boards, which then hold longer
-      if (!S.nails && (first || Math.random() < 0.35)) {
-        S.nails = true;
-        parts.push(S.boardsBuilt ? 'a jar of iron nails, driven into the window boards. they will hold longer' : 'a jar of iron nails, for when you board the window. the boards will hold longer');
-      }
       if (Math.random() < 0.5) { S.blood += 1; parts.push('+1 blood'); }
       if (S.nightNo >= 2 && Math.random() < 0.4) { S.fur += 1; parts.push('+1 fur'); }
       const lead = pick([

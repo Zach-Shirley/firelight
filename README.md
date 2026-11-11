@@ -79,7 +79,7 @@ Make it to dawn and you choose: **end here** and bank your score, or **rest thro
 | Chop wood | 2 | 9–12 wood |
 | Hunt in daylight | 2 | Safe meat, sometimes blood |
 | Check the traps | 1 | Two catches per trap (from night 2, sometimes fur) |
-| Scavenge the empty village | 3 | **Salt**, sometimes blood, sometimes a jar of **nails** (each board holds through one extra pull). The village tells its own story: barred doors, torn boards, tally marks that stop at two |
+| Scavenge the empty village | 3 | **Salt**, sometimes blood, and from the second day sometimes a fur. The village tells its own story: barred doors, torn boards, tally marks that stop at two |
 | Repair or board the window | 2 | Back to three boards. The glass is gone for good, so the wind is in from the start |
 | Bury her | 2 | Only if you dragged the stranger's body out; it stops drawing the hunter |
 | Sit with the stranger | 1 | Only if she's alive; she gives you salt and warns you about the floor |
@@ -473,7 +473,7 @@ Open the game once with `?dev` on the address (https://firelight-topaz.vercel.ap
 
 The playtest menu also opens the **death lab** (or go straight there with `?lab`, https://firelight-topaz.vercel.app/?lab): every death on its own in an empty lit cabin, set up the way the room looks when it really happens (night 4's goblins, night 5's blood hour, out in the trees for the hunter and the whiteout), plus the flood from each way in, the goblins from one, two or three corners, the jump scare for every death, the face at the window on a close call, and the mimic stopped at the salt line. Play, pause, restart, scrub, slow it to 0.25x or 0.5x, switch scares between eerie and terrifying, and turn sound on or off (space, R, the arrow keys for one frame, Esc to leave). Scenes run from a fixed seed, so scrubbing shows the same frames each time. Nothing in the lab touches your saved night, the stats, the leaderboard or achievements.
 
-The version is in the bottom-right corner (v0.83 is the 83rd commit; the number counts every commit, docs included), so you can tell a refresh picked up the latest build.
+The version is in the bottom-right corner (v0.84 is the 84th commit; the number counts every commit, docs included), so you can tell a refresh picked up the latest build.
 
 ## Future ideas
 
@@ -538,7 +538,6 @@ Built with heavy AI assistance (Claude Code) under Zach Shirley's direction:
   - **Day 2:**
     - the day screen and its choices;
     - salt;
-    - nails;
     - tiredness;
     - the thing under the floor;
     - night 2's two-hour head start;
