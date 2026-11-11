@@ -1,5 +1,6 @@
-// Procedural sound: fire crackle, wind, knocks and a scare sting.
-// Everything is generated with the Web Audio API, so there are no sound files.
+// Sound. Where there is a recording for something (sounds/manifest.json), that plays: placed left or right where
+// the thing is in the room, never at quite the same pitch twice, with a little of the cabin's own echo. Where there
+// isn't, it is generated with the Web Audio API, as everything once was.
 
 let ctx = null;
 let master, fireGain, windGain, noiseBuf;
@@ -20,9 +21,101 @@ function loop(filterType, freq, q, gainNode) {
   f.type = filterType;
   f.frequency.value = freq;
   f.Q.value = q;
-  src.connect(f).connect(gainNode);
+  const own = ctx.createGain();
+  src.connect(f).connect(own).connect(gainNode);
   src.start();
+  return own;
 }
+
+/* ------------------------------------------------------------ recordings */
+const SAMPLES = {};          // name -> [AudioBuffer, ...]
+const lastPick = {};
+let room = null, samplesAsked = false;
+let noiseFire = null, noiseWind = null, fireLoopOn = false, windLoopOn = false, droneLoopOn = false, droneGain = null;
+const SAMPLE_LEVEL = 0.55;   // recordings are levelled near full scale; this sits them with everything else
+
+function loadSamples() {
+  if (samplesAsked) return;
+  samplesAsked = true;
+  fetch('sounds/manifest.json').then((res) => (res.ok ? res.json() : {})).then((man) => {
+    for (const [name, files] of Object.entries(man)) {
+      SAMPLES[name] = [];
+      for (const f of files) {
+        fetch(`sounds/${f}`).then((res) => res.arrayBuffer()).then((b) => ctx.decodeAudioData(b))
+          .then((buf) => { SAMPLES[name].push(buf); startLoops(); }).catch(() => {});
+      }
+    }
+  }).catch(() => {});
+}
+
+// the fire and the wind as real recordings, looped, in place of filtered noise
+function startLoops() {
+  const go = (name, gainNode, level) => {
+    const src = ctx.createBufferSource();
+    src.buffer = SAMPLES[name][0];
+    src.loop = true;
+    const g = ctx.createGain();
+    g.gain.value = level;
+    src.connect(g).connect(gainNode);
+    src.start(0, Math.random() * src.buffer.duration);
+  };
+  if (!fireLoopOn && SAMPLES.fire_loop && SAMPLES.fire_loop[0]) { fireLoopOn = true; if (noiseFire) noiseFire.gain.value = 0; go('fire_loop', fireGain, 6); }
+  if (!windLoopOn && SAMPLES.wind_loop && SAMPLES.wind_loop[0]) { windLoopOn = true; if (noiseWind) noiseWind.gain.value = 0; go('wind_loop', windGain, 3); }
+  // and a recorded drone under the music box, in place of the two saws
+  if (!droneLoopOn && musicGain && SAMPLES.drone_loop && SAMPLES.drone_loop[0]) { droneLoopOn = true; if (droneGain) droneGain.gain.value = 0; go('drone_loop', musicGain, 0.7); }
+}
+
+// Play a recording if there is one; false means the caller should synthesize instead.
+// o: vol, rate, jitter (random pitch, default 5%), pan (-1 left .. 1 right), wet (echo), lowpass (Hz, for far away
+// or behind a wall), at (context time), dur (cut it short, with a fade)
+function sample(name, o = {}) {
+  const list = SAMPLES[name];
+  if (!ctx || !list || !list.length) return false;
+  if (!enabled) return true;
+  if (!room) {
+    room = makeReverb(1.2);
+    const rg = ctx.createGain();
+    rg.gain.value = 0.6;
+    room.connect(rg).connect(master);
+  }
+  let i = Math.floor(Math.random() * list.length);
+  if (list.length > 1 && i === lastPick[name]) i = (i + 1) % list.length;   // never the same take twice running
+  lastPick[name] = i;
+  const src = ctx.createBufferSource();
+  src.buffer = list[i];
+  src.playbackRate.value = (o.rate || 1) * (1 + (Math.random() * 2 - 1) * (o.jitter ?? 0.05));
+  const at = o.at || ctx.currentTime;
+  const g = ctx.createGain();
+  const vol = (o.vol ?? 1) * SAMPLE_LEVEL;
+  g.gain.value = vol;
+  if (o.dur) { g.gain.setValueAtTime(vol, at + o.dur * 0.7); g.gain.linearRampToValueAtTime(0, at + o.dur); }
+  let node = src;
+  if (o.lowpass) {
+    const f = ctx.createBiquadFilter();
+    f.type = 'lowpass';
+    f.frequency.value = o.lowpass;
+    node.connect(f);
+    node = f;
+  }
+  node.connect(g);
+  let end = g;
+  if (ctx.createStereoPanner) {
+    const pan = ctx.createStereoPanner();
+    pan.pan.value = o.pan || 0;
+    g.connect(pan);
+    end = pan;
+  }
+  end.connect(master);
+  const send = ctx.createGain();
+  send.gain.value = o.wet ?? 0.22;
+  end.connect(send).connect(room);
+  src.start(at);
+  if (o.dur) src.stop(at + o.dur + 0.05);
+  return true;
+}
+// eating: a bite and a chew (silent if there's no recording)
+export function bite() { sample('bite', { vol: 0.8, wet: 0.05, jitter: 0.08 }); }
+export const hasSample = (name) => !!(SAMPLES[name] && SAMPLES[name].length);
 
 // Browsers only allow audio after the player interacts, so this runs on the first click or key.
 export function initAudio() {
@@ -37,8 +130,9 @@ export function initAudio() {
 
   fireGain = ctx.createGain(); fireGain.gain.value = 0; fireGain.connect(master);
   windGain = ctx.createGain(); windGain.gain.value = 0; windGain.connect(master);
-  loop('bandpass', 700, 0.7, fireGain);   // soft roar of the fire
-  loop('lowpass', 320, 1.5, windGain);    // wind outside
+  noiseFire = loop('bandpass', 700, 0.7, fireGain);   // soft roar of the fire
+  noiseWind = loop('lowpass', 320, 1.5, windGain);    // wind outside
+  loadSamples();
 }
 
 let hidden = false;
@@ -78,7 +172,7 @@ export function setLevels(fire, time, doorOpen, windowOpen = 0) {
 
 // One crackle or pop from the fire.
 export function crackle(fire) {
-  if (!ctx || !enabled) return;
+  if (!ctx || !enabled || fireLoopOn) return;
   const t = ctx.currentTime;
   const src = ctx.createBufferSource();
   src.buffer = noiseBuf;
@@ -110,6 +204,7 @@ function thud(at, vol = 0.5) {
 // A knock on the door: a dull thump (the door's weight) and a wooden tok on top, so it carries over the fire
 // even on small speakers.
 function knockHit(at, vol) {
+  if (sample('knock', { at, vol: Math.min(1.3, vol * 1.2), pan: 0.7, lowpass: 3800, jitter: 0.07 })) return;
   thud(at, 0.55 * vol);
   const src = ctx.createBufferSource();
   src.buffer = noiseBuf;
@@ -161,6 +256,7 @@ export function tap() {
 }
 
 export function scratch() {
+  if (sample('scratch', { pan: -0.7, lowpass: 5000 })) return;
   if (!ctx || !enabled) return;
   const t = ctx.currentTime + 0.05;
   for (let i = 0; i < 3; i++) {
@@ -182,6 +278,7 @@ export function scratch() {
 }
 
 export function sting() {
+  if (sample('sting', { wet: 0.4 })) return;
   if (!ctx || !enabled) return;
   const t = ctx.currentTime;
   [103, 109, 155, 233].forEach((f, i) => {
@@ -226,6 +323,7 @@ export function chime() {
 
 // A heartbeat when the dark is close: two low thumps.
 export function heartbeat(strength = 1) {
+  if (sample('heartbeat', { vol: 0.5 + 0.5 * strength, jitter: 0.02, wet: 0 })) return;
   if (!ctx || !enabled) return;
   const t = ctx.currentTime + 0.02;
   thud(t, 0.35 * strength);
@@ -234,6 +332,7 @@ export function heartbeat(strength = 1) {
 
 // A gust of wind forcing its way through the cracks.
 export function gust() {
+  if (sample('gust', { pan: -0.3, wet: 0.1 })) return;
   if (!ctx || !enabled) return;
   const t = ctx.currentTime;
   const src = ctx.createBufferSource();
@@ -253,6 +352,7 @@ export function gust() {
 
 // The door crashing open at the end.
 export function slam() {
+  if (sample('slam', { pan: 0.25 })) return;
   if (!ctx || !enabled) return;
   const t = ctx.currentTime;
   thud(t, 0.9);
@@ -291,6 +391,11 @@ export function dawn() {
 export function footsteps(count = 5) {
   if (!ctx || !enabled) return;
   const t = ctx.currentTime + 0.05;
+  if (hasSample('snowstep')) {
+    // coming up to the door through the snow, each step a little nearer
+    for (let i = 0; i < count; i++) sample('snowstep', { at: t + i * 0.46 + Math.random() * 0.08, vol: 0.45 + 0.55 * (i / Math.max(1, count - 1)), pan: 0.7, lowpass: 3000, jitter: 0.1, wet: 0.05 });
+    return;
+  }
   for (let i = 0; i < count; i++) {
     const at = t + i * 0.42 + Math.random() * 0.06;
     const src = ctx.createBufferSource();
@@ -311,6 +416,7 @@ export function footsteps(count = 5) {
 
 // A long, low howl from the trees.
 export function howl() {
+  if (sample('howl', { pan: -0.5, lowpass: 2600, wet: 0.5, jitter: 0.08 })) return;
   if (!ctx || !enabled) return;
   const t = ctx.currentTime;
   const o = ctx.createOscillator();
@@ -337,6 +443,7 @@ export function howl() {
 
 // A board splintering.
 export function crack() {
+  if (sample('crack', {})) return;
   if (!ctx || !enabled) return;
   const t = ctx.currentTime;
   thud(t, 0.5);
@@ -357,6 +464,7 @@ export function crack() {
 
 // Burning branch on something that is not a hand.
 export function hiss() {
+  if (sample('hiss', { pan: -0.6 })) return;
   if (!ctx || !enabled) return;
   const t = ctx.currentTime;
   const src = ctx.createBufferSource();
@@ -396,6 +504,7 @@ export function death() {
 
 // Glass shattering inward.
 export function shatter() {
+  if (sample('shatter', { pan: -0.7 })) return;
   if (!ctx || !enabled) return;
   const t = ctx.currentTime;
   thud(t, 0.6);
@@ -426,6 +535,7 @@ export function shatter() {
 
 // One beat of the claw working at the boards: a dull thump with a scrape.
 export function thump(strength = 1) {
+  if (sample('thump', { vol: Math.min(1.4, strength) })) return;
   if (!ctx || !enabled) return;
   const t = ctx.currentTime;
   thud(t, 0.32 * strength);
@@ -446,6 +556,7 @@ export function thump(strength = 1) {
 
 // A scream outside, cut short.
 export function scream() {
+  if (sample('scream', { wet: 0.45, jitter: 0.1 })) return;
   if (!ctx || !enabled) return;
   const t = ctx.currentTime;
   const o = ctx.createOscillator();
@@ -469,6 +580,7 @@ export function scream() {
 
 // A hollow, rumbling stomach.
 export function growl(strength = 1) {
+  if (sample(strength > 1.1 ? 'monster' : 'stomach', { vol: Math.min(1.3, 0.5 + 0.5 * strength), wet: strength > 1.1 ? 0.4 : 0.05, jitter: 0.1 })) return;
   if (!ctx || !enabled) return;
   const t = ctx.currentTime;
   const o = ctx.createOscillator();
@@ -496,6 +608,7 @@ export function growl(strength = 1) {
 
 // Retching: two wet heaves.
 export function retch() {
+  if (sample('retch', { wet: 0.1 })) return;
   if (!ctx || !enabled) return;
   const t = ctx.currentTime;
   for (let i = 0; i < 2; i++) {
@@ -518,6 +631,7 @@ export function retch() {
 
 // Fat spitting on the fire.
 export function sizzle() {
+  if (sample('sizzle', { wet: 0.1 })) return;
   if (!ctx || !enabled) return;
   const t = ctx.currentTime;
   const src = ctx.createBufferSource();
@@ -568,6 +682,7 @@ export function shiver(strength = 1) {
 // The front door on its iron hinges: the dry stick-and-slip squeal of a hinge pin, rising as the door gets going
 // and dragging out as it slows, through the hollow of the wood.
 export function door() {
+  if (sample('door', { pan: 0.7 })) return;
   if (!ctx || !enabled) return;
   const t = ctx.currentTime, len = 1.15;
   const o = ctx.createOscillator();
@@ -604,6 +719,7 @@ export function door() {
 
 // Old floorboards taking weight from below.
 export function creak() {
+  if (sample('creak', { pan: 0.25, jitter: 0.12 })) return;
   if (!ctx || !enabled) return;
   const t = ctx.currentTime;
   const o = ctx.createOscillator();
@@ -627,6 +743,7 @@ export function creak() {
 
 // A trap springing apart: a metal clank and a scrape.
 export function trapSnap() {
+  if (sample('trap', { wet: 0.1 })) return;
   if (!ctx || !enabled) return;
   const t = ctx.currentTime + 0.05;
   // a bear trap tearing apart: a heavy iron clank, a dull ring that dies fast, then the chain dragging
@@ -677,18 +794,21 @@ function noiseShape(type, freqs, gains, dur, q = 1) {
 
 // A long, slow breath out of the dark, very close.
 export function breath() {
+  if (sample('breath', { wet: 0.3 })) return;
   if (!ctx || !enabled) return;
   noiseShape('bandpass', [[0, 260], [0.9, 420], [1.8, 200]], [[0.7, 0.22], [1.3, 0.16], [1.9, 0.0001]], 2, 2.5);
 }
 
 // The whole cabin catching: a rising roar.
 export function roar() {
+  if (sample('roar', {})) return;
   if (!ctx || !enabled) return;
   noiseShape('lowpass', [[0, 200], [1.2, 1600], [3, 700]], [[0.8, 0.45], [2.4, 0.4], [3.4, 0.0001]], 3.5);
 }
 
 // Something heavy dragged away through the snow.
 export function drag() {
+  if (sample('drag', {})) return;
   if (!ctx || !enabled) return;
   const pts = [];
   for (let i = 0; i < 9; i++) pts.push([0.08 + i * 0.16, i % 2 ? 0.05 : 0.2]);
@@ -743,7 +863,7 @@ function startMusic() {
   lfoAmt.gain.value = 70;
   lfo.connect(lfoAmt).connect(lp.frequency);
   lfo.start();
-  const droneGain = ctx.createGain();
+  droneGain = ctx.createGain();
   droneGain.gain.value = 0.05;
   lp.connect(droneGain).connect(musicGain);
   droneGain.connect(verb);
@@ -766,6 +886,7 @@ function startMusic() {
   sour.start();
 
   scheduleNote();
+  startLoops();
 }
 
 // one music-box note: a soft sine with a faint, slightly sharp overtone that beats against it
@@ -822,6 +943,7 @@ export function setMusicEnabled(on) {
 
 // Wet wood on the fire: a long hiss and a few low, damp pops.
 export function sputter() {
+  if (sample('hiss', { vol: 0.6, rate: 0.8 })) return;
   if (!ctx || !enabled) return;
   noiseShape('highpass', [[0, 2600], [1.4, 1800]], [[0.05, 0.12], [0.8, 0.09], [1.5, 0.0001]], 1.6);
   const t = ctx.currentTime;
@@ -830,6 +952,7 @@ export function sputter() {
 
 // The stranger, taken: one sharp, caught breath, a muffled sound cut off, and something dragged under the floor.
 export function gasp() {
+  if (sample('gasp', { wet: 0.1 })) return;
   if (!ctx || !enabled) return;
   noiseShape('bandpass', [[0, 700], [0.22, 1500]], [[0.05, 0.3], [0.24, 0.0001]], 0.3, 3);
   const t = ctx.currentTime + 0.35;
@@ -852,6 +975,7 @@ export function gasp() {
 
 // Whispering, just at the edge of hearing, off to one side: a run of breathy syllables that never become words.
 export function whisper() {
+  if (sample('whisper', { pan: Math.random() * 1.6 - 0.8, wet: 0.6, jitter: 0.12 })) return;
   if (!ctx || !enabled) return;
   const t0 = ctx.currentTime + 0.05;
   const pan = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
@@ -879,6 +1003,7 @@ export function whisper() {
 
 // A rat bolting out of a corner: two quick, high squeaks.
 export function squeak() {
+  if (sample('squeak', { jitter: 0.15 })) return;
   if (!ctx || !enabled) return;
   const t = ctx.currentTime + 0.03;
   [0, 0.13].forEach((d, i) => {
@@ -899,6 +1024,7 @@ export function squeak() {
 
 // Something small scuttling across the floor: a run of dry, quick claw-clicks.
 export function scuttle() {
+  if (sample('scuttle', { pan: Math.random() * 1.6 - 0.8, jitter: 0.15 })) return;
   if (!ctx || !enabled) return;
   const t = ctx.currentTime + 0.02;
   const n = 7 + Math.floor(Math.random() * 5);
@@ -921,6 +1047,7 @@ export function scuttle() {
 
 // The thing in the trees moving off: a long howl that falls in pitch and fades into the distance.
 export function recede() {
+  if (sample('howl', { vol: 0.35, rate: 0.9, pan: -0.5, lowpass: 900, wet: 0.6 })) return;
   if (!ctx || !enabled) return;
   const t = ctx.currentTime + 0.05;
   const lp = ctx.createBiquadFilter();
@@ -947,6 +1074,7 @@ export function recede() {
 
 // Terrifying: the jolt of a jump scare, a harsh noise burst over a crushed, dissonant chord.
 export function jolt(strength = 1) {
+  if (sample('stinger', { vol: Math.min(1.3, 0.6 + 0.6 * strength), wet: 0.3, jitter: 0.03 })) return;
   if (!ctx || !enabled) return;
   noiseShape('highpass', [[0, 800], [0.4, 300]], [[0.01, 0.6 * strength], [0.45, 0.0001]], 0.5);
   const t = ctx.currentTime;

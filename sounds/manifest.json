@@ -1,0 +1,118 @@
+{
+ "door": [
+  "door1.mp3",
+  "door2.mp3"
+ ],
+ "slam": [
+  "slam1.mp3",
+  "slam2.mp3"
+ ],
+ "thump": [
+  "thump1.mp3",
+  "thump2.mp3"
+ ],
+ "knock": [
+  "knock1.mp3",
+  "knock2.mp3",
+  "knock3.mp3",
+  "knock4.mp3",
+  "knock5.mp3",
+  "knock6.mp3"
+ ],
+ "snowstep": [
+  "snowstep1.mp3",
+  "snowstep2.mp3",
+  "snowstep3.mp3",
+  "snowstep4.mp3",
+  "snowstep5.mp3"
+ ],
+ "stomach": [
+  "stomach1.mp3",
+  "stomach2.mp3",
+  "stomach3.mp3"
+ ],
+ "howl": [
+  "howl1.mp3",
+  "howl2.mp3"
+ ],
+ "scratch": [
+  "scratch1.mp3",
+  "scratch2.mp3",
+  "scratch3.mp3"
+ ],
+ "creak": [
+  "creak1.mp3",
+  "creak2.mp3",
+  "creak3.mp3",
+  "creak4.mp3"
+ ],
+ "scream": [
+  "scream1.mp3",
+  "scream2.mp3",
+  "scream3.mp3"
+ ],
+ "monster": [
+  "monster1.mp3",
+  "monster2.mp3",
+  "monster3.mp3"
+ ],
+ "whisper": [
+  "whisper1.mp3",
+  "whisper2.mp3",
+  "whisper3.mp3"
+ ],
+ "heartbeat": [
+  "heartbeat1.mp3",
+  "heartbeat2.mp3"
+ ],
+ "shatter": [
+  "shatter1.mp3",
+  "shatter2.mp3"
+ ],
+ "sizzle": [
+  "sizzle1.mp3"
+ ],
+ "stinger": [
+  "stinger1.mp3",
+  "stinger2.mp3",
+  "stinger3.mp3"
+ ],
+ "sting": [
+  "sting1.mp3",
+  "sting2.mp3"
+ ],
+ "trap": [
+  "trap1.mp3",
+  "trap2.mp3"
+ ],
+ "squeak": [
+  "squeak1.mp3",
+  "squeak2.mp3"
+ ],
+ "scuttle": [
+  "scuttle1.mp3",
+  "scuttle2.mp3",
+  "scuttle3.mp3"
+ ],
+ "hiss": [
+  "hiss1.mp3",
+  "hiss2.mp3"
+ ],
+ "crack": [
+  "crack1.mp3",
+  "crack2.mp3",
+  "crack3.mp3"
+ ],
+ "bite": [
+  "bite1.mp3"
+ ],
+ "fire_loop": [
+  "fire_loop1.ogg"
+ ],
+ "wind_loop": [
+  "wind_loop1.ogg"
+ ],
+ "drone_loop": [
+  "drone_loop1.ogg"
+ ]
+}

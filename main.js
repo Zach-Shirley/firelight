@@ -8,7 +8,7 @@ import { computeScore, qualifies, insertScore, cleanInitials, sanitizeBoard } fr
 import { CHALLENGES, challengeById, recordFor } from './challenges.js';
 import { createDoom } from './doom.js';
 
-const VERSION = '0.79';   // one step per commit to the repository
+const VERSION = '0.80';   // one step per commit to the repository
 const W = 320, H = 180;
 const FIRE = { x: 160, y: 136 };          // base of the flames
 const LIGHT_Y = 130;                       // centre of the light pool
@@ -2372,6 +2372,7 @@ function eat() {
   if (S.cooked > 0) {
     takeCooked(1);
     S.hunger = Math.max(0, S.hunger - 45);
+    sfx.bite();
     say(pick(['you eat the cooked meat. it helps.', 'you chew slowly. warmth spreads through you.']));
   } else if (S.meat > 0) {
     takeRaw(1);
