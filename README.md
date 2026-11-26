@@ -387,6 +387,7 @@ index.html          markup: canvases, HUD, actions, dialogue, panels, title and 
 style.css           pixel-styled UI, all sized from one --s scale variable
 main.js             the night, threats, trips, doors, drawing, UI wiring
 sound.js            recorded sounds (sounds/) and procedural audio
+sw.js               offline play and installing as an app (with manifest.webmanifest)
 score.js            scoring and leaderboard logic (pure, tested)
 tests/              Node test runner tests
 tools/sim.js        difficulty simulation, the evolved perfect player (not deployed)
@@ -395,6 +396,14 @@ tools/challenge-records.json  the bots' challenge records, replayable
 challenges.js       the challenges, their multipliers and the bots' records
 docs/               README screenshots
 ```
+
+## Install it (Chromebook, phone, desktop)
+
+Firelight is an installable web app. Open the live link in Chrome and choose **Install** (the icon at the right of the address bar, or the ⋮ menu → *Cast, save and share* → *Install page as app*). It gets its own icon and window, and after it has loaded once it plays with no internet connection, sounds included. Online, it picks up new versions on the next launch. On a phone, use *Add to Home screen*.
+
+The service worker is `sw.js`: network first with a three-second fallback to the saved copy, so updates are never stuck behind an old cache. The DOOM tribute's soundtrack isn't saved for offline play; offline, that easter egg uses its synthesized loop.
+
+**School Chromebooks:** a managed Chromebook may block installing apps, or block `vercel.app` altogether. Neither can be fixed from the game's side; a custom domain might get past a filter that blocks `vercel.app`.
 
 ## Phones
 
@@ -473,7 +482,7 @@ Open the game once with `?dev` on the address (https://firelight-topaz.vercel.ap
 
 The playtest menu also opens the **death lab** (or go straight there with `?lab`, https://firelight-topaz.vercel.app/?lab): every death on its own in an empty lit cabin, set up the way the room looks when it really happens (night 4's goblins, night 5's blood hour, out in the trees for the hunter and the whiteout), plus the flood from each way in, the goblins from one, two or three corners, the jump scare for every death, the face at the window on a close call, and the mimic stopped at the salt line. Play, pause, restart, scrub, slow it to 0.25x or 0.5x, switch scares between eerie and terrifying, and turn sound on or off (space, R, the arrow keys for one frame, Esc to leave). Scenes run from a fixed seed, so scrubbing shows the same frames each time. Nothing in the lab touches your saved night, the stats, the leaderboard or achievements.
 
-The version is in the bottom-right corner (v0.85 is the 85th commit; the number counts every commit, docs included), so you can tell a refresh picked up the latest build.
+The version is in the bottom-right corner (v0.86 is the 86th commit; the number counts every commit, docs included), so you can tell a refresh picked up the latest build.
 
 ## Future ideas
 

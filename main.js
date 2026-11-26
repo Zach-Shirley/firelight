@@ -8,7 +8,7 @@ import { computeScore, qualifies, insertScore, cleanInitials, sanitizeBoard } fr
 import { CHALLENGES, challengeById, recordFor } from './challenges.js';
 import { createDoom } from './doom.js';
 
-const VERSION = '0.85';   // one step per commit to the repository
+const VERSION = '0.86';   // one step per commit to the repository
 const W = 320, H = 180;
 const FIRE = { x: 160, y: 136 };          // base of the flames
 const LIGHT_Y = 130;                       // centre of the light pool
@@ -6855,3 +6855,8 @@ window.__firelight = {
     if (draw) { drawPixels(); drawLight(); syncUI(); }
   },
 };
+
+// installable as an app, and playable offline once it has loaded here once (sw.js)
+if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+}
